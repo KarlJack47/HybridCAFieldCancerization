@@ -388,7 +388,6 @@ struct Cell {
 					phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M * 4 + j]);
 				else
 					phenotype[j] = fminf(phenotype[j] + downreg_phenotype_map[M*4+j], 1.0f);
-				consumption += fabsf(downreg_phenotype_map[M * 4 + j]);
 			}
 		// up-regulation
 		} else {
@@ -397,7 +396,6 @@ struct Cell {
 					phenotype[j] = fmaxf(0.0f, phenotype[j] + upreg_phenotype_map[M * 4 + j]);
 				else
 					phenotype[j] = fminf(phenotype[j] + upreg_phenotype_map[M*4+j], 1.0f);
-				consumption += fabsf(upreg_phenotype_map[M * 4 + j]);
 			}
 		}
 	}
@@ -410,7 +408,7 @@ struct Cell {
 			int M = M_idx[i];
 			if (M != 0 && state != 6) {
 				float prevMut = mutations[M];
-				NN->mutate(cell, M, index_map, mutations, states);
+				NN->mutate(cell, M, index_map, mutations, consumption, states);
 				float newMut = mutations[M];
 				phenotype_mutate(M, prevMut, newMut);
 			}
@@ -422,7 +420,7 @@ struct Cell {
 				for (int j = 0; j < num; j++) {
 					unsigned int idx = (int) ceilf(curand_uniform(&states[cell])*11) % 11;
 					float prevMut = mutations[idx];
-					NN->mutate(cell, idx, index_map, mutations, states);
+					NN->mutate(cell, idx, index_map, mutations, consumption, states);
 					float newMut = mutations[idx];
 					float out[11];
 					NN->evaluate(in, out);
