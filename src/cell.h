@@ -310,8 +310,21 @@ struct Cell {
 		}
 	}
 
+	__device__ int random_mutation_index(int cell, curandState_t *states) {
+		int count = 0;
+		int valid_idx[11];
+		for (int i = 0; i < NN->n_output; i++) {
+			if (mutations[i] != 0) {
+				valid_idx[count] = i;
+				count++;
+			}
+		}
+
+		return valid_idx[(int) ceilf(curand_uniform(&states[cell])*count) % count];
+	}
+
 	__device__ int proliferate(int cell, Cell *c, curandState_t *states) {
-		int idx = (int) ceilf(curand_uniform(&states[cell])*NN->n_output) % NN->n_output;
+		int idx = random_mutation_index(cell, states);
 		int new_state = -1;
 		if ((state == 4 && mutations[3] >= 0.1) || state != 4) {
 			if (mutations[idx] >= 0.1) {
@@ -345,13 +358,13 @@ struct Cell {
 		else if (state == 4 && mutations[3] >= 0.1)
 			new_state = 5;
 		if (new_state != -1) {
-			int idx = (int) ceilf(curand_uniform(&states[cell]) * NN->n_output) % NN->n_output;
-			if ((int) ceilf(curand_uniform(&states[cell]) * 2) % 2 == 0) {
-				change_state(state_mut_map[state * 11 + idx]);
+			int idx = random_mutation_index(cell, states);
+			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 0) {
+				change_state(state_mut_map[state*11+idx]);
 				c->change_state(new_state);
 			} else {
 				c->change_state(new_state);
-				change_state(state_mut_map[state * 11 + idx]);
+				change_state(state_mut_map[state*11+idx]);
 			}
 			copy_mutations(c);
 		}
