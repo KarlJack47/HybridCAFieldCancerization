@@ -41,10 +41,10 @@ struct Cell {
 					     0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 					     2, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 		float host_upreg_phenotype_map[11*4] = {0.0, 0.0, 0.0, 0.0,
-						        -0.01, +0.01, +0.01, 0.0,
-						        0.0, 0.0, +0.01, 0.0,
-						        -0.01, +0.01, 0.0, 0.0,
-				    		        -0.01, +0.01, 0.0, -0.01,
+						        -0.01, 0.01, 0.01, 0.0,
+						        0.0, 0.0, 0.01, 0.0,
+						        -0.01, 0.01, 0.0, 0.0,
+				    		        -0.01, 0.01, 0.0, -0.01,
 						        -0.01, 0.0, 0.0, 0.0,
 						        0.01, 0.0, 0.0, 0.0,
 						        0.0, 0.0, -0.01, 0.0,
@@ -58,10 +58,10 @@ struct Cell {
 				    		          0.01, -0.01, 0.0, 0.01,
 						          0.01, 0.0, 0.0, 0.0,
 						          -0.01, 0.0, 0.0, 0.0,
-						          0.0, 0.0, +0.01, 0.0,
-				    		          -0.01, 0.0, +0.01, -0.01,
-						          0.0, 0.0, +0.01, 0.0,
-						          -0.01, 0.0, +0.01, -0.01};
+						          0.0, 0.0, 0.01, 0.0,
+				    		          -0.01, 0.0, 0.01, -0.01,
+						          0.0, 0.0, 0.01, 0.0,
+						          -0.01, 0.0, 0.01, -0.01};
 		float host_phenotype_init[7*4] = {0.1, 0.7, 0.3, 0.0,
 						  0.2, 0.7, 0.15, 0.0,
 						  0.1, 0.7, 0.075, 0.3,
@@ -382,7 +382,7 @@ struct Cell {
 
 	__device__ void phenotype_mutate(int M, float prevMut, float newMut) {
 		// down-regulation
-		if (prevMut > newMut) {
+		if (prevMut > newMut && count != 4) {
 			for (int j = 0; j < 4; j++) {
 				if (downreg_phenotype_map[M*4+j] < 0)
 					phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M * 4 + j]);
@@ -404,6 +404,7 @@ struct Cell {
 		int M_idx[11];
 		int count = max_idx(result, M_idx, NN->n_output);
 		consumption = 0.0f;
+
 		for (int i = 0; i < count; i++) {
 			int M = M_idx[i];
 			if (M != 0 && state != 6) {
@@ -413,6 +414,7 @@ struct Cell {
 				phenotype_mutate(M, prevMut, newMut);
 			}
 		}
+
 		if (state != 6) {
 			// Random mutations
 			if ((int) ceilf(curand_uniform(&states[cell])*1000) <= 10) {
@@ -432,6 +434,7 @@ struct Cell {
 				}
 			}
 		}
+
 		if (state != 6) age++;
 	}
 };
