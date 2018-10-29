@@ -382,7 +382,7 @@ struct Cell {
 
 	__device__ void phenotype_mutate(int M, float prevMut, float newMut) {
 		// down-regulation
-		if (prevMut > newMut && count != 4) {
+		if (prevMut > newMut) {
 			for (int j = 0; j < 4; j++) {
 				if (downreg_phenotype_map[M*4+j] < 0)
 					phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M * 4 + j]);
