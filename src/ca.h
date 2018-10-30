@@ -337,7 +337,7 @@ struct CA {
 
 		CudaSafeCall(cudaSetDevice(1));
 		for (int i = 0; i < d.n_carcinogens; i++) {
-			d.pdes[i] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[i], liquid[i]);
+			d.pdes[i] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[i], liquid[i], i);
 			d.pdes[i].init();
 			d.pdes[i].host_to_gpu_copy(i, d.dev_pdes);
 		}

@@ -111,18 +111,16 @@ struct MutationNN {
 		feedforward(in, W_in, b_in, hidden, W_out, b_out, out, n_input, n_hidden, n_output);
 	}
 
-	__device__ void mutate(int cell, int M, const int *idx, float *mutations, float consumption, curandState_t *states) {
+	__device__ void mutate(int cell, int M, const int *idx, float *mutations, curandState_t *states) {
 		if (M != 0) {
 			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
 				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 				W_out[M*n_output+M] += incr;
 				mutations[M] += incr;
-				consumption += incr;
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
 				W_out[M*n_output+M] -= decr;
 				mutations[M] -= decr;
-				consumption += decr;
 			}
 		}
 		for (int i = 0; i < idx[M*12]; i++) {
@@ -130,23 +128,19 @@ struct MutationNN {
 				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] += incr;
 				mutations[idx[M*12+(i+1)]] += incr;
-				consumption += incr;
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] -= decr;
 				mutations[idx[M*12+(i+1)]] -= decr;
-				consumption += decr;
 			}
 			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
 				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+M] += incr;
 				mutations[M] += incr;
-				consumption += incr;
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+M] -= decr;
 				mutations[M] -= decr;
-				consumption += decr;
 			}
 		}
 	}
