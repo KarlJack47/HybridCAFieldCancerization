@@ -3,6 +3,8 @@
 
 #include "mutation_nn.h"
 
+#define MUT_THRESHHOLD 0.1
+
 // "NC": 0
 // "MNC": 1
 // "SC": 2
@@ -314,7 +316,7 @@ struct Cell {
 		int count = 0;
 		int valid_idx[11];
 		for (int i = 0; i < NN->n_output; i++) {
-			if (mutations[i] != 0) {
+			if (mutations[i] >= MUT_THRESHHOLD) {
 				valid_idx[count] = i;
 				count++;
 			}
@@ -326,20 +328,15 @@ struct Cell {
 	__device__ int proliferate(int cell, Cell *c, curandState_t *states) {
 		int idx = random_mutation_index(cell, states);
 		int new_state = -1;
-		if ((state == 4 && mutations[3] >= 0.1) || state != 4) {
-			if (mutations[idx] >= 0.1) {
-				if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 0) {
-					change_state(state_mut_map[state*11+idx]);
-					c->change_state(child_mut_map[state*11+idx]);
-				} else {
-					c->change_state(child_mut_map[state*11+idx]);
-					change_state(state_mut_map[state*11+idx]);
-				}
-				new_state = child_mut_map[state*11+idx];
+		if ((state == 4 && mutations[3] >= MUT_THRESHHOLD) || state != 4) {
+			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 0) {
+				change_state(state_mut_map[state*11+idx]);
+				c->change_state(child_mut_map[state*11+idx]);
 			} else {
-				c->change_state(child_mut_map[state*11]);
-				new_state = state;
+				c->change_state(child_mut_map[state*11+idx]);
+				change_state(state_mut_map[state*11+idx]);
 			}
+			new_state = child_mut_map[state*11+idx];
 			copy_mutations(c);
 		}
 
@@ -349,13 +346,13 @@ struct Cell {
 	__device__ int differentiate( int cell, Cell *c, curandState_t *states ) {
 		int new_state = -1;
 		if (state == 2) {
-			if (mutations[1] >= 0.1 || mutations[8] >= 0.1 || mutations[10] >= 0.1)
+			if (mutations[1] >= MUT_THRESHHOLD || mutations[8] >= MUT_THRESHHOLD || mutations[10] >= MUT_THRESHHOLD)
 				new_state = 1;
 			else
 				new_state = 0;
 		} else if (state == 3)
 			new_state = 1;
-		else if (state == 4 && mutations[3] >= 0.1)
+		else if (state == 4 && mutations[3] >= MUT_THRESHHOLD)
 			new_state = 5;
 		if (new_state != -1) {
 			int idx = random_mutation_index(cell, states);
