@@ -138,7 +138,7 @@ struct CarcinogenPDE {
 		T = num_timesteps + 1;
 		T_scale = 16.0;
 		diffusion = diff;
-		dx = 1/(float)N;
+		dx = 1 / (float) N;
 		dt = 5e-4;
 		liquid = liq;
 		ic = 0.0f;
@@ -146,9 +146,9 @@ struct CarcinogenPDE {
 			bc = 1.0f;
 		else
 			bc = 0.0f;
-		Nx = N/dx;
-		maxT = 1/dt;
-		s = diffusion * T_scale * dt / (12*dx*dx);
+		Nx = N / dx;
+		maxT = 1 / dt;
+		s = diffusion * T_scale * dt / (12 * dx * dx);
 		carcin_idx = idx;
 		CudaSafeCall(cudaSetDevice(1));
 		CudaSafeCall(cudaMalloc((void**)&results, T*Nx*sizeof(float)));
@@ -170,10 +170,9 @@ struct CarcinogenPDE {
                 l_pde->s = s;
                 l_pde->liquid = liquid;
 		l_pde->carcin_idx = carcin_idx;
-
-                float *dev_results;
-                CudaSafeCall(cudaMalloc((void**)&dev_results, T*Nx*sizeof(float)));
-                CudaSafeCall(cudaMemcpy(dev_results, results, T*Nx*sizeof(float), cudaMemcpyHostToDevice));
+		float *dev_results;
+		CudaSafeCall(cudaMalloc((void**)&dev_results, T*Nx*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_results, results, T*Nx*sizeof(float), cudaMemcpyDeviceToDevice));
                 l_pde->results = dev_results;
 
                 CudaSafeCall(cudaMemcpy(&dev_pde[idx], &l_pde[0], sizeof(CarcinogenPDE), cudaMemcpyHostToDevice));

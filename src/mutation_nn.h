@@ -1,7 +1,7 @@
 #ifndef __MUTATION_NN_H__
 #define __MUTATION_NN_H__
 
-__device__ void activation(int idx, float const *input, float *output) {
+__device__ void activation(int idx, float *input, float *output) {
 	/*  Computes the value of the sigmoid function f(x) = 1/(1 + e^-2x).
             Inputs:
             input: array
@@ -11,7 +11,7 @@ __device__ void activation(int idx, float const *input, float *output) {
 	output[idx] = 1.0 / (1.0 + std::exp(-2*input[idx]));
 }
 
-__device__ float* dot(int idx, const float *m1, const float *m2, float *output, const int m1_rows , const int m1_columns, const int m2_columns) {
+__device__ float* dot(int idx, float *m1, float *m2, float *output, int m1_rows , int m1_columns, int m2_columns) {
 	/*  Computes the product of two matrices: m1 x m2.
 	    Inputs:
 	    m1: array, left matrix of size m1_rows x m1_columns
@@ -24,7 +24,7 @@ __device__ float* dot(int idx, const float *m1, const float *m2, float *output, 
 	*/
 
 	for (int i = idx; i < m1_rows*m2_columns; i += m2_columns*m1_rows) {
-		int r = (int) i / m2_columns;
+		int r = i / m2_columns;
 		int c = i % m2_columns;
 		float t_output = 0.0f;
 		for(int k = 0; k < m1_columns; k++) {
@@ -36,7 +36,7 @@ __device__ float* dot(int idx, const float *m1, const float *m2, float *output, 
 	return output;
 }
 
-__device__ float* matrixAddMatrix(int idx, const float *m1, const float *m2, float *output) {
+__device__ float* matrixAddMatrix(int idx, float *m1, float *m2, float *output) {
 	/* Computes the (elementwise) addition between two arrays
 	   Inputs:
 	   m1: array
@@ -49,7 +49,7 @@ __device__ float* matrixAddMatrix(int idx, const float *m1, const float *m2, flo
 	return output;
 }
 
-__device__ void feedforward(float* input, float* W_in, float *b_in, float *hidden, float *W_out, float* b_out, float *output,
+__device__ void feedforward(float *input, float *W_in, float *b_in, float *hidden, float *W_out, float *b_out, float *output,
 			    int n_input, int n_hidden, int n_output) {
 
 	for (int i = 0; i < n_hidden; i++) {
@@ -62,6 +62,8 @@ __device__ void feedforward(float* input, float* W_in, float *b_in, float *hidde
 }
 
 struct MutationNN {
+	float *input;
+	float *output;
 	float *hidden;
 	float *W_in;
 	float *W_out;
@@ -78,28 +80,38 @@ struct MutationNN {
 		n_output = n_out;
 	}
 
-	void memory_allocate(float* W_x, float* b_x, float* W_y, float* b_y) {
+	void memory_allocate(float *W_x, float *b_x, float *W_y, float *b_y) {
 		float *hid = (float*)malloc(n_hidden*sizeof(float));
-		for (int i = 0; i < n_hidden; i++) {
-			hid[i] = 0.0f;
-		}
+		memset(hid, 0.0f, n_hidden*sizeof(float));
+		float *in = (float*)malloc(n_input*sizeof(float));
+		memset(in, 0.0f, n_input*sizeof(float));
+		float *out = (float*)malloc(n_output*sizeof(float));
+		memset(out, 0.0f, n_output*sizeof(float));
 
+		CudaSafeCall(cudaMalloc((void**)&input, n_input*sizeof(float)));
+		CudaSafeCall(cudaMalloc((void**)&output, n_output*sizeof(float)));
 		CudaSafeCall(cudaMalloc((void**)&W_in, n_hidden*n_input*sizeof(float)));
 		CudaSafeCall(cudaMalloc((void**)&b_in, n_hidden*sizeof(float)));
 		CudaSafeCall(cudaMalloc((void**)&hidden, n_hidden*sizeof(float)));
 		CudaSafeCall(cudaMalloc((void**)&W_out, n_output*n_hidden*sizeof(float)));
 		CudaSafeCall(cudaMalloc((void**)&b_out, n_output*sizeof(float)));
 
+		CudaSafeCall(cudaMemcpy(input, in, n_input*sizeof(float), cudaMemcpyHostToDevice));
+		CudaSafeCall(cudaMemcpy(output, out, n_output*sizeof(float), cudaMemcpyHostToDevice));
 		CudaSafeCall(cudaMemcpy(W_in, W_x, n_hidden*n_input*sizeof(float), cudaMemcpyHostToDevice));
 		CudaSafeCall(cudaMemcpy(b_in, b_x, n_hidden*sizeof(float), cudaMemcpyHostToDevice));
 		CudaSafeCall(cudaMemcpy(hidden, hid, n_hidden*sizeof(float), cudaMemcpyHostToDevice));
 		CudaSafeCall(cudaMemcpy(W_out, W_y, n_output*n_hidden*sizeof(float), cudaMemcpyHostToDevice));
 		CudaSafeCall(cudaMemcpy(b_out, b_y, n_output*sizeof(float), cudaMemcpyHostToDevice));
 
+		free(in);
+		free(out);
 		free(hid);
 	}
 
 	void free_resources(void) {
+		CudaSafeCall(cudaFree(input));
+		CudaSafeCall(cudaFree(output));
 		CudaSafeCall(cudaFree(W_in));
 		CudaSafeCall(cudaFree(b_in));
 		CudaSafeCall(cudaFree(hidden));
@@ -107,8 +119,50 @@ struct MutationNN {
 		CudaSafeCall(cudaFree(b_out));
 	}
 
-	__device__ void evaluate(float *in, float *out) {
-		feedforward(in, W_in, b_in, hidden, W_out, b_out, out, n_input, n_hidden, n_output);
+	void host_to_gpu_copy(MutationNN *dev_NN) {
+		MutationNN *l_NN = (MutationNN*)malloc(sizeof(MutationNN));
+
+		l_NN->n_input = n_input;
+		l_NN->n_hidden = n_hidden;
+		l_NN->n_output = n_output;
+
+		float *dev_input;
+		CudaSafeCall(cudaMalloc((void**)&dev_input, n_input*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_input, input, n_input*sizeof(float), cudaMemcpyDeviceToDevice));
+		l_NN->input = dev_input;
+		float *dev_output;
+		CudaSafeCall(cudaMalloc((void**)&dev_output, n_output*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_output, output, n_output*sizeof(float), cudaMemcpyDeviceToDevice));
+		l_NN->output = output;
+		float *dev_hidden;
+		CudaSafeCall(cudaMalloc((void**)&dev_hidden, n_hidden*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_hidden, hidden, n_hidden*sizeof(float), cudaMemcpyDeviceToDevice));
+		l_NN->hidden = hidden;
+
+		float *dev_W_in;
+		CudaSafeCall(cudaMalloc((void**)&dev_W_in, n_hidden*n_input*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_W_in, W_in, n_hidden*n_input*sizeof(float), cudaMemcpyDeviceToDevice));
+		l_NN->W_in = dev_W_in;
+		float *dev_W_out;
+		CudaSafeCall(cudaMalloc((void**)&dev_W_out, n_hidden*n_output*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_W_out, W_out, n_hidden*n_output*sizeof(float), cudaMemcpyDeviceToDevice));
+		l_NN->W_out = dev_W_out;
+		float *dev_b_in;
+		CudaSafeCall(cudaMalloc((void**)&dev_b_in, n_hidden*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_b_in, b_in, n_hidden*sizeof(float), cudaMemcpyDeviceToDevice));
+		l_NN->b_in = dev_b_in;
+		float *dev_b_out;
+		CudaSafeCall(cudaMalloc((void**)&dev_b_out, n_output*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_b_out, b_out, n_output*sizeof(float), cudaMemcpyDeviceToDevice));
+		l_NN->b_out = dev_b_out;
+
+		CudaSafeCall(cudaMemcpy(dev_NN, l_NN, sizeof(MutationNN), cudaMemcpyHostToDevice));
+
+		free(l_NN);
+	}
+
+	__device__ void evaluate(void) {
+		feedforward(input, W_in, b_in, hidden, W_out, b_out, output, n_input, n_hidden, n_output);
 	}
 
 	__device__ void mutate(int cell, int M, const int *idx, float *mutations, curandState_t *states) {

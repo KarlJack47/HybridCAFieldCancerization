@@ -16,6 +16,10 @@
 struct Cell {
 	int state;
 	int age;
+	bool action_completed;
+	int mutation_idx;
+	int phenotype_idx;
+	int location;
 	float *phenotype;
 	float *mutations;
 	float *consumption;
@@ -174,6 +178,10 @@ struct Cell {
 		CudaSafeCall(cudaMalloc((void**)&consumption, (n_input-1)*sizeof(float)));
 		CudaSafeCall(cudaMemcpy(consumption, consumption_temp, (n_input-1)*sizeof(float), cudaMemcpyHostToDevice));
 		age = 0;
+		action_completed = false;
+		mutation_idx = 0;
+		phenotype_idx = 0;
+		location = 0;
 
 	}
 
@@ -202,6 +210,7 @@ struct Cell {
 		CudaSafeCall(cudaFree(upreg_phenotype_map));
 		CudaSafeCall(cudaFree(downreg_phenotype_map));
 		CudaSafeCall(cudaFree(phenotype_init));
+		CudaSafeCall(cudaFree(state_mut_map));
 		CudaSafeCall(cudaFree(child_mut_map));
 		NN->free_resources();
 		free(NN);
@@ -211,49 +220,56 @@ struct Cell {
 		Cell *l_c = (Cell*)malloc(sizeof(Cell));
 		l_c->state = state;
 		l_c->age = age;
-                float *dev_phenotype;
-                CudaSafeCall(cudaMalloc((void**)&dev_phenotype, 4*sizeof(float)));
-                CudaSafeCall(cudaMemcpy(dev_phenotype, phenotype, 4*sizeof(float), cudaMemcpyHostToDevice));
+		l_c->action_completed = action_completed;
+		l_c->mutation_idx = mutation_idx;
+		l_c->phenotype_idx = phenotype_idx;
+		l_c->location = location;
+
+		float *dev_phenotype;
+		CudaSafeCall(cudaMalloc((void**)&dev_phenotype, 4*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_phenotype, phenotype, 4*sizeof(float), cudaMemcpyDeviceToDevice));
                 l_c->phenotype = dev_phenotype;
 		float *dev_consumption;
 		CudaSafeCall(cudaMalloc((void**)&dev_consumption, (NN->n_input-1)*sizeof(float)));
-		CudaSafeCall(cudaMemcpy(dev_consumption, consumption, (NN->n_input-1)*sizeof(float), cudaMemcpyHostToDevice));
+		CudaSafeCall(cudaMemcpy(dev_consumption, consumption, (NN->n_input-1)*sizeof(float), cudaMemcpyDeviceToDevice));
                 l_c->consumption = dev_consumption;
-                float *dev_mutations;
-                CudaSafeCall(cudaMalloc((void**)&dev_mutations, NN->n_output*sizeof(float)));
-                CudaSafeCall(cudaMemcpy(dev_mutations, mutations, NN->n_output*sizeof(float), cudaMemcpyHostToDevice));
+		float *dev_mutations;
+		CudaSafeCall(cudaMalloc((void**)&dev_mutations, 11*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_mutations, mutations, 11*sizeof(float), cudaMemcpyDeviceToDevice));
                 l_c->mutations = dev_mutations;
-                MutationNN *dev_NN;
+
+		MutationNN *dev_NN;
                 CudaSafeCall(cudaMalloc((void**)&dev_NN, sizeof(MutationNN)));
-                CudaSafeCall(cudaMemcpy(dev_NN, NN, sizeof(MutationNN), cudaMemcpyHostToDevice));
+                NN->host_to_gpu_copy(dev_NN);
                 l_c->NN = dev_NN;
-                float *dev_W_y_init;
-                CudaSafeCall(cudaMalloc((void**)&dev_W_y_init, NN->n_output*NN->n_output*sizeof(float)));
-                CudaSafeCall(cudaMemcpy(dev_W_y_init, W_y_init, NN->n_output*NN->n_output*sizeof(float), cudaMemcpyHostToDevice));
+
+		float *dev_W_y_init;
+		CudaSafeCall(cudaMalloc((void**)&dev_W_y_init, NN->n_hidden*NN->n_output*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_W_y_init, W_y_init, NN->n_hidden*NN->n_output*sizeof(float), cudaMemcpyDeviceToDevice));
                 l_c->W_y_init = dev_W_y_init;
-                int *dev_index_map;
-                CudaSafeCall(cudaMalloc((void**)&dev_index_map, NN->n_output*(NN->n_output+1)*sizeof(int)));
-                CudaSafeCall(cudaMemcpy(dev_index_map, index_map, NN->n_output*(NN->n_output+1)*sizeof(int), cudaMemcpyHostToDevice));
+		int *dev_index_map;
+		CudaSafeCall(cudaMalloc((void**)&dev_index_map, NN->n_output*(NN->n_output+1)*sizeof(int)));
+		CudaSafeCall(cudaMemcpy(dev_index_map, index_map, NN->n_output*(NN->n_output+1)*sizeof(int), cudaMemcpyDeviceToDevice));
                 l_c->index_map = dev_index_map;
-                float *dev_upreg_phenotype_map;
-                CudaSafeCall(cudaMalloc((void**)&dev_upreg_phenotype_map, NN->n_output*4*sizeof(float)));
-                CudaSafeCall(cudaMemcpy(dev_upreg_phenotype_map, upreg_phenotype_map, NN->n_output*4*sizeof(float), cudaMemcpyHostToDevice));
+		float *dev_upreg_phenotype_map;
+		CudaSafeCall(cudaMalloc((void**)&dev_upreg_phenotype_map, NN->n_output*4*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_upreg_phenotype_map, upreg_phenotype_map, NN->n_output*4*sizeof(float), cudaMemcpyDeviceToDevice));
                 l_c->upreg_phenotype_map = dev_upreg_phenotype_map;
 		float *dev_downreg_phenotype_map;
-                CudaSafeCall(cudaMalloc((void**)&dev_downreg_phenotype_map, NN->n_output*4*sizeof(float)));
-                CudaSafeCall(cudaMemcpy(dev_downreg_phenotype_map, upreg_phenotype_map, NN->n_output*4*sizeof(float), cudaMemcpyHostToDevice));
+		CudaSafeCall(cudaMalloc((void**)&dev_downreg_phenotype_map, NN->n_output*4*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_downreg_phenotype_map, downreg_phenotype_map, NN->n_output*4*sizeof(float), cudaMemcpyDeviceToDevice));
                 l_c->downreg_phenotype_map = dev_downreg_phenotype_map;
-                float *dev_phenotype_init;
-                CudaSafeCall(cudaMalloc((void**)&dev_phenotype_init, 7*4*sizeof(float)));
-                CudaSafeCall(cudaMemcpy(dev_phenotype_init, phenotype_init, 7*4*sizeof(float), cudaMemcpyHostToDevice));
+		float *dev_phenotype_init;
+		CudaSafeCall(cudaMalloc((void**)&dev_phenotype_init, 7*4*sizeof(float)));
+		CudaSafeCall(cudaMemcpy(dev_phenotype_init, phenotype_init, 7*4*sizeof(float), cudaMemcpyDeviceToDevice));
                 l_c->phenotype_init = dev_phenotype_init;
 		int *dev_state_mut_map;
 		CudaSafeCall(cudaMalloc((void**)&dev_state_mut_map, 6*NN->n_output*sizeof(int)));
-		CudaSafeCall(cudaMemcpy(dev_state_mut_map, state_mut_map, 6*NN->n_output*sizeof(int), cudaMemcpyHostToDevice));
+		CudaSafeCall(cudaMemcpy(dev_state_mut_map, state_mut_map, 6*NN->n_output*sizeof(int), cudaMemcpyDeviceToDevice));
 		l_c->state_mut_map = dev_state_mut_map;
-                int *dev_child_mut_map;
-                CudaSafeCall(cudaMalloc((void**)&dev_child_mut_map, 6*NN->n_output*sizeof(int)));
-                CudaSafeCall(cudaMemcpy(dev_child_mut_map, child_mut_map, 6*NN->n_output*sizeof(int), cudaMemcpyHostToDevice));
+		int *dev_child_mut_map;
+		CudaSafeCall(cudaMalloc((void**)&dev_child_mut_map, 6*NN->n_output*sizeof(int)));
+		CudaSafeCall(cudaMemcpy(dev_child_mut_map, child_mut_map, 6*NN->n_output*sizeof(int), cudaMemcpyDeviceToDevice));
                 l_c->child_mut_map = dev_child_mut_map;
 
 		CudaSafeCall(cudaMemcpy(&dev_c[idx], &l_c[0], sizeof(Cell), cudaMemcpyHostToDevice));
@@ -295,6 +311,7 @@ struct Cell {
 			else
 				count = get_indexes(sorted_phenotype[3], phenotype, idx, 4);
 			int i = (int) ceilf(curand_uniform(&states[cell])*count) % count;
+			phenotype_idx = idx[i];
 			return idx[i];
 		} else return -1;
 	}
@@ -329,28 +346,31 @@ struct Cell {
 			}
 		}
 
-		return valid_idx[(int) ceilf(curand_uniform(&states[cell])*count) % count];
+		int i = (int) ceilf(curand_uniform(&states[cell])*count) % count;
+		mutation_idx = valid_idx[i];
+
+		return valid_idx[i];
 	}
 
-	__device__ int proliferate(int cell, Cell *c, curandState_t *states) {
-		int idx = random_mutation_index(cell, states);
+	__device__ int proliferate(int cell, Cell *c, bool update_cell, curandState_t *states) {
+		int idx;
+		if (update_cell == false) idx = random_mutation_index(cell, states);
+		else idx = mutation_idx;
 		int new_state = -1;
 		if ((state == 4 && mutations[3] >= MUT_THRESHHOLD) || state != 4) {
-			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 0) {
-				change_state(state_mut_map[state*11+idx]);
+			if (update_cell == true) change_state(state_mut_map[state*11+idx]);
+			if (update_cell == false) {
 				c->change_state(child_mut_map[state*11+idx]);
-			} else {
-				c->change_state(child_mut_map[state*11+idx]);
-				change_state(state_mut_map[state*11+idx]);
 			}
 			new_state = child_mut_map[state*11+idx];
-			copy_mutations(c);
+			if (update_cell == true) copy_mutations(c);
+			if (update_cell == false) action_completed = false;
 		}
 
 		return new_state;
 	}
 
-	__device__ int differentiate( int cell, Cell *c, curandState_t *states ) {
+	__device__ int differentiate( int cell, Cell *c, bool update_cell, curandState_t *states ) {
 		int new_state = -1;
 		if (state == 2) {
 			if (mutations[1] >= MUT_THRESHHOLD || mutations[8] >= MUT_THRESHHOLD || mutations[10] >= MUT_THRESHHOLD)
@@ -362,25 +382,26 @@ struct Cell {
 		else if (state == 4 && mutations[3] >= MUT_THRESHHOLD)
 			new_state = 5;
 		if (new_state != -1) {
-			int idx = random_mutation_index(cell, states);
-			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 0) {
-				change_state(state_mut_map[state*11+idx]);
-				c->change_state(new_state);
-			} else {
-				c->change_state(new_state);
-				change_state(state_mut_map[state*11+idx]);
-			}
-			copy_mutations(c);
+			int idx;
+			if (update_cell == false) idx = random_mutation_index(cell, states);
+			else idx = mutation_idx;
+			if (update_cell == true) change_state(state_mut_map[state*11+idx]);
+			if (update_cell == false) c->change_state(new_state);
+			if (update_cell == true) copy_mutations(c);
+			if (update_cell == false) action_completed = false;
 		}
 
 		return new_state;
 	}
 
-	__device__ void move(Cell *c) {
-		c->change_state(state);
-		copy_mutations(c);
-		c->age = age;
-		apoptosis();
+	__device__ void move(Cell *c, bool update_cell) {
+		if (update_cell == false) {
+			c->change_state(state);
+			copy_mutations(c);
+			c->age = age;
+		}
+		if (update_cell == true) apoptosis();
+		if (update_cell == false) action_completed = false;
 	}
 
 	__device__ void apoptosis(void) {
@@ -395,6 +416,7 @@ struct Cell {
 			mutations[i] = 0.0f;
 		}
 		age = 0;
+		action_completed = true;
 	}
 
 	__device__ void phenotype_mutate(int M, float prevMut, float newMut) {
@@ -402,7 +424,7 @@ struct Cell {
 		if (prevMut > newMut) {
 			for (int j = 0; j < 4; j++) {
 				if (downreg_phenotype_map[M*4+j] < 0)
-					phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M * 4 + j]);
+					phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M*4+j]);
 				else
 					phenotype[j] = fminf(phenotype[j] + downreg_phenotype_map[M*4+j], 1.0f);
 			}
@@ -410,7 +432,7 @@ struct Cell {
 		} else {
 			for (int j = 0; j < 4; j++) {
 				if (upreg_phenotype_map[M*4+j] < 0)
-					phenotype[j] = fmaxf(0.0f, phenotype[j] + upreg_phenotype_map[M * 4 + j]);
+					phenotype[j] = fmaxf(0.0f, phenotype[j] + upreg_phenotype_map[M*4+j]);
 				else
 					phenotype[j] = fminf(phenotype[j] + upreg_phenotype_map[M*4+j], 1.0f);
 			}
@@ -418,16 +440,13 @@ struct Cell {
 	}
 
 	__device__ void update_consumption(int idx, float *in, float *prevMut, float *newMut) {
-		float input[2];
-		float output[11];
 		int M_idx[11];
-		int count;
-		for (int i = 0; i < NN->n_input; i++) input[i] = 0.0f;
+		for (int i = 0; i < NN->n_input; i++) NN->input[i] = 0.0f;
 		consumption[idx] = 0.0f;
-		input[idx] = in[idx];
-		NN->evaluate(input, output);
-		count = max_idx(output, M_idx, NN->n_output);
-		for (int i = 0; i < count; i++) consumption[idx] += abs(newMut[M_idx[i]] - prevMut[M_idx[i]]);
+		NN->input[idx] = in[idx];
+		NN->evaluate();
+		int count = max_idx(NN->output, M_idx, NN->n_output);
+		for (int i = 0; i < count; i++) consumption[idx] += fabsf(newMut[M_idx[i]] - prevMut[M_idx[i]]);
 	}
 
 	__device__ void mutate(int cell, float *in, float* result, curandState_t *states) {
@@ -454,9 +473,9 @@ struct Cell {
 					float prevMut[11];
 					for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
 					NN->mutate(cell, idx, index_map, mutations, states);
-					float out[11];
-					NN->evaluate(in, out);
-					count = max_idx(out, M_idx, NN->n_output);
+					for (int j = 0; j < NN->n_input; j++) NN->input[j] = in[j];
+					NN->evaluate();
+					count = max_idx(NN->output, M_idx, NN->n_output);
 					for (int k = 0; k < count; k++) {
 						int M = M_idx[k];
 						if (M != 0 && state != 6) {
@@ -469,6 +488,7 @@ struct Cell {
 		}
 
 		if (state != 6) age++;
+		action_completed = false;
 	}
 };
 
