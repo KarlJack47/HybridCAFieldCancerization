@@ -13,6 +13,7 @@ struct DataBlock {
 	Cell *dev_newGrid;
 	CarcinogenPDE *dev_pdes;
 	CarcinogenPDE *pdes;
+	Lock blocker;
 
 	unsigned int grid_size;
 	unsigned int cell_size;
@@ -390,8 +391,8 @@ struct CA {
 			bitmap.hide_window();
 		bool csc_formed[1] = {false};
 		bool tc_formed[1] = {false};
-		CudaSafeCall(cudaMalloc(&d.csc_formed, sizeof(bool)));
-		CudaSafeCall(cudaMalloc(&d.tc_formed, sizeof(bool)));
+		CudaSafeCall(cudaMalloc((void**)&d.csc_formed, sizeof(bool)));
+		CudaSafeCall(cudaMalloc((void**)&d.tc_formed, sizeof(bool)));
 		CudaSafeCall(cudaMemcpy(d.csc_formed, csc_formed, sizeof(bool), cudaMemcpyHostToDevice));
 		CudaSafeCall(cudaMemcpy(d.tc_formed, tc_formed, sizeof(bool), cudaMemcpyHostToDevice));
 	}
