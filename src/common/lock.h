@@ -18,7 +18,7 @@ struct Lock {
 	}
 
 	__device__ void lock() {
-		while (atomicCAS(mutext, 0, 1) != 0);
+		while (atomicCAS(mutex, 0, 1) != 0);
 	}
 
 	__device__ void unlock() {
