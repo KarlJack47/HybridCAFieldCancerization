@@ -9,6 +9,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include "error_check.h"
+#include "lock.h"
 
 #define BLOCK_SIZE 16
 
