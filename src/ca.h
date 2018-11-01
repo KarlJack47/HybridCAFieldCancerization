@@ -13,7 +13,6 @@ struct DataBlock {
 	Cell *dev_newGrid;
 	CarcinogenPDE *dev_pdes;
 	CarcinogenPDE *pdes;
-	Lock blocker;
 
 	unsigned int grid_size;
 	unsigned int cell_size;
@@ -39,10 +38,6 @@ __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst) {
 
         dst[idx].state = src[idx].state;
         dst[idx].age = src[idx].age;
-	dst[idx].action_completed = src[idx].action_completed;
-	dst[idx].mutation_idx = src[idx].mutation_idx;
-	dst[idx].phenotype_idx = src[idx].phenotype_idx;
-	dst[idx].location = src[idx].location;
 
         for (int i = 0; i < 4; i++) dst[idx].phenotype[i] = src[idx].phenotype[i];
         for (int i = 0; i < src[idx].NN->n_input-1; i++) dst[idx].consumption[i] = src[idx].consumption[i];
@@ -76,11 +71,13 @@ __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst) {
         }
 }
 
-__global__ void rule_pass1(Cell *newG, Cell *prevG, int grid_size, int t, bool *csc_formed, bool *tc_formed, curandState_t *states) {
+__global__ void rule(Cell *newG, Cell *prevG, int grid_size, int t, bool *csc_formed, bool *tc_formed, CarcinogenPDE *pdes, curandState_t *states) {
 	// map from threadIdx/blockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int offset = x + y * blockDim.x * gridDim.x;
+
+	int phenotype = prevG[offset].get_phenotype(offset, states);
 
 	int neighbourhood[8];
 	neighbourhood[0] = x + abs((y+1) % grid_size) * blockDim.x * gridDim.x; // n
@@ -92,95 +89,37 @@ __global__ void rule_pass1(Cell *newG, Cell *prevG, int grid_size, int t, bool *
 	neighbourhood[6] = abs((x-1) % grid_size) + y; // w
 	neighbourhood[7] = abs((x-1) % grid_size) + abs((y+1) % grid_size) * blockDim.x * gridDim.x; // nw
 
-	int n_neigh_action = 0;
-	int phenotype_neigh[8];
+	int num_empty = 0;
+	int empty[8];
 	for (int i = 0; i < 8; i++) {
-		if (prevG[neighbourhood[i]].action_completed == false) {
-			phenotype_neigh[n_neigh_action] = prevG[neighbourhood[i]].get_phenotype(offset, states);
-			n_neigh_action++;
+		if (prevG[neighbourhood[i]].state == 6) {
+			empty[num_empty] = neighbourhood[i];
+			num_empty++;
 		}
 	}
 
-	int neigh_idx = (int) ceilf(curand_uniform(&states[offset])*n_neigh_action) % n_neigh_action;
+	int cell_idx = -1;
+	if (num_empty != 0)
+		cell_idx = empty[(int) ceilf(curand_uniform(&states[offset])*num_empty) % num_empty];
 
-	if (prevG[offset].state == 6) {
-		if (phenotype_neigh[neigh_idx] == 0) {
-			int state = newG[neighbourhood[neigh_idx]].proliferate(offset, &newG[offset], false, states);
-			if (state == -1) {
-				newG[neighbourhood[neigh_idx]].move(&newG[offset], false);
-			}
-			prevG[neighbourhood[neigh_idx]].action_completed = true;
-			newG[neighbourhood[neigh_idx]].phenotype_idx = phenotype_neigh[neigh_idx];
-			newG[neighbourhood[neigh_idx]].location = offset;
-		} else if (phenotype_neigh[neigh_idx] == 1) {
-			if ((int) ceilf(curand_uniform(&states[offset])*1000) % 1000 == 50) {
-				newG[neighbourhood[neigh_idx]].move(&newG[offset], false);
-				prevG[neighbourhood[neigh_idx]].action_completed = true;
-				newG[neighbourhood[neigh_idx]].phenotype_idx = phenotype_neigh[neigh_idx];
-				newG[neighbourhood[neigh_idx]].location = offset;
-			}
+	if (phenotype == 0) {
+		if (cell_idx != -1) {
+			int state = newG[offset].proliferate(offset, &newG[cell_idx], states);
+			if (state == -1)
+				newG[offset].move(&newG[cell_idx]);
 		}
-		else if (phenotype_neigh[neigh_idx] == 3) {
-			int state = newG[neighbourhood[neigh_idx]].differentiate(offset, &newG[offset], false, states);
-			if (state == -1) {
-				newG[neighbourhood[neigh_idx]].move(&newG[offset], false);
-			}
-			prevG[neighbourhood[neigh_idx]].action_completed = true;
-			newG[neighbourhood[neigh_idx]].phenotype_idx = phenotype_neigh[neigh_idx];
-			newG[neighbourhood[neigh_idx]].location = offset;
-		}
-	} else if (prevG[offset].get_phenotype(offset, states) == 2) {
+	} else if (phenotype == 1) {
+		if ((int) ceilf(curand_uniform(&states[offset])*1000) % 1000 == 50)
+			newG[offset].move(&newG[cell_idx]);
+	} else if (phenotype == 2) {
 		newG[offset].apoptosis();
-	}
-
-	if (csc_formed[0] == false && prevG[offset].state != 4 && newG[offset].state == 4) {
-		printf("A CSC was formed at time step %d.\n", t);
-		csc_formed[0] = true;
-	}
-	if (tc_formed[0] == false && prevG[offset].state != 5 && newG[offset].state == 5) {
-		printf("A TC was formed at time step %d.\n", t);
-		tc_formed[0] = true;
-	}
-}
-
-__global__ void rule_pass2(Cell *newG, Cell *prevG, int t, bool *csc_formed, bool *tc_formed, curandState_t *states) {
-	// map from threadIdx/blockIdx to pixel position
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int offset = x + y * blockDim.x * gridDim.x;
-
-	if (newG[offset].action_completed == false) {
-		if (newG[offset].phenotype_idx == 0) {
-			int state = newG[offset].proliferate(offset, &newG[newG[offset].location], true, states);
-			if (state == -1) {
-				newG[offset].move(&newG[newG[offset].location], true);
-			}
-		} else if (newG[offset].phenotype_idx == 1 && prevG[offset].action_completed == true) {
-			newG[offset].move(&newG[newG[offset].location], true);
-		}
-		else if (newG[offset].phenotype_idx == 3) {
-			int state = newG[offset].differentiate(offset, &newG[newG[offset].location], true, states);
-			if (state == -1) {
-				newG[offset].move(&newG[newG[offset].location], true);
-			}
+	} else if (phenotype == 3) {
+		if (cell_idx != -1) {
+			int state = newG[offset].differentiate(offset, &newG[cell_idx], states);
+			if (state == -1)
+				newG[offset].move(&newG[cell_idx]);
 		}
 	}
-
-	if (csc_formed[0] == false && prevG[offset].state != 4 && newG[offset].state == 4) {
-		printf("A CSC was formed at time step %d.\n", t);
-		csc_formed[0] = true;
-	}
-	if (tc_formed[0] == false && prevG[offset].state != 5 && newG[offset].state == 5) {
-		printf("A TC was formed at time step %d.\n", t);
-		tc_formed[0] = true;
-	}
-}
-
-__global__ void mutate_cells(Cell *newG, Cell *prevG, int t, CarcinogenPDE *pdes, curandState_t *states) {
-	// map from threadIdx/blockIdx to pixel position
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int offset = x + y * blockDim.x * gridDim.x;
 
 	for (int j = 0; j < prevG[offset].NN->n_input-1; j++) {
 		prevG[offset].NN->input[j] = pdes[j].get(offset, t-1);
@@ -190,6 +129,15 @@ __global__ void mutate_cells(Cell *newG, Cell *prevG, int t, CarcinogenPDE *pdes
 	prevG[offset].NN->evaluate();
 
 	newG[offset].mutate(offset, prevG[offset].NN->input, prevG[offset].NN->output, states);
+
+	if (csc_formed[0] == false && prevG[offset].state != 4 && newG[offset].state == 4) {
+		printf("A CSC was formed at time step %d.\n", t);
+		csc_formed[0] = true;
+	}
+	if (tc_formed[0] == false && prevG[offset].state != 5 && newG[offset].state == 5) {
+		printf("A TC was formed at time step %d.\n", t);
+		tc_formed[0] = true;
+	}
 }
 
 __global__ void display(uchar4 *optr, Cell *dev_new, int cell_size, int dim) {
@@ -305,16 +253,10 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			init_curand<<< d->grid_size*d->grid_size, 1 >>>(seed.tv_nsec, states);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
-			rule_pass1<<< blocks, threads >>>(d->dev_newGrid, d->dev_prevGrid, d->grid_size, ticks, d->csc_formed, d->tc_formed, states);
+			rule<<< blocks, threads >>>(d->dev_newGrid, d->dev_prevGrid, d->grid_size, ticks, d->csc_formed, d->tc_formed, d->dev_pdes, states);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
-			rule_pass2<<< blocks, threads >>>(d->dev_newGrid, d->dev_prevGrid, ticks, d->csc_formed, d->tc_formed, states);
-			CudaCheckError();
-			CudaSafeCall(cudaDeviceSynchronize());
-			mutate_cells<<< blocks, threads >>>(d->dev_newGrid, d->dev_prevGrid, ticks, d->dev_pdes, states);
-			CudaCheckError();
-			CudaSafeCall(cudaDeviceSynchronize());
-			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->dev_prevGrid, d->dev_newGrid);
+			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->dev_newGrid, d->dev_prevGrid);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 			if (ticks % d->frame_rate == 0) {
