@@ -74,7 +74,7 @@ struct GPUAnimBitmap {
         glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, width * height * 4,
                      NULL, GL_DYNAMIC_DRAW_ARB);
 
-        CudaSafeCall(cudaGraphicsGLRegisterBuffer(&resource, bufferObj, cudaGraphicsMapFlagsNone));
+        cudaGraphicsGLRegisterBuffer(&resource, bufferObj, cudaGraphicsMapFlagsNone);
     }
 
     ~GPUAnimBitmap(void) {
@@ -86,7 +86,7 @@ struct GPUAnimBitmap {
     }
 
     void free_resources(void) {
-        CudaSafeCall(cudaGraphicsUnregisterResource(resource));
+        cudaGraphicsUnregisterResource(resource);
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
         glDeleteBuffers(1, &bufferObj);
@@ -144,12 +144,12 @@ struct GPUAnimBitmap {
         uchar4* devPtr;
         size_t size;
 
-        CudaSafeCall(cudaGraphicsMapResources(1, &(bitmap->resource), NULL));
-        CudaSafeCall(cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, bitmap->resource));
+        cudaGraphicsMapResources(1, &(bitmap->resource), NULL);
+        cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, bitmap->resource);
 
         bitmap->fAnim(devPtr, bitmap->dataBlock, ticks++);
 
-        CudaSafeCall(cudaGraphicsUnmapResources(1, &(bitmap->resource), NULL));
+        cudaGraphicsUnmapResources(1, &(bitmap->resource), NULL);
 
 	if (bitmap->display == 1)
 		glutPostRedisplay();
