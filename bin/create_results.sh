@@ -5,12 +5,12 @@ echo ""
 
 cd output
 
-for i in {1..100}; do
+for i in {1..5}; do
 	echo "Running simulation $i"
 	mkdir $i
 	cd $i
 	touch $i.txt
-	../../main 0 > $i.txt
+	../../main 0 1 > $i.txt
 	cd ..
 	echo "Done simulation $i"
 done
