@@ -16,10 +16,6 @@
 struct Cell {
 	int state;
 	int age;
-	bool action_completed;
-	int mutation_idx;
-	int phenotype_idx;
-	int location;
 	float *phenotype;
 	float *mutations;
 	float *consumption;
@@ -178,10 +174,6 @@ struct Cell {
 		CudaSafeCall(cudaMalloc((void**)&consumption, (n_input-1)*sizeof(float)));
 		CudaSafeCall(cudaMemcpy(consumption, consumption_temp, (n_input-1)*sizeof(float), cudaMemcpyHostToDevice));
 		age = 0;
-		action_completed = false;
-		mutation_idx = 0;
-		phenotype_idx = 0;
-		location = 0;
 
 	}
 
@@ -220,10 +212,6 @@ struct Cell {
 		Cell *l_c = (Cell*)malloc(sizeof(Cell));
 		l_c->state = state;
 		l_c->age = age;
-		l_c->action_completed = action_completed;
-		l_c->mutation_idx = mutation_idx;
-		l_c->phenotype_idx = phenotype_idx;
-		l_c->location = location;
 
 		float *dev_phenotype;
 		CudaSafeCall(cudaMalloc((void**)&dev_phenotype, 4*sizeof(float)));
@@ -310,9 +298,7 @@ struct Cell {
 				count = get_indexes(sorted_phenotype[2], phenotype, idx, 4);
 			else
 				count = get_indexes(sorted_phenotype[3], phenotype, idx, 4);
-			int i = (int) ceilf(curand_uniform(&states[cell])*count) % count;
-			phenotype_idx = idx[i];
-			return idx[i];
+			return idx[(int) ceilf(curand_uniform(&states[cell])*count) % count];
 		} else return -1;
 	}
 
@@ -346,31 +332,30 @@ struct Cell {
 			}
 		}
 
-		int i = (int) ceilf(curand_uniform(&states[cell])*count) % count;
-		mutation_idx = valid_idx[i];
-
-		return valid_idx[i];
+		if (count == 0) return -1;
+		else return valid_idx[(int) ceilf(curand_uniform(&states[cell])*count) % count];
 	}
 
-	__device__ int proliferate(int cell, Cell *c, bool update_cell, curandState_t *states) {
-		int idx;
-		if (update_cell == false) idx = random_mutation_index(cell, states);
-		else idx = mutation_idx;
+	__device__ int proliferate(int cell, Cell *c, curandState_t *states) {
+		int idx = random_mutation_index(cell, states);
 		int new_state = -1;
+		if (idx == -1) return new_state;
 		if ((state == 4 && mutations[3] >= MUT_THRESHHOLD) || state != 4) {
-			if (update_cell == true) change_state(state_mut_map[state*11+idx]);
-			if (update_cell == false) {
+			if ((int) ceilf(curand_uniform(&states[cell])*2) %2 == 0) {
+				change_state(state_mut_map[state*11+idx]);
 				c->change_state(child_mut_map[state*11+idx]);
+			} else {
+				c->change_state(child_mut_map[state*11+idx]);
+				change_state(state_mut_map[state*11+idx]);
 			}
 			new_state = child_mut_map[state*11+idx];
-			if (update_cell == true) copy_mutations(c);
-			if (update_cell == false) action_completed = false;
+			copy_mutations(c);
 		}
 
 		return new_state;
 	}
 
-	__device__ int differentiate( int cell, Cell *c, bool update_cell, curandState_t *states ) {
+	__device__ int differentiate( int cell, Cell *c, curandState_t *states ) {
 		int new_state = -1;
 		if (state == 2) {
 			if (mutations[1] >= MUT_THRESHHOLD || mutations[8] >= MUT_THRESHHOLD || mutations[10] >= MUT_THRESHHOLD)
@@ -382,26 +367,26 @@ struct Cell {
 		else if (state == 4 && mutations[3] >= MUT_THRESHHOLD)
 			new_state = 5;
 		if (new_state != -1) {
-			int idx;
-			if (update_cell == false) idx = random_mutation_index(cell, states);
-			else idx = mutation_idx;
-			if (update_cell == true) change_state(state_mut_map[state*11+idx]);
-			if (update_cell == false) c->change_state(new_state);
-			if (update_cell == true) copy_mutations(c);
-			if (update_cell == false) action_completed = false;
+			int idx = random_mutation_index(cell, states);
+			if (idx == -1) return -1;
+			if ((int) ceilf(curand_uniform(&states[cell])*2) %2 == 0) {
+				change_state(state_mut_map[state*11+idx]);
+				c->change_state(child_mut_map[state*11+idx]);
+			} else {
+				c->change_state(child_mut_map[state*11+idx]);
+				change_state(state_mut_map[state*11+idx]);
+			}
+			copy_mutations(c);
 		}
 
 		return new_state;
 	}
 
-	__device__ void move(Cell *c, bool update_cell) {
-		if (update_cell == false) {
-			c->change_state(state);
-			copy_mutations(c);
-			c->age = age;
-		}
-		if (update_cell == true) apoptosis();
-		if (update_cell == false) action_completed = false;
+	__device__ void move(Cell *c) {
+		c->change_state(state);
+		copy_mutations(c);
+		c->age = age;
+		apoptosis();
 	}
 
 	__device__ void apoptosis(void) {
@@ -416,7 +401,6 @@ struct Cell {
 			mutations[i] = 0.0f;
 		}
 		age = 0;
-		action_completed = true;
 	}
 
 	__device__ void phenotype_mutate(int M, float prevMut, float newMut) {
@@ -488,7 +472,6 @@ struct Cell {
 		}
 
 		if (state != 6) age++;
-		action_completed = false;
 	}
 };
 
