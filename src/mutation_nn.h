@@ -181,20 +181,16 @@ struct MutationNN {
 			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
 				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] += incr;
-				mutations[idx[M*12+(i+1)]] += incr;
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] -= decr;
-				mutations[idx[M*12+(i+1)]] -= decr;
 			}
 			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
 				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+M] += incr;
-				mutations[M] += incr;
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+M] -= decr;
-				mutations[M] -= decr;
 			}
 		}
 	}
