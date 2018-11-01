@@ -5,7 +5,7 @@ echo ""
 
 cd output
 
-for i in {1..5}; do
+for i in {1..100}; do
 	echo "Running simulation $i"
 	mkdir $i
 	cd $i
