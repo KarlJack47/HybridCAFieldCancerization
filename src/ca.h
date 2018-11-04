@@ -21,6 +21,7 @@ struct DataBlock {
 	int n_carcinogens;
 	int n_output;
 
+	clock_t start, stop;
 	int frames;
 	int save_frames;
 } d;
@@ -205,8 +206,9 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 }
 
 void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
-	clock_t start, end;
-	start = clock();
+	clock_t start_step, end_step;
+	start_step = clock();
+	if (ticks == 0) d->start = clock();
 	set_seed();
 
 	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
@@ -261,7 +263,6 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 		fname[dig_max+1] = 'p';
 		fname[dig_max+2] = 'n';
 		fname[dig_max+3] = 'g';
-		printf("%s\n", fname);
 		unsigned char *frame;
 		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
 		dim3 blocks1(d->dim/16, d->dim/16);
@@ -276,8 +277,13 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	end = clock();
-	printf("The time step took %f seconds to complete.\n", (double) (end - start) / CLOCKS_PER_SEC);
+	end_step = clock();
+	printf("The time step took %f seconds to complete.\n", (double) (end_step - start_step) / CLOCKS_PER_SEC);
+
+	if (ticks == d->maxT) {
+		d->end = clock();
+		printf("It took %f seconds to run the %d time steps.\n", (double) (d->end - d->start) / CLOCKS_PER_SEC, d->maxT);
+	}
 }
 
 void anim_exit( DataBlock *d ) {
