@@ -250,8 +250,9 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 		++d->frames;
 		printf("Done %d\n", ticks);
 	}
+
 	if (d->save_frames == 1 && ticks <= d->maxT) {
-		char fname[14];
+		char fname[14] = {' '};
 		int dig_max = numDigits(d->maxT);
 		int dig = numDigits(ticks);
 		for (int i = 0; i < dig_max-dig; i++) fname[i] = '0';
@@ -260,6 +261,7 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 		fname[dig_max+1] = 'p';
 		fname[dig_max+2] = 'n';
 		fname[dig_max+3] = 'g';
+		printf("%s\n", fname);
 		unsigned char *frame;
 		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
 		dim3 blocks1(d->dim/16, d->dim/16);
@@ -280,9 +282,15 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 
 void anim_exit( DataBlock *d ) {
 	CudaSafeCall(cudaDeviceSynchronize());
+	for (int i = 0; i < d->grid_size*d->grid_size; i++) {
+		d->prevGrid[i].free_resources();
+		d->newGrid[i].free_resources();
+	}
 	CudaSafeCall(cudaFree(d->prevGrid));
 	CudaSafeCall(cudaFree(d->newGrid));
 	CudaSafeCall(cudaSetDevice(1));
+	for (int i = 0; i < d->n_carcinogens; i++)
+		d->pdes[i].free_resources();
 	CudaSafeCall(cudaFree(d->pdes));
 	CudaSafeCall(cudaSetDevice(0));
 }
