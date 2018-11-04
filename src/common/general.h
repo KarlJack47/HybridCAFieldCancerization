@@ -15,7 +15,7 @@
 /* Start Array Functions */
 #ifndef MAX_IDX
 #define MAX_IDX
-__device__ int max_idx( float *L, int *location, int N ) {
+__device__ int max_idx(float *L, int *location, int N) {
         float max = L[0];
         int count = 0;
 
@@ -111,7 +111,7 @@ void set_seed( void ) {
 #define INIT_CURAND
 // Set random seed for gpu
 __global__ void init_curand(unsigned int seed, curandState_t* states) {
-        unsigned int id = threadIdx.x + blockIdx.x * blockDim.x;
+        int id = threadIdx.x + blockIdx.x * blockDim.x;
         curand_init(seed, id, 0, &states[id]);
 }
 #endif
