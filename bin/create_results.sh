@@ -10,7 +10,7 @@ for i in {1..100}; do
 	mkdir $i
 	cd $i
 	touch $i.txt
-	../../main 0 1 200 512 > $i.txt
+	../../main > $i.txt
 	cd ..
 	echo "Done simulation $i"
 done
