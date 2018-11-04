@@ -80,10 +80,6 @@ struct MutationNN {
 		n_output = n_out;
 	}
 
-	~MutationNN(void) {
-		free_resources();
-	}
-
 	void memory_allocate(float *W_x, float *b_x, float *W_y, float *b_y) {
 		CudaSafeCall(cudaMallocManaged((void**)&input, n_input*sizeof(float)));
 		memset(input, 0.0f, n_input*sizeof(float));

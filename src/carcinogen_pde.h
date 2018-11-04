@@ -96,10 +96,6 @@ struct CarcinogenPDE {
 		CudaSafeCall(cudaSetDevice(0));
 	}
 
-	~CarcinogenPDE(void) {
-		free_resources();
-	}
-
 	void init(void) {
 		CudaSafeCall(cudaSetDevice(1));
 		dim3 blocks(N / BLOCK_SIZE, N / BLOCK_SIZE);

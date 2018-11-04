@@ -200,15 +200,12 @@ struct Cell {
 		phenotype[3] = phenotype_init[state*4+3];
 	}
 
-	~Cell(void) {
-		free_resources();
-	}
-
 	void free_resources(void) {
 		CudaSafeCall(cudaFree(neighbourhood));
 		CudaSafeCall(cudaFree(mutations));
 		CudaSafeCall(cudaFree(consumption));
 		CudaSafeCall(cudaFree(W_y_init));
+		NN->free_resources();
 		CudaSafeCall(cudaFree(NN));
 	}
 
