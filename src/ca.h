@@ -21,7 +21,7 @@ struct DataBlock {
 	int n_carcinogens;
 	int n_output;
 
-	clock_t start, stop;
+	clock_t start, end;
 	int frames;
 	int save_frames;
 } d;
