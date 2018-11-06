@@ -118,10 +118,12 @@ struct MutationNN {
 				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 				W_out[M*n_output+M] += incr;
 				mutations[M] += incr;
+				W_out[0] -= incr;
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
 				W_out[M*n_output+M] -= decr;
 				mutations[M] -= decr;
+				W_out[0] += decr;
 			}
 		}
 		for (int i = 0; i < idx[M*12]; i++) {
@@ -129,19 +131,25 @@ struct MutationNN {
 				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] += incr;
 				mutations[i+1] += incr;
+				W_out[idx[M*12+(i+1)]*n_output] -= incr;
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] -= decr;
 				mutations[i+1] -= decr;
+				W_out[idx[M*12+(i+1)]*n_output] += decr;
 			}
-			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
-				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
-				W_out[idx[M*12+(i+1)]*n_output+M] += incr;
-				mutations[M] += incr;
-			} else {
-				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
-				W_out[idx[M*12+(i+1)]*n_output+M] -= decr;
-				mutations[M] -= decr;
+			if (idx[(i+1)*12+(i+1)] == M) {
+				if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
+					float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
+					W_out[idx[M*12+(i+1)]*n_output+M] += incr;
+					mutations[M] += incr;
+					W_out[M*n_output] -= incr;
+				} else {
+					float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
+					W_out[idx[M*12+(i+1)]*n_output+M] -= decr;
+					mutations[M] -= decr;
+					W_out[M*n_output] += decr;
+				}
 			}
 		}
 	}
