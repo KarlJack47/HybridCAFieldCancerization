@@ -77,7 +77,7 @@ struct CarcinogenPDE {
 		N = space_size;
 		T = num_timesteps + 1;
 		T_scale = 16.0f;
-		diffusion = diff;
+		diffusion = diff*120;
 		dx = 1 / (double) N;
 		dt = 5e-4;
 		liquid = liq;
