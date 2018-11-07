@@ -68,6 +68,13 @@ __global__ void rule(Cell *newG, Cell *prevG, int t, CarcinogenPDE *pdes, curand
 
 	int phenotype = prevG[offset].get_phenotype(offset, states);
 
+	for (int j = 0; j < prevG[offset].NN->n_input-1; j++) {
+		prevG[offset].NN->input[j] = pdes[j].get(offset, t-1);
+	}
+	prevG[offset].NN->input[prevG[offset].NN->n_input-1] = prevG[offset].age;
+
+	prevG[offset].NN->evaluate();
+
 	int num_empty = 0;
 	int empty[8];
 	for (int i = 0; i < 8; i++) {
@@ -85,27 +92,19 @@ __global__ void rule(Cell *newG, Cell *prevG, int t, CarcinogenPDE *pdes, curand
 		if (cell_idx != -1) {
 			int state = newG[offset].proliferate(&newG[cell_idx], offset, states);
 			if (state == -1)
-				newG[offset].move(&newG[cell_idx]);
+				newG[offset].move(&newG[cell_idx], offset, states);
 		}
 	} else if (phenotype == 1) {
-		if ((int) ceilf(curand_uniform(&states[offset])*1000) % 1000 == 50)
-			newG[offset].move(&newG[cell_idx]);
+		newG[offset].move(&newG[cell_idx], offset, states);
 	} else if (phenotype == 2) {
 		newG[offset].apoptosis();
 	} else if (phenotype == 3) {
 		if (cell_idx != -1) {
 			int state = newG[offset].differentiate(&newG[cell_idx], offset, states);
 			if (state == -1)
-				newG[offset].move(&newG[cell_idx]);
+				newG[offset].move(&newG[cell_idx], offset, states);
 		}
 	}
-
-	for (int j = 0; j < prevG[offset].NN->n_input-1; j++) {
-		prevG[offset].NN->input[j] = pdes[j].get(offset, t-1);
-	}
-	prevG[offset].NN->input[prevG[offset].NN->n_input-1] = prevG[offset].age;
-
-	prevG[offset].NN->evaluate();
 
 	newG[offset].mutate(prevG[offset].NN->input, prevG[offset].NN->output, offset, states);
 
