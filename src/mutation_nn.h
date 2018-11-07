@@ -1,6 +1,12 @@
 #ifndef __MUTATION_NN_H__
 #define __MUTATION_NN_H__
 
+#define RAND_INCR_A 5000 // 0.005
+#define RAND_INCR_B 10000 // 0.01
+#define RAND_DECR_A 10000 // 0.01
+#define RAND_DECR_B 100000 // 0.1
+#define CHANCE_UPREG 0.5f
+
 __device__ void activation(int idx, float *input, float *output) {
 	/*  Computes the value of the sigmoid function f(x) = 1/(1 + e^-2x).
             Inputs:
@@ -114,39 +120,35 @@ struct MutationNN {
 
 	__device__ void mutate(int M, int *idx, float *mutations, int cell, curandState_t *states) {
 		if (M != 0) {
-			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
-				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
+			if (curand_uniform(&states[cell]) <= CHANCE_UPREG) {
+				float incr = ((int) ceilf(curand_uniform(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999) + RAND_INCR_A)) / 1000000.0f;
 				W_out[M*n_output+M] += incr;
 				mutations[M] += incr;
 				W_out[0] = fmaxf(0, W_out[0] - incr);
 			} else {
-				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
+				float decr = ((int) ceilf(curand_uniform(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999) + RAND_DECR_A)) / 1000000.0f;
 				W_out[M*n_output+M] = fmaxf(0, W_out[M*n_output+M] - decr);
 				mutations[M] = fmaxf(0, mutations[M] - decr);
 				W_out[0] += decr;
 			}
 		}
 		for (int i = 0; i < idx[M*12]; i++) {
-			if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
-				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
+			if (curand_uniform(&states[cell]) <= CHANCE_UPREG) {
+				float incr = ((int) ceilf(curand_uniform(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999) + RAND_INCR_A)) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] += incr;
-				mutations[i+1] += incr;
 				W_out[idx[M*12+(i+1)]*n_output] -= incr;
 			} else {
-				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
+				float decr = ((int) ceilf(curand_uniform(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999) + RAND_DECR_A)) / 1000000.0f;
 				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] = fmaxf(0, W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] - decr);
-				mutations[i+1] = fmaxf(0, mutations[i+1] - decr);
 				W_out[idx[M*12+(i+1)]*n_output] = fminf(W_out[idx[M*12+(i+1)]*n_output]+decr, 0);
 			}
 			if (idx[(i+1)*12+(i+1)] == M) {
-				if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
-					float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
+				if (curand_uniform(&states[cell]) <= CHANCE_UPREG) {
+					float incr = ((int) ceilf(curand_uniform(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999) + RAND_INCR_A)) / 1000000.0f;
 					W_out[idx[M*12+(i+1)]*n_output+M] += incr;
-					mutations[M] += incr;
 				} else {
-					float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
+					float decr = ((int) ceilf(curand_uniform(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999) + RAND_DECR_A)) / 1000000.0f;
 					W_out[idx[M*12+(i+1)]*n_output+M] = fmaxf(0, W_out[idx[M*12+(i+1)]*n_output+M] - decr);
-					mutations[M] = fmaxf(0, mutations[M] - decr);
 				}
 			}
 		}
