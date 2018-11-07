@@ -118,11 +118,11 @@ struct MutationNN {
 				float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 				W_out[M*n_output+M] += incr;
 				mutations[M] += incr;
-				W_out[0] -= incr;
+				W_out[0] = fmaxf(0, W_out[0] - incr);
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
-				W_out[M*n_output+M] -= decr;
-				mutations[M] -= decr;
+				W_out[M*n_output+M] = fmaxf(0, W_out[M*n_output+M] - decr);
+				mutations[M] = fmaxf(0, mutations[M] - decr);
 				W_out[0] += decr;
 			}
 		}
@@ -134,21 +134,19 @@ struct MutationNN {
 				W_out[idx[M*12+(i+1)]*n_output] -= incr;
 			} else {
 				float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
-				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] -= decr;
-				mutations[i+1] -= decr;
-				W_out[idx[M*12+(i+1)]*n_output] += decr;
+				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] = fmaxf(0, W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] - decr);
+				mutations[i+1] = fmaxf(0, mutations[i+1] - decr);
+				W_out[idx[M*12+(i+1)]*n_output] = fminf(W_out[idx[M*12+(i+1)]*n_output]+decr, 0);
 			}
 			if (idx[(i+1)*12+(i+1)] == M) {
 				if ((int) ceilf(curand_uniform(&states[cell])*2) % 2 == 1) {
 					float incr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (10000 - 5000 + 1)) + 5000) / 1000000.0f;
 					W_out[idx[M*12+(i+1)]*n_output+M] += incr;
 					mutations[M] += incr;
-					W_out[M*n_output] -= incr;
 				} else {
 					float decr = ((((int) ceilf(curand_uniform(&states[cell])*1000000)) % (100000 - 10000 + 1)) + 10000) / 1000000.0f;
-					W_out[idx[M*12+(i+1)]*n_output+M] -= decr;
-					mutations[M] -= decr;
-					W_out[M*n_output] += decr;
+					W_out[idx[M*12+(i+1)]*n_output+M] = fmaxf(0, W_out[idx[M*12+(i+1)]*n_output+M] - decr);
+					mutations[M] = fmaxf(0, mutations[M] - decr);
 				}
 			}
 		}
