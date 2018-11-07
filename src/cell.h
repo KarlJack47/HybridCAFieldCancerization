@@ -3,8 +3,9 @@
 
 #include "mutation_nn.h"
 
-#define MUT_THRESHHOLD 0.06f
-#define PHENOTYPE_INCR 0.005f
+#define MUT_THRESHOLD 0.1f
+#define PHENOTYPE_INCR 0.01f
+#define CHANCE_MOVE 0.05f
 
 // "NC": 0
 // "MNC": 1
@@ -50,11 +51,11 @@ __managed__ float downreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
 						 0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
 						 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
 
-__managed__ float phenotype_init[7*4] = {0.05f, 0.9f, 0.3f, 0.0f,
-					 0.1f, 0.9f, 0.15f, 0.0f,
-					 0.1f, 0.9f, 0.075f, 0.3f,
-					 0.2f, 0.9f, 0.05f, 0.4f,
-					 0.2f, 0.9f, 0.025f, 0.5f,
+__managed__ float phenotype_init[7*4] = {0.05f, 0.9f, 0.2f, 0.0f,
+					 0.1f, 0.9f, 0.1f, 0.0f,
+					 0.1f, 0.9f, 0.05f, 0.3f,
+					 0.2f, 0.9f, 0.025f, 0.4f,
+					 0.2f, 0.9f, 0.0125f, 0.5f,
 					 0.4f, 0.9f, 0.00625f, 0.0f,
 					 0.0f, 0.0f, 0.0f, 0.0f};
 
@@ -79,6 +80,33 @@ __managed__ int diff_mut_map[6*11] = {-1, 1, -1, -1, 4, -1, -1, -1, 4, -1, 4,
 				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
 				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
+__device__ int get_rand_idx(float *L, const int N, int cell, curandState_t *states, int *idx=NULL) {
+	float *sorted = (float*)malloc(N*sizeof(float));
+	int *idx_t;
+	if (idx==NULL) idx_t = (int*)malloc(N*sizeof(int));
+	for (int i = 0; i < N; i++) sorted[i] = 1000000.0f * L[i];
+	bitonic_sort(sorted, 0, N, false);
+	float sum = 0;
+	for (int i = 0; i < N; i++) sum += sorted[i];
+	float rnd = curand_uniform(&states[cell]) * sum;
+	for (int i = 0; i < N; i++) {
+		rnd -= sorted[i];
+		if (rnd < 0) {
+			if (idx==NULL) {
+				int count = get_indexes(sorted[i] / 1000000.0f, L, idx_t, N);
+				int chosen = idx_t[(int) ceilf(curand_uniform(&states[cell])*count) % count];
+				free(sorted); free(idx_t);
+				return chosen;
+			} else {
+				int count = get_indexes(sorted[i] / 1000000.0f, L, idx, N);
+				free(sorted);
+				return count;
+			}
+		}
+	}
+
+	return (int) ceilf(curand_uniform(&states[cell])*N) % N;
+}
 
 struct Cell {
 	int state;
@@ -225,29 +253,7 @@ struct Cell {
 
 	__device__ int get_phenotype(int cell, curandState_t *states) {
 		if (state != 6) {
-			float s = curand_uniform(&states[cell]);
-			float sorted_phenotype[4];
-			float normalized[4];
-			for (int i = 0; i < 4; i++) sorted_phenotype[i] = phenotype[i];
-			bitonic_sort(sorted_phenotype, 0, 4, true);
-			float min = sorted_phenotype[0];
-			float max = sorted_phenotype[3];
-			for (int i = 0; i < 4; i++)
-				normalized[i] = (phenotype[i] - min) / (max - min);
-			float normalized_sorted[4];
-			for (int i = 0; i < 4; i++) normalized_sorted[i] = normalized[i];
-			bitonic_sort(normalized_sorted, 0, 4, true);
-			int idx[4];
-			int count = 0;
-			if (s <= normalized_sorted[0])
-				count = get_indexes(normalized_sorted[0], normalized, idx, 4);
-			else if (s > normalized_sorted[0] && s <= normalized_sorted[1])
-				count = get_indexes(normalized_sorted[1], normalized, idx, 4);
-			else if (s > normalized_sorted[1] && s <= normalized_sorted[2])
-				count = get_indexes(normalized_sorted[2], normalized, idx, 4);
-			else
-				count = get_indexes(normalized_sorted[3], normalized, idx, 4);
-			return idx[(int) ceilf(curand_uniform(&states[cell])*count) % count];
+			return get_rand_idx(phenotype, 4, cell, states);
 		} else return -1;
 	}
 
@@ -267,25 +273,11 @@ struct Cell {
 			c->mutations[i] = mutations[i];
 	}
 
-	__device__ int random_mutation_index(int cell, curandState_t *states) {
-		int count = 0;
-		int valid_idx[11];
-		for (int i = 0; i < NN->n_output; i++) {
-			if (mutations[i] >= MUT_THRESHHOLD) {
-				valid_idx[count] = i;
-				count++;
-			}
-		}
-
-		if (count == 0) return -1;
-		else return valid_idx[(int) ceilf(curand_uniform(&states[cell])*count) % count];
-	}
-
 	__device__ int proliferate(Cell *c, int cell, curandState_t *states) {
-		int idx = random_mutation_index(cell, states);
+		int idx = get_rand_idx(mutations, 11, cell, states);
 		int new_state = -1;
-		if ((state == 4 && mutations[3] >= MUT_THRESHHOLD) || state != 4) {
-			if (idx == -1) new_state = prolif_mut_map[state*11];
+		if ((state == 4 && mutations[3] >= MUT_THRESHOLD) || state != 4) {
+			if (mutations[idx] < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
 			else {
 				if ((int) ceilf(curand_uniform(&states[cell])*2) %2 == 0) {
 					change_state(state_mut_map[state*11+idx]);
@@ -303,11 +295,11 @@ struct Cell {
 	}
 
 	__device__ int differentiate(Cell *c, int cell, curandState_t *states) {
-		int idx = random_mutation_index(cell, states);
+		int idx = get_rand_idx(mutations, 11, cell, states);
 		int new_state = -1;
-		if (idx == -1) new_state = diff_mut_map[state*11];
+		if (mutations[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
 		else {
-			if ((int) ceilf(curand_uniform(&states[cell])*2) %2 == 0) {
+			if (curand_uniform(&states[cell]) <= 0.5) {
 				change_state(state_mut_map[state*11+idx]);
 				new_state = diff_mut_map[state*11+idx];
 			} else {
@@ -322,11 +314,13 @@ struct Cell {
 		return new_state;
 	}
 
-	__device__ void move(Cell *c) {
-		c->change_state(state);
-		copy_mutations(c);
-		c->age = age;
-		apoptosis();
+	__device__ void move(Cell *c, int cell, curandState_t *states) {
+		if (curand_uniform(&states[cell]) <= CHANCE_MOVE) {
+			c->change_state(state);
+			copy_mutations(c);
+			c->age = age;
+			apoptosis();
+		}
 	}
 
 	__device__ void apoptosis(void) {
@@ -344,7 +338,7 @@ struct Cell {
 	}
 
 	__device__ void phenotype_mutate(int M, float *prevMut, float *newMut) {
-		if (newMut[M] >= MUT_THRESHHOLD) {
+		if (newMut[M] >= MUT_THRESHOLD) {
 			// down-regulation
 			if (prevMut[M] > newMut[M]) {
 				for (int j = 0; j < 4; j++) {
@@ -365,19 +359,19 @@ struct Cell {
 		}
 	}
 
-	__device__ void update_consumption(int idx, float *in, float *prevMut, float *newMut) {
+	__device__ void update_consumption(int idx, float *in, float *prevMut, float *newMut, int cell, curandState_t *states) {
 		int M_idx[11];
 		for (int i = 0; i < NN->n_input; i++) NN->input[i] = 0.0f;
 		consumption[idx] = 0.0f;
 		NN->input[idx] = in[idx];
 		NN->evaluate();
-		int count = max_idx(NN->output, M_idx, NN->n_output);
+		int count = get_rand_idx(NN->output, 11, cell, states, M_idx);
 		for (int i = 0; i < count; i++) consumption[idx] += fabsf(newMut[M_idx[i]] - prevMut[M_idx[i]]);
 	}
 
 	__device__ void mutate(float *in, float* result, int cell, curandState_t *states) {
 		int M_idx[11];
-		int count = max_idx(result, M_idx, NN->n_output);
+		int count = get_rand_idx(result, 11, cell, states, M_idx);
 
 		for (int i = 0; i < count; i++) {
 			int M = M_idx[i];
@@ -386,7 +380,7 @@ struct Cell {
 				for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
 				NN->mutate(M, index_map, mutations, cell, states);
 				phenotype_mutate(M, prevMut, mutations);
-				for (int j = 0; j < NN->n_input-1; j++) update_consumption(j, in, prevMut, mutations);
+				for (int j = 0; j < NN->n_input-1; j++) update_consumption(j, in, prevMut, mutations, cell, states);
 			}
 		}
 
@@ -401,12 +395,12 @@ struct Cell {
 					NN->mutate(idx, index_map, mutations, cell, states);
 					for (int j = 0; j < NN->n_input; j++) NN->input[j] = in[j];
 					NN->evaluate();
-					count = max_idx(NN->output, M_idx, NN->n_output);
+					count = get_rand_idx(NN->output, 11, cell, states, M_idx);
 					for (int k = 0; k < count; k++) {
 						int M = M_idx[k];
 						if (M != 0 && state != 6) {
 							phenotype_mutate(M, prevMut, mutations);
-							for (int l = 0; l < NN->n_input-1; l++) update_consumption(l, in, prevMut, mutations);
+							for (int l = 0; l < NN->n_input-1; l++) update_consumption(l, in, prevMut, mutations, cell, states);
 						}
 					}
 				}
