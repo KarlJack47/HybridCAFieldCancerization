@@ -55,6 +55,13 @@ __device__ int get_indexes(float val, float *L, int *idx, int N) {
 // Bitonic Sort Functions
 #ifndef EXCHANGE
 #define EXCHANGE
+__device__ unsigned int greatestPowerOfTwoLessThan(int n) {
+	int k = 1;
+	while (k > 0 && k < n)
+		k <<= 1;
+	return (unsigned int)k >> 1;
+}
+
 __device__ void exchange(float *L, int i, int j) {
         float t = L[i];
         L[i] = L[j];
@@ -74,11 +81,11 @@ __device__ void compare(float *L, int i, int j, bool dir) {
 #define BITONIC_MERGE
 __device__ void bitonic_merge(float *L, int lo, int N, bool dir ) {
         if (N > 1) {
-                int m = N/2;
-                for (int i = lo; i < lo+m; i++)
+                int m =greatestPowerOfTwoLessThan(N);
+                for (int i = lo; i < lo+N-m; i++)
                         compare(L, i, i+m, dir);
                 bitonic_merge(L, lo, m, dir);
-                bitonic_merge(L, lo+m, m, dir);
+                bitonic_merge(L, lo+m, N-m, dir);
         }
 }
 #endif
@@ -88,8 +95,8 @@ __device__ void bitonic_merge(float *L, int lo, int N, bool dir ) {
 __device__ void bitonic_sort(float *L, int lo, int N, bool dir ) {
         if (N > 1) {
                 int m = N/2;
-                bitonic_sort(L, lo, m, true);
-                bitonic_sort(L, lo+m, m, false);
+                bitonic_sort(L, lo, m, !dir);
+                bitonic_sort(L, lo+m, N-m, dir);
                 bitonic_merge(L, lo, N, dir);
         }
 }
