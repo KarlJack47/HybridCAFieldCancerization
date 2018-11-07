@@ -3,7 +3,8 @@
 
 #include "mutation_nn.h"
 
-#define MUT_THRESHHOLD 0.1f
+#define MUT_THRESHHOLD 0.06f
+#define PHENOTYPE_INCR 0.005f
 
 // "NC": 0
 // "MNC": 1
@@ -26,35 +27,35 @@ __managed__ int index_map[11*12] = {0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -
 				    2, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 __managed__ float upreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
-					       -0.01f, 0.01f, 0.01f, 0.0f,
-					       0.0f, 0.0f, 0.01f, 0.0f,
-					       -0.01f, 0.01f, 0.0f, 0.0f,
-				    	       -0.01f, 0.01f, 0.0f, -0.01f,
-					       -0.01f, 0.0f, 0.0f, 0.0f,
-					       0.01f, 0.0f, 0.0f, 0.0f,
-					       0.0f, 0.0f, -0.01f, 0.0f,
-				    	       0.01f, 0.0f, -0.01f, 0.01f,
-					       0.0f, 0.0f, -0.01f, 0.0f,
-					       0.01f, 0.0f, -0.01f, 0.01f};
+					       -PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
+					       0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+					       -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, 0.0f,
+				    	       -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR,
+					       -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+					       PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+					       0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+				    	       PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR,
+					       0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+					       PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR};
 
 __managed__ float downreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
-						 0.01f, -0.01f, -0.01f, 0.0f,
-						 0.0f, 0.0f, -0.01f, 0.0f,
-						 0.01f, -0.01f, 0.0f, 0.0f,
-				    		 0.01f, -0.01f, 0.0f, 0.01f,
-						 0.01f, 0.0f, 0.0f, 0.0f,
-						 -0.01f, 0.0f, 0.0f, 0.0f,
-						 0.0f, 0.0f, 0.01f, 0.0f,
-				    		 -0.01f, 0.0f, 0.01f, -0.01f,
-						 0.0f, 0.0f, 0.01f, 0.0f,
-						 -0.01f, 0.0f, 0.01f, -0.01f};
+						 PHENOTYPE_INCR, -PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f,
+						 0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+						 PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, 0.0f,
+				    		 PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR,
+						 PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+						 -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+						 0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+				    		 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR,
+						 0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+						 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
 
 __managed__ float phenotype_init[7*4] = {0.05f, 0.9f, 0.3f, 0.0f,
 					 0.1f, 0.9f, 0.15f, 0.0f,
 					 0.1f, 0.9f, 0.075f, 0.3f,
 					 0.2f, 0.9f, 0.05f, 0.4f,
 					 0.2f, 0.9f, 0.025f, 0.5f,
-					 0.6f, 0.9f, 0.00625f, 0.0f,
+					 0.4f, 0.9f, 0.00625f, 0.0f,
 					 0.0f, 0.0f, 0.0f, 0.0f};
 
 __managed__ int state_mut_map[6*11] = {0, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
@@ -87,8 +88,8 @@ struct Cell {
 	float *mutations;
 	float *consumption;
 
-	MutationNN *NN;
 	float *W_y_init;
+	MutationNN *NN;
 
 	void initialize(int x, int y, int grid_size, int n_in, int n_out, float *carcinogen_mutation_map) {
 		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(MutationNN)));
@@ -153,7 +154,7 @@ struct Cell {
 		free(b_x);
 		free(b_y);
 		CudaSafeCall(cudaMallocManaged((void**)&W_y_init, n_hidden*n_output*sizeof(float)));
-		CudaSafeCall(cudaMemcpy(W_y_init, W_y, n_hidden*n_output*sizeof(float), cudaMemcpyHostToDevice));
+		memcpy(W_y_init, W_y, n_hidden*n_output*sizeof(float));
 		free(W_y);
 
 		CudaSafeCall(cudaMallocManaged((void**)&phenotype, 4*sizeof(float)));
@@ -211,13 +212,13 @@ struct Cell {
 
 	__device__ void change_state(int new_state) {
 		for (int i = 0; i < 4; i++) {
-			float check = phenotype_init[new_state*4+i] + abs(phenotype[i] - phenotype_init[state*4+i]);
+			float check = phenotype_init[new_state*4+i] + phenotype[i] - phenotype_init[state*4+i];
 			if (check < 0)
 				phenotype[i] = 0.0f;
 			else if (check > 1)
 				phenotype[i] = 1.0f;
 			else
-				phenotype[i] = phenotype_init[new_state*4+i] + abs(phenotype[i] - phenotype_init[state*4+i]);
+				phenotype[i] = phenotype_init[new_state*4+i] + phenotype[i] - phenotype_init[state*4+i];
 		}
 		state = new_state;
 	}
@@ -226,45 +227,44 @@ struct Cell {
 		if (state != 6) {
 			float s = curand_uniform(&states[cell]);
 			float sorted_phenotype[4];
+			float normalized[4];
 			for (int i = 0; i < 4; i++) sorted_phenotype[i] = phenotype[i];
 			bitonic_sort(sorted_phenotype, 0, 4, true);
-			float R[4];
-			R[0] = sorted_phenotype[0]*0.25 + (0.25 - 0.25*sorted_phenotype[3]);
-			R[1] = R[0] + 0.25*sorted_phenotype[1] + (0.25 - 0.25*sorted_phenotype[2]);
-			R[2] = R[1] + 0.25*sorted_phenotype[2] + (0.25 - 0.25*sorted_phenotype[1]);
-			R[3] = R[2] + 0.25*sorted_phenotype[3] + (0.25 - 0.25*sorted_phenotype[0]);
+			float min = sorted_phenotype[0];
+			float max = sorted_phenotype[3];
+			for (int i = 0; i < 4; i++)
+				normalized[i] = (phenotype[i] - min) / (max - min);
+			float normalized_sorted[4];
+			for (int i = 0; i < 4; i++) normalized_sorted[i] = normalized[i];
+			bitonic_sort(normalized_sorted, 0, 4, true);
 			int idx[4];
-			int count;
-			if (s <= R[0])
-				count = get_indexes(sorted_phenotype[0], phenotype, idx, 4);
-			else if (s > R[0] && s <= R[1])
-				count = get_indexes(sorted_phenotype[1], phenotype, idx, 4);
-			else if (s > R[1] && s <= R[2])
-				count = get_indexes(sorted_phenotype[2], phenotype, idx, 4);
+			int count = 0;
+			if (s <= normalized_sorted[0])
+				count = get_indexes(normalized_sorted[0], normalized, idx, 4);
+			else if (s > normalized_sorted[0] && s <= normalized_sorted[1])
+				count = get_indexes(normalized_sorted[1], normalized, idx, 4);
+			else if (s > normalized_sorted[1] && s <= normalized_sorted[2])
+				count = get_indexes(normalized_sorted[2], normalized, idx, 4);
 			else
-				count = get_indexes(sorted_phenotype[3], phenotype, idx, 4);
+				count = get_indexes(normalized_sorted[3], normalized, idx, 4);
 			return idx[(int) ceilf(curand_uniform(&states[cell])*count) % count];
 		} else return -1;
 	}
 
 	__device__ void copy_mutations(Cell *c) {
 		for (int i = 0; i < 4; i++) {
-			if (c->phenotype[i] + abs(phenotype[i] - phenotype_init[state*4+i]) < 0)
+			float check = c->phenotype[i] + phenotype[i] - phenotype_init[state*4+i];
+			if (check < 0)
 				c->phenotype[i] = 0.0f;
-			else if (c->phenotype[i] + abs(phenotype[i] - phenotype_init[state*4+i]) > 1)
+			else if (check > 1)
 				c->phenotype[i] = 1.0f;
 			else
-				c->phenotype[i] += abs(phenotype[i] - phenotype_init[state*4+i]);
+				c->phenotype[i] += phenotype[i] - phenotype_init[state*4+i];
 		}
-		for (int i = 0; i < NN->n_hidden*NN->n_output; i++) {
-			if (W_y_init[i] < 0)
-				c->NN->W_out[i] -= abs(W_y_init[i] - NN->W_out[i]);
-			else
-				c->NN->W_out[i] += abs(W_y_init[i] - NN->W_out[i]);
-		}
-		for (int i = 0; i < 11; i++) {
-			c->mutations[i] += mutations[i];
-		}
+		for (int i = 0; i < NN->n_hidden*NN->n_output; i++)
+			c->NN->W_out[i] = NN->W_out[i];
+		for (int i = 0; i < 11; i++)
+			c->mutations[i] = mutations[i];
 	}
 
 	__device__ int random_mutation_index(int cell, curandState_t *states) {
@@ -343,22 +343,24 @@ struct Cell {
 		age = 0;
 	}
 
-	__device__ void phenotype_mutate(int M, float prevMut, float newMut) {
-		// down-regulation
-		if (prevMut > newMut) {
-			for (int j = 0; j < 4; j++) {
-				if (downreg_phenotype_map[M*4+j] < 0)
-					phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M*4+j]);
-				else
-					phenotype[j] = fminf(phenotype[j] + downreg_phenotype_map[M*4+j], 1.0f);
-			}
-		// up-regulation
-		} else {
-			for (int j = 0; j < 4; j++) {
-				if (upreg_phenotype_map[M*4+j] < 0)
-					phenotype[j] = fmaxf(0.0f, phenotype[j] + upreg_phenotype_map[M*4+j]);
-				else
-					phenotype[j] = fminf(phenotype[j] + upreg_phenotype_map[M*4+j], 1.0f);
+	__device__ void phenotype_mutate(int M, float *prevMut, float *newMut) {
+		if (newMut[M] >= MUT_THRESHHOLD) {
+			// down-regulation
+			if (prevMut[M] > newMut[M]) {
+				for (int j = 0; j < 4; j++) {
+					if (downreg_phenotype_map[M*4+j] < 0)
+						phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M*4+j]);
+					else
+						phenotype[j] = fminf(phenotype[j] + downreg_phenotype_map[M*4+j], 1.0f);
+				}
+			// up-regulation
+			} else {
+				for (int j = 0; j < 4; j++) {
+					if (upreg_phenotype_map[M*4+j] < 0)
+						phenotype[j] = fmaxf(0.0f, phenotype[j] + upreg_phenotype_map[M*4+j]);
+					else
+						phenotype[j] = fminf(phenotype[j] + upreg_phenotype_map[M*4+j], 1.0f);
+				}
 			}
 		}
 	}
@@ -383,7 +385,7 @@ struct Cell {
 				float prevMut[11];
 				for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
 				NN->mutate(M, index_map, mutations, cell, states);
-				phenotype_mutate(M, prevMut[M], mutations[M]);
+				phenotype_mutate(M, prevMut, mutations);
 				for (int j = 0; j < NN->n_input-1; j++) update_consumption(j, in, prevMut, mutations);
 			}
 		}
@@ -403,7 +405,7 @@ struct Cell {
 					for (int k = 0; k < count; k++) {
 						int M = M_idx[k];
 						if (M != 0 && state != 6) {
-							phenotype_mutate(M, prevMut[M], mutations[M]);
+							phenotype_mutate(M, prevMut, mutations);
 							for (int l = 0; l < NN->n_input-1; l++) update_consumption(l, in, prevMut, mutations);
 						}
 					}
