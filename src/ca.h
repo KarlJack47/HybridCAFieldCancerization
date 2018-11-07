@@ -137,7 +137,7 @@ __global__ void display(uchar4 *optr, Cell *grid, int cell_size, int dim) {
 		}
 	} else if (grid[offset].state == 0.0f) { // black (NC)
 		for (int i = offsetOptr; i < offsetOptr + cell_size; i++) {
-			for (int j = i; j < i + cell_size * dim; j = j + dim) {
+			for (int j = i; j < i + cell_size * dim; j += dim) {
 				optr[j].x = 0;
 				optr[j].y = 0;
 				optr[j].z = 0;
@@ -339,8 +339,8 @@ struct CA {
 	void init(float *carcin_map, double *diffusion, bool *liquid) {
 		for (int i = 0; i < d.grid_size; i++) {
 			for (int j = 0; j < d.grid_size; j++) {
-				d.prevGrid[i*d.grid_size + j] = Cell(i, j, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
-				d.newGrid[i*d.grid_size + j] = Cell(i, j, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
+				d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
+				d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
 			}
 		}
 
