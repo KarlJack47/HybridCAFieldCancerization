@@ -111,6 +111,7 @@ __device__ int get_rand_idx(double *L, const int N, int cell, curandState_t *sta
 struct Cell {
 	int state;
 	int age;
+	int device;
 	int *neighbourhood;
 	double *phenotype;
 	double *mutations;
@@ -120,6 +121,14 @@ struct Cell {
 	MutationNN *NN;
 
 	void initialize(int x, int y, int grid_size, int n_in, int n_out, double *carcinogen_mutation_map) {
+		CudaSafeCall(cudaMemPrefetchAsync(index_map, 11*12*sizeof(int), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(upreg_phenotype_map, 11*4*sizeof(double), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(downreg_phenotype_map, 11*4*sizeof(double), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(phenotype_init, 7*4*sizeof(double), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(state_mut_map, 6*11*sizeof(int), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(prolif_mut_map, 6*11*sizeof(int), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(diff_mut_map, 6*11*sizeof(int), device, NULL));
+
 		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(MutationNN)));
 		NN[0] = MutationNN(n_in, n_out);
 		int n_input = NN->n_input; int n_hidden = NN->n_hidden; int n_output = NN->n_output;
@@ -176,7 +185,8 @@ struct Cell {
 
 		memset(b_y, 0.0f, n_output*sizeof(double));
 
-		NN->memory_allocate(W_x, b_x, W_y, b_y);
+		NN->memory_allocate(W_x, b_x, W_y, b_y, device);
+		CudaSafeCall(cudaMemPrefetchAsync(NN, sizeof(NN), device, NULL));
 
 		free(W_x);
 		free(b_x);
@@ -184,6 +194,7 @@ struct Cell {
 		CudaSafeCall(cudaMallocManaged((void**)&W_y_init, n_hidden*n_output*sizeof(double)));
 		memcpy(W_y_init, W_y, n_hidden*n_output*sizeof(double));
 		free(W_y);
+		CudaSafeCall(cudaMemPrefetchAsync(W_y_init, n_hidden*n_output*sizeof(double), device, NULL));
 
 		CudaSafeCall(cudaMallocManaged((void**)&phenotype, 4*sizeof(double)));
 
@@ -196,18 +207,22 @@ struct Cell {
 		neighbourhood[5] = ((x+1) % grid_size) + abs((y-1) % grid_size) * grid_size; // se
 		neighbourhood[6] = abs((x-1) % grid_size) + abs((y-1) % grid_size) * grid_size; // sw
 		neighbourhood[7] = abs((x-1) % grid_size) + ((y+1) % grid_size) * grid_size; // nw
-
+		CudaSafeCall(cudaMemPrefetchAsync(neighbourhood, 8*sizeof(int), device, NULL));
 
 		CudaSafeCall(cudaMallocManaged((void**)&mutations, n_output*sizeof(double)));
 		memset(mutations, 0.0f, n_output*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(mutations, n_output*sizeof(double), device, NULL));
 
 		CudaSafeCall(cudaMallocManaged((void**)&consumption, (n_input-1)*sizeof(double)));
 		memset(consumption, 0.0f, (n_input-1)*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(consumption, (n_input-1)*sizeof(double), device, NULL));
+
 		age = 0;
 
 	}
 
-	Cell(int x, int y, int grid_size, int n_in, int n_out, double *carcin_map) {
+	Cell(int x, int y, int grid_size, int n_in, int n_out, double *carcin_map, int dev) {
+		device = dev;
 		set_seed();
 		int init_states[3] = {0, 2, 6};
 		double weight_states[3] = {0.70f, 0.01f, 0.29f};
@@ -227,9 +242,11 @@ struct Cell {
 		phenotype[1] = phenotype_init[state*4+1];
 		phenotype[2] = phenotype_init[state*4+2];
 		phenotype[3] = phenotype_init[state*4+3];
+		CudaSafeCall(cudaMemPrefetchAsync(phenotype, 4*sizeof(double), device, NULL));
 	}
 
 	void free_resources(void) {
+		CudaSafeCall(cudaDeviceSynchronize());
 		CudaSafeCall(cudaFree(neighbourhood));
 		CudaSafeCall(cudaFree(mutations));
 		CudaSafeCall(cudaFree(consumption));

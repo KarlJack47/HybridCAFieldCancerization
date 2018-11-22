@@ -56,6 +56,7 @@ __global__ void space_step(double *sol, int cur_t, int next_t, int N, double bc,
 }
 
 struct CarcinogenPDE {
+	int device;
 	int N;
 	int T;
 	double T_scale;
@@ -73,7 +74,8 @@ struct CarcinogenPDE {
 	double *sol;
 	double *results;
 
-	CarcinogenPDE(int space_size, int num_timesteps, double diff, bool liq, int idx) {
+	CarcinogenPDE(int space_size, int num_timesteps, double diff, bool liq, int idx, int dev) {
+		device = dev;
 		N = space_size;
 		T = num_timesteps + 1;
 		T_scale = 16.0f;
@@ -94,6 +96,8 @@ struct CarcinogenPDE {
 
 		CudaSafeCall(cudaMallocManaged((void**)&sol, maxT*Nx*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&results, T*Nx*sizeof(double)));
+		CudaSafeCall(cudaMemPrefetchAsync(sol, maxT*Nx*sizeof(double), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(results, T*Nx*sizeof(double), device, NULL));
 	}
 
 	void init(void) {
@@ -105,13 +109,14 @@ struct CarcinogenPDE {
 	}
 
 	void free_resources(void) {
+		CudaSafeCall(cudaDeviceSynchronize());
 		CudaSafeCall(cudaFree(results));
 		CudaSafeCall(cudaFree(sol));
 	}
 
 	void time_step(int step, Cell *cells) {
 		set_seed();
-		CudaSafeCall(cudaMemcpy(&sol[0], &results[(step-1)*Nx], Nx*sizeof(double), cudaMemcpyDeviceToDevice));
+		memcpy(&sol[0], &results[(step-1)*Nx], Nx*sizeof(double));
 
 		dim3 blocks(N / BLOCK_SIZE, N / BLOCK_SIZE);
 		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
@@ -130,7 +135,7 @@ struct CarcinogenPDE {
 			CudaSafeCall(cudaDeviceSynchronize());
 		}
 
-		CudaSafeCall(cudaMemcpy(&results[step*Nx], &sol[(maxT-1)*Nx], Nx*sizeof(double), cudaMemcpyDeviceToDevice));
+		memcpy(&results[step*Nx], &sol[(maxT-1)*Nx], Nx*sizeof(double));
 	}
 
 	__host__ __device__ double get(int cell, int time) {

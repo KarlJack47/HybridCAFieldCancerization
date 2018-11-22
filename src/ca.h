@@ -222,7 +222,8 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaSafeCall(cudaDeviceSynchronize());
 		} else {
 			curandState_t *states;
-			CudaSafeCall(cudaMalloc((void**)&states, d->grid_size*d->grid_size*sizeof(curandState_t)));
+			CudaSafeCall(cudaMallocManaged((void**)&states, d->grid_size*d->grid_size*sizeof(curandState_t)));
+			CudaSafeCall(cudaMemPrefetchAsync(states, d->grid_size*d->grid_size*sizeof(curandState_t), 1, NULL));
 			timespec seed;
         		clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &seed);
 			init_curand<<< d->grid_size*d->grid_size, 1 >>>(seed.tv_nsec, states);
@@ -263,6 +264,7 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 		fname[dig_max+3] = 'g';
 		unsigned char *frame;
 		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
+		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
 		dim3 blocks1(d->dim/16, d->dim/16);
 		dim3 threads1(16, 16);
 		copy_frame<<< blocks1, threads1 >>>( outputBitmap, frame );
@@ -338,10 +340,13 @@ struct CA {
 	void init(double *carcin_map, double *diffusion, bool *liquid) {
 		for (int i = 0; i < d.grid_size; i++) {
 			for (int j = 0; j < d.grid_size; j++) {
-				d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
-				d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
+				d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map, 0);
+				d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map, 1);
 			}
 		}
+
+		CudaSafeCall(cudaMemPrefetchAsync(d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell), 0, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(d.newGrid, d.grid_size*d.grid_size*sizeof(Cell), 1, NULL));
 
 		dim3 blocks(d.grid_size / BLOCK_SIZE, d.grid_size / BLOCK_SIZE);
 		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
@@ -350,9 +355,14 @@ struct CA {
 		CudaSafeCall(cudaDeviceSynchronize());
 
 		for (int i = 0; i < d.n_carcinogens; i++) {
-			d.pdes[i] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[i], liquid[i], i);
+			if (i % 2 == 0)
+				d.pdes[i] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[i], liquid[i], i, 0);
+			else
+				d.pdes[i] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[i], liquid[i], i, 1);
 			d.pdes[i].init();
 		}
+
+		CudaSafeCall(cudaMemPrefetchAsync(d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE), 1, NULL));
 	}
 
 	void animate(int frame_rate) {

@@ -68,6 +68,7 @@ __device__ void feedforward(double *input, double *W_in, double *b_in, double *h
 }
 
 struct MutationNN {
+	int device;
 	double *input;
 	double *output;
 	double *hidden;
@@ -86,25 +87,35 @@ struct MutationNN {
 		n_output = n_out;
 	}
 
-	void memory_allocate(double *W_x, double *b_x, double *W_y, double *b_y) {
+	void memory_allocate(double *W_x, double *b_x, double *W_y, double *b_y, int dev) {
+		device = dev;
+
 		CudaSafeCall(cudaMallocManaged((void**)&input, n_input*sizeof(double)));
 		memset(input, 0.0f, n_input*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(input, n_input*sizeof(double), device, NULL));
 		CudaSafeCall(cudaMallocManaged((void**)&output, n_output*sizeof(double)));
 		memset(output, 0.0f, n_output*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(output, n_output*sizeof(double), device, NULL));
 		CudaSafeCall(cudaMallocManaged((void**)&W_in, n_hidden*n_input*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&b_in, n_hidden*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&hidden, n_hidden*sizeof(double)));
 		memset(hidden, 0.0f, n_hidden*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(hidden, n_hidden*sizeof(double), device, NULL));
 		CudaSafeCall(cudaMallocManaged((void**)&W_out, n_hidden*n_output*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&b_out, n_output*sizeof(double)));
 
 		memcpy(W_in, W_x, n_hidden*n_input*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(W_in, n_hidden*n_input*sizeof(double), device, NULL));
 		memcpy(b_in, b_x, n_hidden*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(b_in, n_hidden*sizeof(double), device, NULL));
 		memcpy(W_out, W_y, n_hidden*n_output*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(W_out, n_hidden*n_output*sizeof(double), device, NULL));
 		memcpy(b_out, b_y, n_output*sizeof(double));
+		CudaSafeCall(cudaMemPrefetchAsync(b_out, n_output*sizeof(double), device, NULL));
 	}
 
 	void free_resources(void) {
+		CudaSafeCall(cudaDeviceSynchronize());
 		CudaSafeCall(cudaFree(input));
 		CudaSafeCall(cudaFree(output));
 		CudaSafeCall(cudaFree(W_in));
