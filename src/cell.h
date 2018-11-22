@@ -3,9 +3,11 @@
 
 #include "mutation_nn.h"
 
+#ifndef CELL_PARAM
+#define CELL_PARAM
 #define MUT_THRESHOLD 0.1f
-#define PHENOTYPE_INCR 0.01f
 #define CHANCE_MOVE 0.05f
+#endif
 
 // "NC": 0
 // "MNC": 1
@@ -15,70 +17,6 @@
 // "TC": 5
 // "Empty": 6
 
-__managed__ int index_map[11*12] = {0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    9, 2, 3, 4, 5, 6, 7, 8, 9, 10, -1, -1,
-				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    2, 1, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    1, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    2, 4, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				    2, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1};
-
-__managed__ double upreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
-					        -PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
-					        0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-					        -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, 0.0f,
-				    	        -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR,
-					        -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-					        PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-					        0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-				    	        PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR,
-					        0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-					        PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR};
-
-__managed__ double downreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
-						  PHENOTYPE_INCR, -PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f,
-						  0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-						  PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, 0.0f,
-				    		  PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR,
-						  PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-						  -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-				    		  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR,
-						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-						  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
-
-__managed__ double phenotype_init[7*4] = {0.05f, 0.9f, 0.2f, 0.0f,
-					  0.1f, 0.9f, 0.1f, 0.0f,
-					  0.1f, 0.9f, 0.05f, 0.3f,
-					  0.2f, 0.9f, 0.025f, 0.4f,
-					  0.2f, 0.9f, 0.0125f, 0.5f,
-					  0.4f, 0.9f, 0.00625f, 0.0f,
-					  0.0f, 0.0f, 0.0f, 0.0f};
-
-__managed__ int state_mut_map[6*11] = {0, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
-				       1, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
-				       2, 3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
-				       3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
-				       4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-				       5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
-
-__managed__ int prolif_mut_map[6*11] = {0, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
-					1, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
-					2, 3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
-					3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
-				  	4, 4, 4, 5, 4, 4, 4, 4, 4, 4, 4,
-					5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
-
-__managed__ int diff_mut_map[6*11] = {-1, 1, -1, -1, 4, -1, -1, -1, 4, -1, 4,
-				      -1, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
-				      0, 1, 0, 0, 0, 0, 0, 0, 4, 0, 4,
-				      1, 1, 1, 1, 1, 1, 1, 1, 4, 1, 4,
-				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
-				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
 __device__ int get_rand_idx(double *L, const int N, int cell, curandState_t *states, int *idx=NULL) {
 	double *sorted = (double*)malloc(N*sizeof(double));
@@ -121,14 +59,6 @@ struct Cell {
 	MutationNN *NN;
 
 	void initialize(int x, int y, int grid_size, int n_in, int n_out, double *carcinogen_mutation_map) {
-		CudaSafeCall(cudaMemPrefetchAsync(index_map, 11*12*sizeof(int), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(upreg_phenotype_map, 11*4*sizeof(double), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(downreg_phenotype_map, 11*4*sizeof(double), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(phenotype_init, 7*4*sizeof(double), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(state_mut_map, 6*11*sizeof(int), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(prolif_mut_map, 6*11*sizeof(int), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(diff_mut_map, 6*11*sizeof(int), device, NULL));
-
 		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(MutationNN)));
 		NN[0] = MutationNN(n_in, n_out);
 		int n_input = NN->n_input; int n_hidden = NN->n_hidden; int n_output = NN->n_output;
@@ -395,7 +325,7 @@ struct Cell {
 			if (M != 0 && state != 6) {
 				double prevMut[11];
 				for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
-				NN->mutate(M, index_map, mutations, cell, states);
+				NN->mutate(M, mutations, cell, states);
 				phenotype_mutate(M, prevMut, mutations);
 				for (int j = 0; j < NN->n_input-1; j++) update_consumption(j, in, prevMut, mutations, cell, states);
 			}
@@ -409,7 +339,7 @@ struct Cell {
 					int idx = (int) ceilf(curand_uniform_double(&states[cell])*11.0f) % 11;
 					double prevMut[11];
 					for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
-					NN->mutate(idx, index_map, mutations, cell, states);
+					NN->mutate(idx, mutations, cell, states);
 					for (int j = 0; j < NN->n_input; j++) NN->input[j] = in[j];
 					NN->evaluate();
 					count = get_rand_idx(NN->output, 11, cell, states, M_idx);

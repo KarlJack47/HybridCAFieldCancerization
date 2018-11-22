@@ -1,11 +1,14 @@
 #ifndef __MUTATION_NN_H__
 #define __MUTATION_NN_H__
 
+#ifndef MUTATION_PARAM
+#define MUTATION_PARAM
 #define RAND_INCR_A 5000000.0f // 0.005
 #define RAND_INCR_B 10000000.0f // 0.01
 #define RAND_DECR_A 10000000.0f // 0.01
 #define RAND_DECR_B 100000000.0f // 0.1
 #define CHANCE_UPREG 0.5f
+#endif
 
 __device__ void activation(int idx, double *input, double *output) {
 	/*  Computes the value of the sigmoid function f(x) = 1/(1 + e^-2x).
@@ -129,7 +132,7 @@ struct MutationNN {
 		feedforward(input, W_in, b_in, hidden, W_out, b_out, output, n_input, n_hidden, n_output);
 	}
 
-	__device__ void mutate(int M, int *idx, double *mutations, int cell, curandState_t *states) {
+	__device__ void mutate(int M, double *mutations, int cell, curandState_t *states) {
 		if (M != 0) {
 			if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
 				double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
@@ -143,23 +146,23 @@ struct MutationNN {
 				W_out[0] += decr;
 			}
 		}
-		for (int i = 0; i < idx[M*12]; i++) {
+		for (int i = 0; i < index_map[M*12]; i++) {
 			if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
 				double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
-				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] += incr;
-				W_out[idx[M*12+(i+1)]*n_output] -= incr;
+				W_out[index_map[M*12+(i+1)]*n_output+index_map[M*12+(i+1)]] += incr;
+				W_out[index_map[M*12+(i+1)]*n_output] -= incr;
 			} else {
 				double decr = (curand_uniform(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
-				W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] = fmaxf(0.0f, W_out[idx[M*12+(i+1)]*n_output+idx[M*12+(i+1)]] - decr);
-				W_out[idx[M*12+(i+1)]*n_output] = fminf(W_out[idx[M*12+(i+1)]*n_output]+decr, 0.0f);
+				W_out[index_map[M*12+(i+1)]*n_output+index_map[M*12+(i+1)]] = fmaxf(0.0f, W_out[index_map[M*12+(i+1)]*n_output+index_map[M*12+(i+1)]] - decr);
+				W_out[index_map[M*12+(i+1)]*n_output] = fminf(W_out[index_map[M*12+(i+1)]*n_output]+decr, 0.0f);
 			}
-			if (idx[(i+1)*12+(i+1)] == M) {
+			if (index_map[(i+1)*12+(i+1)] == M) {
 				if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
 					double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
-					W_out[idx[M*12+(i+1)]*n_output+M] += incr;
+					W_out[index_map[M*12+(i+1)]*n_output+M] += incr;
 				} else {
 					double decr = (curand_uniform_double(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
-					W_out[idx[M*12+(i+1)]*n_output+M] = fmaxf(0, W_out[idx[M*12+(i+1)]*n_output+M] - decr);
+					W_out[index_map[M*12+(i+1)]*n_output+M] = fmaxf(0, W_out[index_map[M*12+(i+1)]*n_output+M] - decr);
 				}
 			}
 		}

@@ -11,7 +11,78 @@
 #include <sys/time.h>
 #include "error_check.h"
 
+#ifndef BLOCK_SIZE
 #define BLOCK_SIZE 16
+#endif
+
+#ifndef PARAMS
+#define PARAMS
+__managed__ int index_map[11*12] = {0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    9, 2, 3, 4, 5, 6, 7, 8, 9, 10, -1, -1,
+				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    2, 1, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    1, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    2, 4, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				    2, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+
+#define PHENOTYPE_INCR 0.01f
+__managed__ double upreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
+					        -PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
+					        0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+					        -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, 0.0f,
+				    	        -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR,
+					        -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+					        PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+					        0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+				    	        PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR,
+					        0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+					        PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR};
+
+__managed__ double downreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
+						  PHENOTYPE_INCR, -PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f,
+						  0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+						  PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, 0.0f,
+				    		  PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR,
+						  PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+						  -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+				    		  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR,
+						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+						  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
+
+__managed__ double phenotype_init[7*4] = {0.05f, 0.9f, 0.2f, 0.0f,
+					  0.1f, 0.9f, 0.1f, 0.0f,
+					  0.1f, 0.9f, 0.05f, 0.3f,
+					  0.2f, 0.9f, 0.025f, 0.4f,
+					  0.2f, 0.9f, 0.0125f, 0.5f,
+					  0.4f, 0.9f, 0.00625f, 0.0f,
+					  0.0f, 0.0f, 0.0f, 0.0f};
+
+__managed__ int state_mut_map[6*11] = {0, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
+				       1, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
+				       2, 3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
+				       3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
+				       4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+				       5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+
+__managed__ int prolif_mut_map[6*11] = {0, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
+					1, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
+					2, 3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
+					3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
+				  	4, 4, 4, 5, 4, 4, 4, 4, 4, 4, 4,
+					5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+
+__managed__ int diff_mut_map[6*11] = {-1, 1, -1, -1, 4, -1, -1, -1, 4, -1, 4,
+				      -1, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
+				      0, 1, 0, 0, 0, 0, 0, 0, 4, 0, 4,
+				      1, 1, 1, 1, 1, 1, 1, 1, 4, 1, 4,
+				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
+				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+#endif
 
 /* Start Array Functions */
 #ifndef MAX_IDX

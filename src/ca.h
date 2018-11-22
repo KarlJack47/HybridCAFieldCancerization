@@ -331,6 +331,17 @@ struct CA {
 				CudaSafeCall(cudaDeviceEnablePeerAccess(j, 0));
 		}
 
+		int device = 0;
+
+		CudaSafeCall(cudaMemPrefetchAsync(index_map, 11*12*sizeof(int), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(upreg_phenotype_map, 11*4*sizeof(double), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(downreg_phenotype_map, 11*4*sizeof(double), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(phenotype_init, 7*4*sizeof(double), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(state_mut_map, 6*11*sizeof(int), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(prolif_mut_map, 6*11*sizeof(int), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(diff_mut_map, 6*11*sizeof(int), device, NULL));
+
+
 		CudaSafeCall(cudaMallocManaged((void**)&d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE)));
 		CudaSafeCall(cudaMalloc((void**)&d.output_bitmap, bitmap.image_size()));
 		CudaSafeCall(cudaMallocManaged((void**)&d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell)));
