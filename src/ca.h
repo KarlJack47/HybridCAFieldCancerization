@@ -10,8 +10,7 @@
 struct DataBlock {
 	unsigned char *output_bitmap;
 	Cell *prevGrid;
-	Cell *childGrid;
-	Cell *parentGrid;
+	Cell *newGrid;
 	CarcinogenPDE *pdes;
 
 	int grid_size;
@@ -32,7 +31,11 @@ __managed__ bool tc_formed;
 
 GPUAnimBitmap bitmap(d.dim, d.dim, &d);
 
-__device__ void cells_copy(Cell *src, Cell *dst, int idx) {
+__global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst) {
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	int idx = x + y * blockDim.x * gridDim.x;
+
 	dst[idx].state = src[idx].state;
         dst[idx].age = src[idx].age;
 
@@ -57,16 +60,7 @@ __device__ void cells_copy(Cell *src, Cell *dst, int idx) {
         }
 }
 
-__global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, bool *modified) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-        int idx = x + y * blockDim.x * gridDim.x;
-
-        if (modified[idx]) cells_copy(dst, src, idx);
-	else cells_copy(src, dst, idx);
-}
-
-__global__ void rule(Cell *parentG, Cell *childG, Cell *prevG, bool *modified, int t, CarcinogenPDE *pdes, curandState_t *states) {
+__global__ void rule(Cell *newG, Cell *prevG, int t, CarcinogenPDE *pdes, curandState_t *states) {
 	// map from threadIdx/blockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -96,34 +90,30 @@ __global__ void rule(Cell *parentG, Cell *childG, Cell *prevG, bool *modified, i
 
 	if (phenotype == 0) {
 		if (cell_idx != -1) {
-			int state = parentG[offset].proliferate(&childG[cell_idx], offset, states);
+			int state = newG[offset].proliferate(&newG[cell_idx], offset, states);
 			if (state == -1)
-				parentG[offset].move(&childG[cell_idx], offset, states);
-			if (childG[cell_idx].state != 6) modified[cell_idx] = true;
+				newG[offset].move(&newG[cell_idx], offset, states);
 		}
 	} else if (phenotype == 1) {
-		if (cell_idx != -1) {
-			parentG[offset].move(&childG[cell_idx], offset, states);
-			if (childG[cell_idx].state != 6) modified[cell_idx] = true;
-		}
+		if (cell_idx != -1)
+			newG[offset].move(&newG[cell_idx], offset, states);
 	} else if (phenotype == 2) {
-		parentG[offset].apoptosis();
+		newG[offset].apoptosis();
 	} else if (phenotype == 3) {
 		if (cell_idx != -1) {
-			int state = parentG[offset].differentiate(&childG[cell_idx], offset, states);
+			int state = newG[offset].differentiate(&newG[cell_idx], offset, states);
 			if (state == -1)
-				parentG[offset].move(&childG[cell_idx], offset, states);
-			if (childG[cell_idx].state != 6) modified[cell_idx] = true;
+				newG[offset].move(&newG[cell_idx], offset, states);
 		}
 	}
 
-	parentG[offset].mutate(prevG[offset].NN->input, prevG[offset].NN->output, offset, states);
+	newG[offset].mutate(prevG[offset].NN->input, prevG[offset].NN->output, offset, states);
 
-	if (csc_formed == false && prevG[offset].state != 4 && (parentG[offset].state == 4 || childG[cell_idx].state == 4)) {
+	if (csc_formed == false && prevG[offset].state != 4 && newG[offset].state == 4) {
 		printf("A CSC was formed at time step %d.\n", t);
 		csc_formed = true;
 	}
-	if (tc_formed == false && prevG[offset].state != 5 && (parentG[offset].state == 5 || childG[cell_idx].state == 5)) {
+	if (tc_formed == false && prevG[offset].state != 5 && newG[offset].state == 5) {
 		printf("A TC was formed at time step %d.\n", t);
 		tc_formed = true;
 	}
@@ -227,7 +217,7 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 	if (ticks <= d->maxT) {
 		printf("Starting %d\n", ticks);
 		if (ticks == 0) {
-			display<<< blocks, threads >>>(outputBitmap, d->parentGrid, d->cell_size, d->dim);
+			display<<< blocks, threads >>>(outputBitmap, d->newGrid, d->cell_size, d->dim);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 		} else {
@@ -239,32 +229,22 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			bool *modified;
-			CudaSafeCall(cudaMallocManaged((void**)&modified, d->grid_size*d->grid_size*sizeof(bool)));
-			memset(modified, false, d->grid_size*d->grid_size*sizeof(bool));
-			rule<<< blocks, threads >>>(d->parentGrid, d->childGrid, d->prevGrid, modified, ticks, d->pdes, states);
+			rule<<< blocks, threads >>>(d->newGrid, d->prevGrid, ticks, d->pdes, states);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
-			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->parentGrid, d->childGrid, modified);
+			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
-			memset(modified, false, d->grid_size*d->grid_size*sizeof(bool));
-			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->parentGrid, d->prevGrid, modified);
-			CudaCheckError();
-			CudaSafeCall(cudaDeviceSynchronize());
-			CudaSafeCall(cudaFree(modified));
 
 			if (ticks % d->frame_rate == 0) {
-				display<<< blocks, threads >>>(outputBitmap, d->parentGrid, d->cell_size, d->dim);
+				display<<< blocks, threads >>>(outputBitmap, d->newGrid, d->cell_size, d->dim);
 				CudaCheckError();
 				CudaSafeCall(cudaDeviceSynchronize());
 			}
 
-			CudaSafeCall(cudaSetDevice(1));
 			for (int i = 0; i < d->n_carcinogens; i++) {
-				d->pdes[i].time_step(ticks, d->parentGrid);
+				d->pdes[i].time_step(ticks, d->newGrid);
 			}
-			CudaSafeCall(cudaSetDevice(0));
 			CudaSafeCall(cudaFree(states));
 		}
 		++d->frames;
@@ -308,17 +288,13 @@ void anim_exit( DataBlock *d ) {
 	CudaSafeCall(cudaDeviceSynchronize());
 	for (int i = 0; i < d->grid_size*d->grid_size; i++) {
 		d->prevGrid[i].free_resources();
-		d->childGrid[i].free_resources();
-		d->parentGrid[i].free_resources();
+		d->newGrid[i].free_resources();
 	}
 	CudaSafeCall(cudaFree(d->prevGrid));
-	CudaSafeCall(cudaFree(d->childGrid));
-	CudaSafeCall(cudaFree(d->parentGrid));
-	CudaSafeCall(cudaSetDevice(1));
+	CudaSafeCall(cudaFree(d->newGrid));
 	for (int i = 0; i < d->n_carcinogens; i++)
 		d->pdes[i].free_resources();
 	CudaSafeCall(cudaFree(d->pdes));
-	CudaSafeCall(cudaSetDevice(0));
 }
 
 struct CA {
@@ -345,39 +321,33 @@ struct CA {
 	}
 
 	void initialize_memory() {
-		CudaSafeCall(cudaSetDevice(1));
-		CudaSafeCall(cudaMallocManaged((void**)&d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE)));
-		CudaSafeCall(cudaDeviceEnablePeerAccess(0, 0));
-		CudaSafeCall(cudaSetDevice(0));
-		CudaSafeCall(cudaDeviceEnablePeerAccess(1, 0));
+		int num_devices;
+		CudaSafeCall(cudaGetDeviceCount(&num_devices));
+		for (int i = num_devices-1; i > -1; i--) {
+			CudaSafeCall(cudaSetDevice(i));
+			for (int j = i-1; j > -1; j--)
+				CudaSafeCall(cudaDeviceEnablePeerAccess(j, 0));
+		}
 
+		CudaSafeCall(cudaMallocManaged((void**)&d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE)));
 		CudaSafeCall(cudaMalloc((void**)&d.output_bitmap, bitmap.image_size()));
 		CudaSafeCall(cudaMallocManaged((void**)&d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell)));
-		CudaSafeCall(cudaMallocManaged((void**)&d.childGrid, d.grid_size*d.grid_size*sizeof(Cell)));
-		CudaSafeCall(cudaMallocManaged((void**)&d.parentGrid, d.grid_size*d.grid_size*sizeof(Cell)));
+		CudaSafeCall(cudaMallocManaged((void**)&d.newGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 	}
 
-	void init(float *carcin_map, double *diffusion, bool *liquid) {
+	void init(double *carcin_map, double *diffusion, bool *liquid) {
 		for (int i = 0; i < d.grid_size; i++) {
 			for (int j = 0; j < d.grid_size; j++) {
 				d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
-				d.childGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
-				d.parentGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
+				d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map);
 			}
 		}
 
 		dim3 blocks(d.grid_size / BLOCK_SIZE, d.grid_size / BLOCK_SIZE);
 		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
-		bool *modified;
-		CudaSafeCall(cudaMallocManaged((void**)&modified, d.grid_size*d.grid_size*sizeof(bool)));
-		memset(modified, false, d.grid_size*d.grid_size*sizeof(bool));
-		cells_gpu_to_gpu_copy<<< blocks, threads >>>(d.prevGrid, d.childGrid, modified);
+		cells_gpu_to_gpu_copy<<< blocks, threads >>>(d.prevGrid, d.newGrid);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
-		cells_gpu_to_gpu_copy<<< blocks, threads >>>(d.prevGrid, d.parentGrid, modified);
-		CudaCheckError();
-		CudaSafeCall(cudaDeviceSynchronize());
-		CudaSafeCall(cudaFree(modified));
 
 		for (int i = 0; i < d.n_carcinogens; i++) {
 			d.pdes[i] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[i], liquid[i], i);
