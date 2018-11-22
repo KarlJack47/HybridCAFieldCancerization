@@ -27,37 +27,37 @@ __managed__ int index_map[11*12] = {0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -
 				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 				    2, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
-__managed__ float upreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
-					       -PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
-					       0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-					       -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, 0.0f,
-				    	       -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR,
-					       -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-					       PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-					       0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-				    	       PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR,
-					       0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-					       PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR};
+__managed__ double upreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
+					        -PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
+					        0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+					        -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, 0.0f,
+				    	        -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR,
+					        -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+					        PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+					        0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+				    	        PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR,
+					        0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+					        PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR};
 
-__managed__ float downreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
-						 PHENOTYPE_INCR, -PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f,
-						 0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-						 PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, 0.0f,
-				    		 PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR,
-						 PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-						 -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-						 0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-				    		 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR,
-						 0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-						 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
+__managed__ double downreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
+						  PHENOTYPE_INCR, -PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f,
+						  0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+						  PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, 0.0f,
+				    		  PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR,
+						  PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+						  -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+				    		  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR,
+						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+						  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
 
-__managed__ float phenotype_init[7*4] = {0.05f, 0.9f, 0.2f, 0.0f,
-					 0.1f, 0.9f, 0.1f, 0.0f,
-					 0.1f, 0.9f, 0.05f, 0.3f,
-					 0.2f, 0.9f, 0.025f, 0.4f,
-					 0.2f, 0.9f, 0.0125f, 0.5f,
-					 0.4f, 0.9f, 0.00625f, 0.0f,
-					 0.0f, 0.0f, 0.0f, 0.0f};
+__managed__ double phenotype_init[7*4] = {0.05f, 0.9f, 0.2f, 0.0f,
+					  0.1f, 0.9f, 0.1f, 0.0f,
+					  0.1f, 0.9f, 0.05f, 0.3f,
+					  0.2f, 0.9f, 0.025f, 0.4f,
+					  0.2f, 0.9f, 0.0125f, 0.5f,
+					  0.4f, 0.9f, 0.00625f, 0.0f,
+					  0.0f, 0.0f, 0.0f, 0.0f};
 
 __managed__ int state_mut_map[6*11] = {0, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
 				       1, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
@@ -80,56 +80,56 @@ __managed__ int diff_mut_map[6*11] = {-1, 1, -1, -1, 4, -1, -1, -1, 4, -1, 4,
 				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
 				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
-__device__ int get_rand_idx(float *L, const int N, int cell, curandState_t *states, int *idx=NULL) {
-	float *sorted = (float*)malloc(N*sizeof(float));
+__device__ int get_rand_idx(double *L, const int N, int cell, curandState_t *states, int *idx=NULL) {
+	double *sorted = (double*)malloc(N*sizeof(double));
 	int *idx_t;
 	if (idx==NULL) idx_t = (int*)malloc(N*sizeof(int));
-	for (int i = 0; i < N; i++) sorted[i] = 1000000.0f * L[i];
+	for (int i = 0; i < N; i++) sorted[i] = 1000000000.0f * L[i];
 	bitonic_sort(sorted, 0, N, false);
-	float sum = 0;
+	double sum = 0;
 	for (int i = 0; i < N; i++) sum += sorted[i];
-	float rnd = curand_uniform(&states[cell]) * sum;
+	double rnd = curand_uniform_double(&states[cell]) * sum;
 	for (int i = 0; i < N; i++) {
 		rnd -= sorted[i];
 		if (rnd < 0) {
 			if (idx==NULL) {
-				int count = get_indexes(sorted[i] / 1000000.0f, L, idx_t, N);
-				int chosen = idx_t[(int) ceilf(curand_uniform(&states[cell])*count) % count];
+				int count = get_indexes(sorted[i] / 1000000000.0f, L, idx_t, N);
+				int chosen = idx_t[(int) ceilf(curand_uniform_double(&states[cell])*(double) count) % count];
 				free(sorted); free(idx_t);
 				return chosen;
 			} else {
-				int count = get_indexes(sorted[i] / 1000000.0f, L, idx, N);
+				int count = get_indexes(sorted[i] / 1000000000.0f, L, idx, N);
 				free(sorted);
 				return count;
 			}
 		}
 	}
 
-	return (int) ceilf(curand_uniform(&states[cell])*N) % N;
+	return (int) ceilf(curand_uniform_double(&states[cell])*(double) N) % N;
 }
 
 struct Cell {
 	int state;
 	int age;
 	int *neighbourhood;
-	float *phenotype;
-	float *mutations;
-	float *consumption;
+	double *phenotype;
+	double *mutations;
+	double *consumption;
 
-	float *W_y_init;
+	double *W_y_init;
 	MutationNN *NN;
 
-	void initialize(int x, int y, int grid_size, int n_in, int n_out, float *carcinogen_mutation_map) {
+	void initialize(int x, int y, int grid_size, int n_in, int n_out, double *carcinogen_mutation_map) {
 		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(MutationNN)));
 		NN[0] = MutationNN(n_in, n_out);
 		int n_input = NN->n_input; int n_hidden = NN->n_hidden; int n_output = NN->n_output;
 
-		float *W_x = (float*)malloc(n_hidden*n_input*sizeof(float));
-                float *b_x = (float*)malloc(n_hidden*sizeof(float));
-                float *W_y = (float*)malloc(n_hidden*n_output*sizeof(float));
-                float *b_y = (float*)malloc(n_output*sizeof(float));
+		double *W_x = (double*)malloc(n_hidden*n_input*sizeof(double));
+                double *b_x = (double*)malloc(n_hidden*sizeof(double));
+                double *W_y = (double*)malloc(n_hidden*n_output*sizeof(double));
+                double *b_y = (double*)malloc(n_output*sizeof(double));
 
-		memset(W_x, 0.0f, n_hidden*n_input*sizeof(float));
+		memset(W_x, 0.0f, n_hidden*n_input*sizeof(double));
 
 		for (int i = 0; i < n_hidden; i++) {
 			for (int j = 0; j < n_input; j++) {
@@ -144,9 +144,9 @@ struct Cell {
 			}
 		}
 
-		memset(b_x, 0.0f, n_hidden*sizeof(float));
+		memset(b_x, 0.0f, n_hidden*sizeof(double));
 
-		memset(W_y, 0.0f, n_hidden*n_output*sizeof(float));
+		memset(W_y, 0.0f, n_hidden*n_output*sizeof(double));
 
 		W_y[0] = 0.5f;
 		W_y[n_output+1] = 0.25f;
@@ -174,18 +174,18 @@ struct Cell {
 		W_y[7*n_output+10] = 0.01f;
 		W_y[8*n_output+10] = 0.02f;
 
-		memset(b_y, 0.0f, n_output*sizeof(float));
+		memset(b_y, 0.0f, n_output*sizeof(double));
 
 		NN->memory_allocate(W_x, b_x, W_y, b_y);
 
 		free(W_x);
 		free(b_x);
 		free(b_y);
-		CudaSafeCall(cudaMallocManaged((void**)&W_y_init, n_hidden*n_output*sizeof(float)));
-		memcpy(W_y_init, W_y, n_hidden*n_output*sizeof(float));
+		CudaSafeCall(cudaMallocManaged((void**)&W_y_init, n_hidden*n_output*sizeof(double)));
+		memcpy(W_y_init, W_y, n_hidden*n_output*sizeof(double));
 		free(W_y);
 
-		CudaSafeCall(cudaMallocManaged((void**)&phenotype, 4*sizeof(float)));
+		CudaSafeCall(cudaMallocManaged((void**)&phenotype, 4*sizeof(double)));
 
 		CudaSafeCall(cudaMallocManaged((void**)&neighbourhood, 8*sizeof(int)));
 		neighbourhood[0] = x + ((y+1) % grid_size) * grid_size; // n
@@ -198,25 +198,25 @@ struct Cell {
 		neighbourhood[7] = abs((x-1) % grid_size) + ((y+1) % grid_size) * grid_size; // nw
 
 
-		CudaSafeCall(cudaMallocManaged((void**)&mutations, n_output*sizeof(float)));
-		memset(mutations, 0.0f, n_output*sizeof(float));
+		CudaSafeCall(cudaMallocManaged((void**)&mutations, n_output*sizeof(double)));
+		memset(mutations, 0.0f, n_output*sizeof(double));
 
-		CudaSafeCall(cudaMallocManaged((void**)&consumption, (n_input-1)*sizeof(float)));
-		memset(consumption, 0.0f, (n_input-1)*sizeof(float));
+		CudaSafeCall(cudaMallocManaged((void**)&consumption, (n_input-1)*sizeof(double)));
+		memset(consumption, 0.0f, (n_input-1)*sizeof(double));
 		age = 0;
 
 	}
 
-	Cell(int x, int y, int grid_size, int n_in, int n_out, float *carcin_map) {
+	Cell(int x, int y, int grid_size, int n_in, int n_out, double *carcin_map) {
 		set_seed();
 		int init_states[3] = {0, 2, 6};
-		float weight_states[3] = {0.70f, 0.01f, 0.29f};
+		double weight_states[3] = {0.70f, 0.01f, 0.29f};
 
-		float check = rand() / (float) RAND_MAX;
+		double check = rand() / (double) RAND_MAX;
 
-		if (abs(check) > weight_states[2])
+		if (fabsf(check) > weight_states[2])
 			state = init_states[0];
-		else if (abs(check) > weight_states[1] && abs(check) < weight_states[0])
+		else if (fabsf(check) > weight_states[1] && fabsf(check) < weight_states[0])
 			state = init_states[2];
 		else
 			state = init_states[1];
@@ -240,10 +240,10 @@ struct Cell {
 
 	__device__ void change_state(int new_state) {
 		for (int i = 0; i < 4; i++) {
-			float check = phenotype_init[new_state*4+i] + phenotype[i] - phenotype_init[state*4+i];
-			if (check < 0)
+			double check = phenotype_init[new_state*4+i] + phenotype[i] - phenotype_init[state*4+i];
+			if (check < 0.0f)
 				phenotype[i] = 0.0f;
-			else if (check > 1)
+			else if (check > 1.0f)
 				phenotype[i] = 1.0f;
 			else
 				phenotype[i] = phenotype_init[new_state*4+i] + phenotype[i] - phenotype_init[state*4+i];
@@ -259,10 +259,10 @@ struct Cell {
 
 	__device__ void copy_mutations(Cell *c) {
 		for (int i = 0; i < 4; i++) {
-			float check = c->phenotype[i] + phenotype[i] - phenotype_init[state*4+i];
-			if (check < 0)
+			double check = c->phenotype[i] + phenotype[i] - phenotype_init[state*4+i];
+			if (check < 0.0f)
 				c->phenotype[i] = 0.0f;
-			else if (check > 1)
+			else if (check > 1.0f)
 				c->phenotype[i] = 1.0f;
 			else
 				c->phenotype[i] += phenotype[i] - phenotype_init[state*4+i];
@@ -279,7 +279,7 @@ struct Cell {
 		if ((state == 4 && mutations[3] >= MUT_THRESHOLD) || state != 4) {
 			if (mutations[idx] < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
 			else {
-				if ((int) ceilf(curand_uniform(&states[cell])*2) %2 == 0) {
+				if ((int) ceilf(curand_uniform_double(&states[cell])*2.0f) % 2 == 0) {
 					change_state(state_mut_map[state*11+idx]);
 					new_state = prolif_mut_map[state*11+idx];
 				} else {
@@ -299,7 +299,7 @@ struct Cell {
 		int new_state = -1;
 		if (mutations[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
 		else {
-			if (curand_uniform(&states[cell]) <= 0.5) {
+			if (curand_uniform_double(&states[cell]) <= 0.5f) {
 				change_state(state_mut_map[state*11+idx]);
 				new_state = diff_mut_map[state*11+idx];
 			} else {
@@ -315,7 +315,7 @@ struct Cell {
 	}
 
 	__device__ void move(Cell *c, int cell, curandState_t *states) {
-		if (curand_uniform(&states[cell]) <= CHANCE_MOVE) {
+		if (curand_uniform_double(&states[cell]) <= CHANCE_MOVE) {
 			c->change_state(state);
 			copy_mutations(c);
 			c->age = age;
@@ -337,12 +337,12 @@ struct Cell {
 		age = 0;
 	}
 
-	__device__ void phenotype_mutate(int M, float *prevMut, float *newMut) {
+	__device__ void phenotype_mutate(int M, double *prevMut, double *newMut) {
 		if (newMut[M] >= MUT_THRESHOLD) {
 			// down-regulation
 			if (prevMut[M] > newMut[M]) {
 				for (int j = 0; j < 4; j++) {
-					if (downreg_phenotype_map[M*4+j] < 0)
+					if (downreg_phenotype_map[M*4+j] < 0.0f)
 						phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M*4+j]);
 					else
 						phenotype[j] = fminf(phenotype[j] + downreg_phenotype_map[M*4+j], 1.0f);
@@ -350,7 +350,7 @@ struct Cell {
 			// up-regulation
 			} else {
 				for (int j = 0; j < 4; j++) {
-					if (upreg_phenotype_map[M*4+j] < 0)
+					if (upreg_phenotype_map[M*4+j] < 0.0f)
 						phenotype[j] = fmaxf(0.0f, phenotype[j] + upreg_phenotype_map[M*4+j]);
 					else
 						phenotype[j] = fminf(phenotype[j] + upreg_phenotype_map[M*4+j], 1.0f);
@@ -359,7 +359,7 @@ struct Cell {
 		}
 	}
 
-	__device__ void update_consumption(int idx, float *in, float *prevMut, float *newMut, int cell, curandState_t *states) {
+	__device__ void update_consumption(int idx, double *in, double *prevMut, double *newMut, int cell, curandState_t *states) {
 		int M_idx[11];
 		for (int i = 0; i < NN->n_input; i++) NN->input[i] = 0.0f;
 		consumption[idx] = 0.0f;
@@ -369,14 +369,14 @@ struct Cell {
 		for (int i = 0; i < count; i++) consumption[idx] += fabsf(newMut[M_idx[i]] - prevMut[M_idx[i]]);
 	}
 
-	__device__ void mutate(float *in, float* result, int cell, curandState_t *states) {
+	__device__ void mutate(double *in, double *result, int cell, curandState_t *states) {
 		int M_idx[11];
 		int count = get_rand_idx(result, 11, cell, states, M_idx);
 
 		for (int i = 0; i < count; i++) {
 			int M = M_idx[i];
 			if (M != 0 && state != 6) {
-				float prevMut[11];
+				double prevMut[11];
 				for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
 				NN->mutate(M, index_map, mutations, cell, states);
 				phenotype_mutate(M, prevMut, mutations);
@@ -386,11 +386,11 @@ struct Cell {
 
 		if (state != 6) {
 			// Random mutations
-			if ((int) ceilf(curand_uniform(&states[cell])*1000) <= 10) {
-				int num = (int) ceilf(curand_uniform(&states[cell])*4) % 4;
+			if ((int) ceilf(curand_uniform_double(&states[cell])*1000.0f) <= 10) {
+				int num = (int) ceilf(curand_uniform_double(&states[cell])*4.0f) % 4;
 				for (int i = 0; i < num; i++) {
-					int idx = (int) ceilf(curand_uniform(&states[cell])*11) % 11;
-					float prevMut[11];
+					int idx = (int) ceilf(curand_uniform_double(&states[cell])*11.0f) % 11;
+					double prevMut[11];
 					for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
 					NN->mutate(idx, index_map, mutations, cell, states);
 					for (int j = 0; j < NN->n_input; j++) NN->input[j] = in[j];

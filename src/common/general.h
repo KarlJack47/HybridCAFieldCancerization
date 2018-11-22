@@ -7,6 +7,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include <math.h>
+#include <float.h>
 #include <sys/time.h>
 #include "error_check.h"
 
@@ -15,8 +16,8 @@
 /* Start Array Functions */
 #ifndef MAX_IDX
 #define MAX_IDX
-__device__ int max_idx(float *L, int *location, int N) {
-        float max = L[0];
+__device__ int max_idx(double *L, int *location, int N) {
+        double max = L[0];
         int count = 0;
 
         for (int i = 1; i < N; i++) {
@@ -38,7 +39,7 @@ __device__ int max_idx(float *L, int *location, int N) {
 
 #ifndef GET_INDEXES
 #define GET_INDEXES
-__device__ int get_indexes(float val, float *L, int *idx, int N) {
+__device__ int get_indexes(double val, double *L, int *idx, int N) {
         int count = 0;
         for (int i = 0; i < N; i++) {
                 if (L[i] == val) {
@@ -62,8 +63,8 @@ __device__ unsigned int greatestPowerOfTwoLessThan(int n) {
 	return (unsigned int)k >> 1;
 }
 
-__device__ void exchange(float *L, int i, int j) {
-        float t = L[i];
+__device__ void exchange(double *L, int i, int j) {
+        double t = L[i];
         L[i] = L[j];
         L[j] = t;
 }
@@ -71,15 +72,15 @@ __device__ void exchange(float *L, int i, int j) {
 
 #ifndef COMPARE
 #define COMPARE
-__device__ void compare(float *L, int i, int j, bool dir) {
-        if (dir==(L[i]>L[j]))
+__device__ void compare(double *L, int i, int j, bool dir) {
+        if (dir==(L[i] > L[j]))
                 exchange(L, i, j);
 }
 #endif
 
 #ifndef BITONIC_MERGE
 #define BITONIC_MERGE
-__device__ void bitonic_merge(float *L, int lo, int N, bool dir ) {
+__device__ void bitonic_merge(double *L, int lo, int N, bool dir) {
         if (N > 1) {
                 int m =greatestPowerOfTwoLessThan(N);
                 for (int i = lo; i < lo+N-m; i++)
@@ -92,7 +93,7 @@ __device__ void bitonic_merge(float *L, int lo, int N, bool dir ) {
 
 #ifndef BITONIC_SORT
 #define BITONIC_SORT
-__device__ void bitonic_sort(float *L, int lo, int N, bool dir ) {
+__device__ void bitonic_sort(double *L, int lo, int N, bool dir ) {
         if (N > 1) {
                 int m = N/2;
                 bitonic_sort(L, lo, m, !dir);
@@ -126,8 +127,8 @@ __global__ void init_curand(unsigned int seed, curandState_t* states) {
 
 #ifndef NUMDIGITS
 #define NUMDIGITS
-int numDigits(int x) {
-        x = abs(x);
+int numDigits(double x) {
+        x = fabsf(x);
         return (x < 10 ? 1 :
                (x < 100 ? 2 :
                (x < 1000 ? 3 :

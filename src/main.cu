@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
 
 	CA ca(grid_size, T, 1, 11, save_frames, display);
 	ca.initialize_memory();
-	float carcinogen_mutation_map[10] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+	double carcinogen_mutation_map[10] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 	double diffusion[1] = {1.266389e-5};
 	bool liquid[1] = {true};
 	ca.init(carcinogen_mutation_map, diffusion, liquid);

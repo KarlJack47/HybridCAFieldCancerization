@@ -3,7 +3,7 @@
 
 #include "cell.h"
 
-__global__ void initialize(float *results, float ic, float bc, int Nx, int N, int T) {
+__global__ void initialize(double *results, double ic, double bc, int Nx, int N, int T) {
 	int col = threadIdx.x + blockIdx.x * blockDim.x;
 	int row = threadIdx.y + blockIdx.y * blockDim.y;
 	int idx = row + col * gridDim.x * blockDim.x;
@@ -17,7 +17,7 @@ __global__ void initialize(float *results, float ic, float bc, int Nx, int N, in
 	}
 }
 
-__global__ void space_step(float *sol, int cur_t, int next_t, int N, float bc, float T_scale, double dt, double s, bool liquid,
+__global__ void space_step(double *sol, int cur_t, int next_t, int N, double bc, double T_scale, double dt, double s, bool liquid,
 			   double influx, int num_cells_absorb, double amount_per_cell, Cell *cells, int carcin) {
 	int col = threadIdx.x + blockIdx.x * blockDim.x;
 	int row = threadIdx.y + blockIdx.y * blockDim.y;
@@ -47,10 +47,10 @@ __global__ void space_step(float *sol, int cur_t, int next_t, int N, float bc, f
 		double in = 0.0f;
 		if ((liquid && neigh_exist) || !liquid) in = influx - absorbed;
 		sol[next] = sol[cur] +
-			    s*(4*sol[cur_t+cells[idx].neighbourhood[0]] + 4*sol[cur_t+cells[idx].neighbourhood[1]] +
-		    	    4*sol[cur_t+cells[idx].neighbourhood[2]] + 4*sol[cur_t+cells[idx].neighbourhood[3]] +
+			    s*(4.0f*sol[cur_t+cells[idx].neighbourhood[0]] + 4.0f*sol[cur_t+cells[idx].neighbourhood[1]] +
+		    	    4.0f*sol[cur_t+cells[idx].neighbourhood[2]] + 4.0f*sol[cur_t+cells[idx].neighbourhood[3]] +
 		    	    sol[cur_t+cells[idx].neighbourhood[4]] + sol[cur_t+cells[idx].neighbourhood[5]] +
-		    	    sol[cur_t+cells[idx].neighbourhood[6]] + sol[cur_t+cells[idx].neighbourhood[7]] - 20*sol[cur]) +
+		    	    sol[cur_t+cells[idx].neighbourhood[6]] + sol[cur_t+cells[idx].neighbourhood[7]] - 20.0f*sol[cur]) +
 		    	    T_scale * dt * (fmaxf(0, in) - cells[idx].consumption[carcin]);
 	} else sol[next] = bc;
 }
@@ -58,11 +58,11 @@ __global__ void space_step(float *sol, int cur_t, int next_t, int N, float bc, f
 struct CarcinogenPDE {
 	int N;
 	int T;
-	float T_scale;
+	double T_scale;
 	double dx;
 	double dt;
-	float ic;
-	float bc;
+	double ic;
+	double bc;
 	double diffusion;
 	int Nx;
 	int maxT;
@@ -70,15 +70,15 @@ struct CarcinogenPDE {
 	bool liquid;
 	int carcin_idx;
 
-	float *sol;
-	float *results;
+	double *sol;
+	double *results;
 
 	CarcinogenPDE(int space_size, int num_timesteps, double diff, bool liq, int idx) {
 		N = space_size;
 		T = num_timesteps + 1;
 		T_scale = 16.0f;
 		diffusion = diff*120;
-		dx = 1 / (double) N;
+		dx = 1.0f / (double) N;
 		dt = 5e-4;
 		liquid = liq;
 		ic = 0.0f;
@@ -89,36 +89,29 @@ struct CarcinogenPDE {
 		}
 		Nx = N / dx;
 		maxT = 1 / dt;
-		s = (diffusion * T_scale * dt) / (6 * dx * dx);
+		s = (diffusion * T_scale * dt) / (6.0f * dx * dx);
 		carcin_idx = idx;
 
-		CudaSafeCall(cudaSetDevice(1));
-		CudaSafeCall(cudaMallocManaged((void**)&sol, maxT*Nx*sizeof(float)));
-		CudaSafeCall(cudaMallocManaged((void**)&results, T*Nx*sizeof(float)));
-		CudaSafeCall(cudaSetDevice(0));
+		CudaSafeCall(cudaMallocManaged((void**)&sol, maxT*Nx*sizeof(double)));
+		CudaSafeCall(cudaMallocManaged((void**)&results, T*Nx*sizeof(double)));
 	}
 
 	void init(void) {
-		CudaSafeCall(cudaSetDevice(1));
 		dim3 blocks(N / BLOCK_SIZE, N / BLOCK_SIZE);
 		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 		initialize<<< blocks, threads >>>(results, ic, bc, Nx, N, T);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
-		CudaSafeCall(cudaSetDevice(0));
 	}
 
 	void free_resources(void) {
-		CudaSafeCall(cudaSetDevice(1));
 		CudaSafeCall(cudaFree(results));
 		CudaSafeCall(cudaFree(sol));
-		CudaSafeCall(cudaSetDevice(0));
 	}
 
 	void time_step(int step, Cell *cells) {
 		set_seed();
-		CudaSafeCall(cudaSetDevice(1));
-		CudaSafeCall(cudaMemcpy(&sol[0], &results[(step-1)*Nx], Nx*sizeof(float), cudaMemcpyDeviceToDevice));
+		CudaSafeCall(cudaMemcpy(&sol[0], &results[(step-1)*Nx], Nx*sizeof(double), cudaMemcpyDeviceToDevice));
 
 		dim3 blocks(N / BLOCK_SIZE, N / BLOCK_SIZE);
 		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
@@ -128,7 +121,7 @@ struct CarcinogenPDE {
 			int cur = n*Nx;
 
 			double influx = fabsf(rand() / (double) RAND_MAX);
-			int num_cells_absorb = (int) (fabsf(ceilf(rand() % (Nx+1))) * diffusion);
+			int num_cells_absorb = (int) (abs(ceil(rand() % (Nx+1))) * diffusion);
 			double amount_per_cell = influx / (double) num_cells_absorb;
 
 			space_step<<< blocks, threads >>>(sol, cur, next, N, bc, T_scale, dt, s, liquid, influx,
@@ -137,12 +130,10 @@ struct CarcinogenPDE {
 			CudaSafeCall(cudaDeviceSynchronize());
 		}
 
-		CudaSafeCall(cudaMemcpy(&results[step*Nx], &sol[(maxT-1)*Nx], Nx*sizeof(float), cudaMemcpyDeviceToDevice));
-
-		CudaSafeCall(cudaSetDevice(0));
+		CudaSafeCall(cudaMemcpy(&results[step*Nx], &sol[(maxT-1)*Nx], Nx*sizeof(double), cudaMemcpyDeviceToDevice));
 	}
 
-	__device__ float get(int cell, int time) {
+	__host__ __device__ double get(int cell, int time) {
 		return results[time*Nx+cell];
 	}
 };
