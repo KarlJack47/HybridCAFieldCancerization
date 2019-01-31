@@ -102,11 +102,7 @@ __device__ int max_idx(double *L, int *location, int N) {
         double max = L[0];
         int count = 0; int i;
 
-        for (i = 1; i < N; i++) {
-                if (L[i] > max) {
-                        max = L[i];
-                }
-        }
+        for (i = 1; i < N; i++) if (L[i] > max) max = L[i];
 
         for (i = 0; i < N; i++) {
                 if (L[i] == max) {
@@ -135,9 +131,8 @@ __device__ int get_indexes(double val, double *L, int *idx, int N) {
 // Bitonic Sort Functions
 __device__ unsigned int greatestPowerOfTwoLessThan(int n) {
 	int k = 1;
-	while (k > 0 && k < n)
-		k <<= 1;
-	return (unsigned int)k >> 1;
+	while (k > 0 && k < n) k <<= 1;
+	return (unsigned int) k >> 1;
 }
 
 __device__ void exchange(double *L, int i, int j) {
@@ -147,16 +142,14 @@ __device__ void exchange(double *L, int i, int j) {
 }
 
 __device__ void compare(double *L, int i, int j, bool dir) {
-        if (dir==(L[i] > L[j]))
-                exchange(L, i, j);
+        if (dir==(L[i] > L[j])) exchange(L, i, j);
 }
 
 __device__ void bitonic_merge(double *L, int lo, int N, bool dir) {
 	int i;
         if (N > 1) {
                 int m =greatestPowerOfTwoLessThan(N);
-                for (i = lo; i < lo+N-m; i++)
-                        compare(L, i, i+m, dir);
+                for (i = lo; i < lo+N-m; i++) compare(L, i, i+m, dir);
                 bitonic_merge(L, lo, m, dir);
                 bitonic_merge(L, lo+m, N-m, dir);
         }

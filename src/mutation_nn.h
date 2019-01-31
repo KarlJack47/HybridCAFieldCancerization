@@ -35,9 +35,8 @@ __device__ double* dot(int idx, double *m1, double *m2, double *output, int m1_r
 		int r = i / m2_columns;
 		int c = i % m2_columns;
 		double t_output = 0.0f;
-		for(k = 0; k < m1_columns; k++) {
+		for(k = 0; k < m1_columns; k++)
 			t_output += m1[r*m1_columns+k] * m2[k*m2_columns+c];
-		}
 		output[i] = t_output;
 	}
 
@@ -62,13 +61,11 @@ __device__ void feedforward(double *input, double *W_in, double *b_in, double *h
 
 	int i;
 
-	for (i = 0; i < n_hidden; i++) {
+	for (i = 0; i < n_hidden; i++)
 		activation(i, matrixAddMatrix(i, dot(i, W_in, input, hidden, n_hidden, n_input, 1), b_in, hidden), hidden);
-	}
 
-	for (i = 0; i < n_output; i++) {
+	for (i = 0; i < n_output; i++)
 		activation(i, matrixAddMatrix(i, dot(i, W_out, hidden, output, n_hidden, n_output, 1), b_out, output), output);
-	}
 }
 
 struct MutationNN {

@@ -327,9 +327,8 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 				CudaSafeCall(cudaDeviceSynchronize());
 			}
 
-			for (int i = 0; i < d->n_carcinogens; i++) {
+			for (int i = 0; i < d->n_carcinogens; i++)
 				d->pdes[i].time_step(ticks, d->newGrid);
-			}
 
 			CudaSafeCall(cudaFree(states));
 		}

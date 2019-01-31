@@ -106,11 +106,8 @@ struct GPUAnimBitmap {
         animExit = e;
 
 	glutKeyboardFunc(Key);
-	if (display == 1) {
-		glutDisplayFunc(Draw);
-	}
-        if (clickDrag != NULL)
-            glutMouseFunc(mouse_func);
+	if (display == 1) glutDisplayFunc(Draw);
+        if (clickDrag != NULL) glutMouseFunc(mouse_func);
         glutIdleFunc(idle_func);
 	glutMainLoop();
     }
@@ -151,8 +148,7 @@ struct GPUAnimBitmap {
 
         cudaGraphicsUnmapResources(1, &(bitmap->resource), NULL);
 
-	if (bitmap->display == 1)
-		glutPostRedisplay();
+	if (bitmap->display == 1) glutPostRedisplay();
 
 	if (ticks == bitmap->maxT+1) {
 		if (bitmap->save_frames == 1) {
@@ -177,8 +173,7 @@ struct GPUAnimBitmap {
         switch (key) {
             case 27:
                 GPUAnimBitmap* bitmap = *(get_bitmap_ptr());
-                if (bitmap->animExit)
-                    bitmap->animExit(bitmap->dataBlock);
+                if (bitmap->animExit) bitmap->animExit(bitmap->dataBlock);
                 bitmap->free_resources();
                 exit(0);
         }

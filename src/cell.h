@@ -73,9 +73,8 @@ struct Cell {
 				if (i == 0 && j == n_input-1) W_x[i*n_input+j] = -0.1f;
 				else if (i == 0) W_x[i*n_input+j] = -1.0f;
 				else {
-					if (j != n_input-1) {
+					if (j != n_input-1)
 						W_x[i*n_input+j] = carcinogen_mutation_map[j*(n_input-1)+(i-1)];
-					}
 					else W_x[i*n_input+j] = 0.01f;
 				}
 			}
@@ -96,12 +95,10 @@ struct Cell {
 		W_y[8*n_output+8] = 0.167f;
 		W_y[9*n_output+9] = 0.25f;
 		W_y[10*n_output+10] = 0.167f;
-		for (int i = 1; i < n_hidden; i++) {
+		for (int i = 1; i < n_hidden; i++)
 			W_y[i*n_output] = -1.45f;
-		}
-		for (int i = 2; i < n_hidden; i++) {
+		for (int i = 2; i < n_hidden; i++)
 			W_y[i*n_output+1] = 0.01f;
-		}
 		W_y[3*n_output+1] = 0.02f;
 		W_y[n_output+3] = 0.02f;
 		W_y[7*n_output+3] = 0.01f;
@@ -202,9 +199,9 @@ struct Cell {
 	}
 
 	__device__ int get_phenotype(int cell, curandState_t *states) {
-		if (state != 6) {
+		if (state != 6)
 			return get_rand_idx(phenotype, 4, cell, states);
-		} else return -1;
+		else return -1;
 	}
 
 	__device__ void copy_mutations(Cell *c) {
@@ -285,15 +282,12 @@ struct Cell {
 	__device__ void apoptosis(void) {
 		state = 6;
 		int i;
-		for (i = 0; i < 4; i++) {
+		for (i = 0; i < 4; i++)
 			phenotype[i] = phenotype_init[6*4+i];
-		}
-		for (i = 0; i < NN->n_hidden*NN->n_output; i++) {
+		for (i = 0; i < NN->n_hidden*NN->n_output; i++)
 			NN->W_out[i] = W_y_init[i];
-		}
-		for (i = 0; i < 11; i++) {
+		for (i = 0; i < 11; i++)
 			mutations[i] = 0.0f;
-		}
 		age = 0;
 	}
 
