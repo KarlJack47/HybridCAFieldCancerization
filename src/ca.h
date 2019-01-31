@@ -1,20 +1,16 @@
 #ifndef __CA_H__
 #define __CA_H__
 
-#include "common/gpu_anim.h"
-#include "common/lodepng.h"
-#include "cell.h"
-#include "carcinogen_pde.h"
+#include "common/general.h"
 
 // globals needed by the update routines
 struct DataBlock {
+	int dev_id_1, dev_id_2;
 	unsigned char *output_bitmap;
-	Cell *prevGrid;
-	Cell *newGrid;
+	Cell *prevGrid, *newGrid;
 	CarcinogenPDE *pdes;
 
-	int grid_size;
-	int cell_size;
+	int grid_size, cell_size;
 	const int dim = 1024;
 	int frame_rate;
 	int maxT;
@@ -22,173 +18,213 @@ struct DataBlock {
 	int n_output;
 
 	clock_t start, end;
-	int frames;
-	int save_frames;
+	int frames, save_frames;
 } d;
+#pragma omp threadprivate(d)
 
 __managed__ bool csc_formed;
 __managed__ bool tc_formed;
 
 GPUAnimBitmap bitmap(d.dim, d.dim, &d);
 
-__global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst) {
+__global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, int g_size) {
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int idx = x + y * blockDim.x * gridDim.x;
+	int i;
 
-	dst[idx].state = src[idx].state;
-        dst[idx].age = src[idx].age;
+	if (x < g_size && y < g_size) {
 
-        for (int i = 0; i < 4; i++) dst[idx].phenotype[i] = src[idx].phenotype[i];
-        for (int i = 0; i < src[idx].NN->n_input-1; i++) dst[idx].consumption[i] = src[idx].consumption[i];
-        for (int i = 0; i < src[idx].NN->n_output; i++) dst[idx].mutations[i] = src[idx].mutations[i];
+		dst[idx].state = src[idx].state;
+        	dst[idx].age = src[idx].age;
 
-        dst[idx].NN->n_input = src[idx].NN->n_input;
-        dst[idx].NN->n_hidden = src[idx].NN->n_hidden;
-        dst[idx].NN->n_output = src[idx].NN->n_output;
-        for (int i = 0; i < src[idx].NN->n_input; i++) dst[idx].NN->input[i] = src[idx].NN->input[i];
-        for (int i = 0; i < src[idx].NN->n_hidden; i++) {
-                dst[idx].NN->hidden[i] = src[idx].NN->hidden[i];
-                dst[idx].NN->output[i] = src[idx].NN->output[i];
-                dst[idx].NN->b_in[i] = src[idx].NN->b_in[i];
-                dst[idx].NN->b_out[i] = src[idx].NN->b_out[i];
-        }
-        for (int i = 0; i < src[idx].NN->n_input*src[idx].NN->n_hidden; i++) dst[idx].NN->W_in[i] = src[idx].NN->W_in[i];
-        for (int i = 0; i < src[idx].NN->n_hidden*src[idx].NN->n_output; i++) {
-                dst[idx].NN->W_out[i] = src[idx].NN->W_out[i];
-                dst[idx].W_y_init[i] = src[idx].W_y_init[i];
-        }
+        	for (i = 0; i < 4; i++) dst[idx].phenotype[i] = src[idx].phenotype[i];
+        	for (i = 0; i < src[idx].NN->n_output; i++) dst[idx].mutations[i] = src[idx].mutations[i];
+
+        	dst[idx].NN->n_input = src[idx].NN->n_input;
+        	dst[idx].NN->n_hidden = src[idx].NN->n_hidden;
+        	dst[idx].NN->n_output = src[idx].NN->n_output;
+       		for (i = 0; i < src[idx].NN->n_input; i++) dst[idx].NN->input[i] = src[idx].NN->input[i];
+        	for (i = 0; i < src[idx].NN->n_hidden; i++) {
+                	dst[idx].NN->hidden[i] = src[idx].NN->hidden[i];
+                	dst[idx].NN->output[i] = src[idx].NN->output[i];
+                	dst[idx].NN->b_in[i] = src[idx].NN->b_in[i];
+                	dst[idx].NN->b_out[i] = src[idx].NN->b_out[i];
+        	}
+        	for (i = 0; i < src[idx].NN->n_input*src[idx].NN->n_hidden; i++) dst[idx].NN->W_in[i] = src[idx].NN->W_in[i];
+        	for (i = 0; i < src[idx].NN->n_hidden*src[idx].NN->n_output; i++) {
+                	dst[idx].NN->W_out[i] = src[idx].NN->W_out[i];
+                	dst[idx].W_y_init[i] = src[idx].W_y_init[i];
+        	}
+	}
 }
 
-__global__ void rule(Cell *newG, Cell *prevG, int t, CarcinogenPDE *pdes, curandState_t *states) {
+__global__ void mutate_grid(Cell *prevG, int g_size, int t, CarcinogenPDE *pdes, curandState_t *states) {
 	// map from threadIdx/blockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int offset = x + y * blockDim.x * gridDim.x;
+	int i;
 
-	int phenotype = prevG[offset].get_phenotype(offset, states);
+	if (x < g_size && y < g_size) {
+		for (i = 0; i < prevG[offset].NN->n_input-1; i++)
+			prevG[offset].NN->input[i] = pdes[i].get(offset, t-1);
+		prevG[offset].NN->input[prevG[offset].NN->n_input-1] = prevG[offset].age;
+		prevG[offset].NN->evaluate();
 
-	for (int j = 0; j < prevG[offset].NN->n_input-1; j++) {
-		prevG[offset].NN->input[j] = pdes[j].get(offset, t-1);
+		prevG[offset].mutate(prevG[offset].NN->input, prevG[offset].NN->output, offset, states);
 	}
-	prevG[offset].NN->input[prevG[offset].NN->n_input-1] = prevG[offset].age;
+}
 
-	prevG[offset].NN->evaluate();
-
-	int num_empty = 0;
-	int empty[8];
-	for (int i = 0; i < 8; i++) {
-		if (prevG[prevG[offset].neighbourhood[i]].state == 6) {
-			empty[num_empty] = prevG[offset].neighbourhood[i];
-			num_empty++;
-		}
-	}
-
-	int cell_idx = -1;
-	if (num_empty != 0)
-		cell_idx = empty[(int) ceilf(curand_uniform(&states[offset])*num_empty) % num_empty];
-
-	if (phenotype == 0) {
-		if (cell_idx != -1) {
-			int state = newG[offset].proliferate(&newG[cell_idx], offset, states);
-			if (state == -1)
-				newG[offset].move(&newG[cell_idx], offset, states);
-		}
-	} else if (phenotype == 1) {
-		if (cell_idx != -1)
-			newG[offset].move(&newG[cell_idx], offset, states);
-	} else if (phenotype == 2) {
-		newG[offset].apoptosis();
-	} else if (phenotype == 3) {
-		if (cell_idx != -1) {
-			int state = newG[offset].differentiate(&newG[cell_idx], offset, states);
-			if (state == -1)
-				newG[offset].move(&newG[cell_idx], offset, states);
-		}
-	}
-
-	newG[offset].mutate(prevG[offset].NN->input, prevG[offset].NN->output, offset, states);
-
-	if (csc_formed == false && prevG[offset].state != 4 && newG[offset].state == 4) {
+__device__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, int idx, int t) {
+	if (csc_formed == false && prevG[idx].state != 4 && newG[idx].state == 4) {
 		printf("A CSC was formed at time step %d.\n", t);
 		csc_formed = true;
 	}
-	if (tc_formed == false && prevG[offset].state != 5 && newG[offset].state == 5) {
+	if (tc_formed == false && prevG[idx].state != 5 && newG[idx].state == 5) {
 		printf("A TC was formed at time step %d.\n", t);
 		tc_formed = true;
 	}
 }
 
-__global__ void display(uchar4 *optr, Cell *grid, int cell_size, int dim) {
+__global__ void reset_rule_params(Cell *prevG, int g_size) {
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+	if (x < g_size && y < g_size) prevG[x + y * blockDim.x * gridDim.x].chosen_phenotype = -1;
+}
+
+__device__ void choose_idx_and_phenotype(Cell *prevG, int g_size, int offset, int *idx, int *phenotype, curandState_t *states) {
+	if (*phenotype == -1)
+		*phenotype = prevG[offset].get_phenotype(offset, states);
+
+	if (*idx == -1) {
+		int i;
+		int empty[8]; int num_empty = 0;
+
+		for (i = 0; i < 8; i++) {
+			int neigh_idx = prevG[offset].neighbourhood[i];
+			if (prevG[neigh_idx].state == 6)
+				empty[num_empty++] = neigh_idx;
+		}
+
+		if (num_empty == 0) { *idx = -1; return; }
+
+		*idx = empty[(int) ceilf(curand_uniform(&states[offset])*num_empty) % num_empty];
+	}
+}
+
+__global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, curandState_t *states) {
+	// map from threadIdx/blockIdx to pixel position
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+	if (x < g_size && y < g_size) {
+		int offset = x + y * blockDim.x * gridDim.x;
+
+		if (prevG[offset].state == 6) return;
+
+		int idx = -1;
+		if (phenotype == 2) idx = -2;
+		choose_idx_and_phenotype(prevG, g_size, offset, &idx, &prevG[offset].chosen_phenotype, states);
+
+		if (phenotype == 2 && prevG[offset].chosen_phenotype == 2) {
+			newG[offset].apoptosis();
+			return;
+		}
+
+		if (idx == -1) return;
+
+		int state = -2;
+
+		if (phenotype == 0 && prevG[offset].chosen_phenotype == 0)
+			state = newG[offset].proliferate(&newG[idx], offset, states);
+		else if (phenotype == 3 && prevG[offset].chosen_phenotype == 3)
+			state = newG[offset].differentiate(&newG[idx], offset, states);
+		else if (phenotype == 1 && prevG[offset].chosen_phenotype == 1)
+			newG[offset].move(&newG[idx], offset, states);
+
+		if (state == -1)
+			newG[offset].move(&newG[idx], offset, states);
+
+		check_CSC_or_TC_formed(prevG, newG, offset, t);
+	}
+}
+
+__global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int dim) {
 	// map from threadIdx/BlockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int offset = x + y * blockDim.x * gridDim.x;
 	int offsetOptr = x * cell_size + y * cell_size * dim;
+	int i, j;
 
-	if (grid[offset].state == 6.0f) { // white (empty)
-		for (int i = offsetOptr; i < offsetOptr + cell_size; i++) {
-			for (int j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = 255;
-				optr[j].y = 255;
-				optr[j].z = 255;
-				optr[j].w = 255;
+	if (x < g_size && y < g_size) {
+		if (grid[offset].state == 6.0f) { // white (empty)
+			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+				for (j = i; j < i + cell_size * dim; j += dim) {
+					optr[j].x = 255;
+					optr[j].y = 255;
+					optr[j].z = 255;
+					optr[j].w = 255;
+				}
+			}
+		} else if (grid[offset].state == 0.0f) { // black (NC)
+			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+				for (j = i; j < i + cell_size * dim; j += dim) {
+					optr[j].x = 0;
+					optr[j].y = 0;
+					optr[j].z = 0;
+					optr[j].w = 255;
+				}
+			}
+		} else if (grid[offset].state == 1.0f) { // green (MNC)
+			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+				for (j = i; j < i + cell_size * dim; j += dim) {
+					optr[j].x = 87;
+					optr[j].y = 207;
+					optr[j].z = 0;
+					optr[j].w = 255;
+				}
+			}
+		} else if (grid[offset].state == 2.0f) { // orange (SC)
+			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+				for (j = i; j < i + cell_size * dim; j += dim) {
+					optr[j].x = 244;
+					optr[j].y = 131;
+					optr[j].z = 0;
+					optr[j].w = 255;
+				}
+			}
+		} else if (grid[offset].state == 3.0f) { // blue (MSC)
+			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+				for (j = i; j < i + cell_size * dim; j += dim) {
+					optr[j].x = 0;
+					optr[j].y = 0;
+					optr[j].z = 255;
+					optr[j].w = 255;
+				}
+			}
+		} else if (grid[offset].state == 4.0f) { // purple (CSC)
+			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+				for (j = i; j < i + cell_size * dim; j += dim) {
+					optr[j].x = 89;
+					optr[j].y = 35;
+					optr[j].z = 112;
+					optr[j].w = 255;
+				}
+			}
+		} else if (grid[offset].state == 5.0f) { // red (TC)
+			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+				for (j = i; j < i + cell_size * dim; j += dim) {
+					optr[j].x = 255;
+					optr[j].y = 0;
+					optr[j].z = 0;
+					optr[j].w = 255;
+				}
 			}
 		}
-	} else if (grid[offset].state == 0.0f) { // black (NC)
-		for (int i = offsetOptr; i < offsetOptr + cell_size; i++) {
-			for (int j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = 0;
-				optr[j].y = 0;
-				optr[j].z = 0;
-				optr[j].w = 255;
-			}
-		}
-	} else if (grid[offset].state == 1.0f) { // green (MNC)
-		for (int i = offsetOptr; i < offsetOptr + cell_size; i++) {
-			for (int j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = 87;
-				optr[j].y = 207;
-				optr[j].z = 0;
-				optr[j].w = 255;
-			}
-		}
-	} else if (grid[offset].state == 2.0f) { // orange (SC)
-		for (int i = offsetOptr; i < offsetOptr + cell_size; i++) {
-			for (int j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = 244;
-				optr[j].y = 131;
-				optr[j].z = 0;
-				optr[j].w = 255;
-			}
-		}
-	} else if (grid[offset].state == 3.0f) { // blue (MSC)
-		for (int i = offsetOptr; i < offsetOptr + cell_size; i++) {
-			for (int j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = 0;
-				optr[j].y = 0;
-				optr[j].z = 255;
-				optr[j].w = 255;
-			}
-		}
-	} else if (grid[offset].state == 4.0f) { // purple (CSC)
-		for (int i = offsetOptr; i < offsetOptr + cell_size; i++) {
-			for (int j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = 89;
-				optr[j].y = 35;
-				optr[j].z = 112;
-				optr[j].w = 255;
-			}
-		}
-	} else if (grid[offset].state == 5.0f) { // red (TC)
-		for (int i = offsetOptr; i < offsetOptr + cell_size; i++) {
-			for (int j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = 255;
-				optr[j].y = 0;
-				optr[j].z = 0;
-				optr[j].w = 255;
-			}
-		}
+
 	}
 }
 
@@ -205,6 +241,21 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 	frame[4*dim*y+4*x+3] = 255;
 }
 
+void prefetch_grids(int loc1, int loc2) {
+	int location1 = loc1; int location2 = loc2;
+	if (loc1 == -1) location1 = cudaCpuDeviceId;
+	if (loc2 == -1) location2 = cudaCpuDeviceId;
+
+	CudaSafeCall(cudaMemPrefetchAsync(d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell), location1, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(d.newGrid, d.grid_size*d.grid_size*sizeof(Cell), location2, NULL));
+}
+
+void prefetch_pdes(int loc) {
+	int location = loc;
+	if (loc == -1) location = cudaCpuDeviceId;
+	CudaSafeCall(cudaMemPrefetchAsync(d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE), location, NULL));
+}
+
 void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 	clock_t start_step, end_step;
 	start_step = clock();
@@ -216,29 +267,62 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 
 	if (ticks <= d->maxT) {
 		printf("Starting %d\n", ticks);
+
 		if (ticks == 0) {
-			display<<< blocks, threads >>>(outputBitmap, d->newGrid, d->cell_size, d->dim);
+			display<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 		} else {
 			curandState_t *states;
-			CudaSafeCall(cudaMallocManaged((void**)&states, d->grid_size*d->grid_size*sizeof(curandState_t)));
-			CudaSafeCall(cudaMemPrefetchAsync(states, d->grid_size*d->grid_size*sizeof(curandState_t), 1, NULL));
+			CudaSafeCall(cudaMalloc((void**)&states, d->grid_size*d->grid_size*sizeof(curandState_t)));
 			timespec seed;
         		clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &seed);
 			init_curand<<< d->grid_size*d->grid_size, 1 >>>(seed.tv_nsec, states);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			rule<<< blocks, threads >>>(d->newGrid, d->prevGrid, ticks, d->pdes, states);
+			for (int i = 0; i < d->n_carcinogens; i++)
+				CudaSafeCall(cudaMemPrefetchAsync(d->pdes[i].results, d->pdes[i].T*d->pdes[i].Nx*sizeof(double), d->dev_id_2, NULL));
+			prefetch_pdes(d->dev_id_2);
+
+			mutate_grid<<< blocks, threads >>>(d->prevGrid, d->grid_size, ticks, d->pdes, states);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
-			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid);
+
+			for (int i = 0; i < d->n_carcinogens; i++)
+				CudaSafeCall(cudaMemPrefetchAsync(d->pdes[i].results, d->pdes[i].T*d->pdes[i].Nx*sizeof(double), cudaCpuDeviceId, NULL));
+			prefetch_pdes(-1);
+
+			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->prevGrid, d->newGrid, d->grid_size);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
+
+			bool used_pheno[4] = { false, false, false, false };
+			int pheno = rand() % 4;
+			while (used_pheno[0] == false && used_pheno[1] == false && used_pheno[2] == false && used_pheno[3] == false) {
+				int pheno = rand() % 4;
+				if (used_pheno[pheno] == false) {
+					rule<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, pheno, ticks, states);
+					CudaCheckError();
+					CudaSafeCall(cudaDeviceSynchronize());
+					cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
+					CudaCheckError();
+					CudaSafeCall(cudaDeviceSynchronize());
+
+					used_pheno[pheno] = true;
+				}
+			}
+
+			reset_rule_params<<< blocks, threads >>>(d->prevGrid, d->grid_size);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
+
+			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
 			if (ticks % d->frame_rate == 0) {
-				display<<< blocks, threads >>>(outputBitmap, d->newGrid, d->cell_size, d->dim);
+				display<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
 				CudaCheckError();
 				CudaSafeCall(cudaDeviceSynchronize());
 			}
@@ -246,8 +330,10 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			for (int i = 0; i < d->n_carcinogens; i++) {
 				d->pdes[i].time_step(ticks, d->newGrid);
 			}
+
 			CudaSafeCall(cudaFree(states));
 		}
+
 		++d->frames;
 		printf("Done %d\n", ticks);
 	}
@@ -288,10 +374,15 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 
 void anim_exit( DataBlock *d ) {
 	CudaSafeCall(cudaDeviceSynchronize());
-	for (int i = 0; i < d->grid_size*d->grid_size; i++) {
-		d->prevGrid[i].free_resources();
-		d->newGrid[i].free_resources();
-	}
+	prefetch_params(-1);
+	prefetch_grids(-1, -1);
+	#pragma omp parallel for schedule(guided)
+		for (int i = 0; i < d->grid_size*d->grid_size; i++) {
+			d->prevGrid[i].prefetch_cell_params(-1, d->grid_size);
+			d->prevGrid[i].free_resources();
+			d->prevGrid[i].prefetch_cell_params(-1, d->grid_size);
+			d->newGrid[i].free_resources();
+		}
 	CudaSafeCall(cudaFree(d->prevGrid));
 	CudaSafeCall(cudaFree(d->newGrid));
 	for (int i = 0; i < d->n_carcinogens; i++)
@@ -329,18 +420,11 @@ struct CA {
 			CudaSafeCall(cudaSetDevice(i));
 			for (int j = i-1; j > -1; j--)
 				CudaSafeCall(cudaDeviceEnablePeerAccess(j, 0));
+			CudaSafeCall(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 33554432));
 		}
 
-		int device = 0;
-
-		CudaSafeCall(cudaMemPrefetchAsync(index_map, 11*12*sizeof(int), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(upreg_phenotype_map, 11*4*sizeof(double), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(downreg_phenotype_map, 11*4*sizeof(double), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(phenotype_init, 7*4*sizeof(double), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(state_mut_map, 6*11*sizeof(int), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(prolif_mut_map, 6*11*sizeof(int), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(diff_mut_map, 6*11*sizeof(int), device, NULL));
-
+		d.dev_id_1 = 0; d.dev_id_2 = 0;
+		if (num_devices == 2) d.dev_id_2 = 1;
 
 		CudaSafeCall(cudaMallocManaged((void**)&d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE)));
 		CudaSafeCall(cudaMalloc((void**)&d.output_bitmap, bitmap.image_size()));
@@ -348,32 +432,27 @@ struct CA {
 		CudaSafeCall(cudaMallocManaged((void**)&d.newGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 	}
 
-	void init(double *carcin_map, double *diffusion, bool *liquid) {
-		for (int i = 0; i < d.grid_size; i++) {
-			for (int j = 0; j < d.grid_size; j++) {
-				d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map, 0);
-				d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, carcin_map, 1);
+	void init(double *diffusion, double *consum, double *in, bool *liquid) {
+		int i, j;
+
+		#pragma omp parallel for collapse(2) schedule(guided)
+			for (i = 0; i < d.grid_size; i++) {
+				for (j = 0; j < d.grid_size; j++) {
+					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_1);
+					d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
+					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_2);
+					d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
+				}
 			}
+
+		prefetch_grids(d.dev_id_1, d.dev_id_2);
+
+		for (int k = 0; k < d.n_carcinogens; k++) {
+			d.pdes[k] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[k], consum[k], in[k], liquid[k], k, d.dev_id_2);
+			d.pdes[k].init();
 		}
 
-		CudaSafeCall(cudaMemPrefetchAsync(d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell), 0, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(d.newGrid, d.grid_size*d.grid_size*sizeof(Cell), 1, NULL));
-
-		dim3 blocks(d.grid_size / BLOCK_SIZE, d.grid_size / BLOCK_SIZE);
-		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
-		cells_gpu_to_gpu_copy<<< blocks, threads >>>(d.prevGrid, d.newGrid);
-		CudaCheckError();
-		CudaSafeCall(cudaDeviceSynchronize());
-
-		for (int i = 0; i < d.n_carcinogens; i++) {
-			if (i % 2 == 0)
-				d.pdes[i] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[i], liquid[i], i, 0);
-			else
-				d.pdes[i] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[i], liquid[i], i, 1);
-			d.pdes[i].init();
-		}
-
-		CudaSafeCall(cudaMemPrefetchAsync(d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE), 1, NULL));
+		prefetch_params(d.dev_id_1);
 	}
 
 	void animate(int frame_rate) {
