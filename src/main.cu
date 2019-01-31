@@ -35,10 +35,11 @@ int main(int argc, char *argv[]) {
 
 	CA ca(grid_size, T, 1, 11, save_frames, display);
 	ca.initialize_memory();
-	double carcinogen_mutation_map[10] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 	double diffusion[1] = {1.266389e-5};
+	double consum[1] = {9.722222e-8 / (double) (grid_size * grid_size)};
+	double in[1] = {2.37268e-6 / (double) (grid_size * grid_size)};
 	bool liquid[1] = {true};
-	ca.init(carcinogen_mutation_map, diffusion, liquid);
+	ca.init(diffusion, consum, in, liquid);
 
 	end = clock();
 	printf("It took %f seconds to initialize the memory.\n", (double) (end - start) / CLOCKS_PER_SEC); 
