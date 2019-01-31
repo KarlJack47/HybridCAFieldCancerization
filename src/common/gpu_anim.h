@@ -157,11 +157,11 @@ struct GPUAnimBitmap {
 	if (ticks == bitmap->maxT+1) {
 		if (bitmap->save_frames == 1) {
 			if (numDigits(bitmap->maxT) == 1)
-                        	system("ffmpeg -y -v quiet -start_number 0 -i %d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
+                        	system("ffmpeg -y -v quiet -framerate 2 -start_number 0 -i %d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
                 	else if (numDigits(bitmap->maxT) == 2)
-                       		system("ffmpeg -y -v quiet -start_number 0 -i %02d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
+                       		system("ffmpeg -y -v quiet -framerate 2 -start_number 0 -i %02d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
                 	else if (numDigits(bitmap->maxT) == 3)
-                        	system("ffmpeg -y -v quiet -start_number 0 -i %03d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
+                        	system("ffmpeg -y -v quiet -framerate 2 -start_number 0 -i %03d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
 		}
 		char command[15] = { 'k', 'i', 'l', 'l', ' ' };
 		int digs_pid = numDigits(getpid());
