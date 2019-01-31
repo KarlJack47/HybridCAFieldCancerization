@@ -1,13 +1,10 @@
 #ifndef __CELL_H__
 #define __CELL_H__
 
-#include "mutation_nn.h"
+#include "common/general.h"
 
-#ifndef CELL_PARAM
-#define CELL_PARAM
 #define MUT_THRESHOLD 0.1f
 #define CHANCE_MOVE 0.05f
-#endif
 
 // "NC": 0
 // "MNC": 1
@@ -20,14 +17,14 @@
 
 __device__ int get_rand_idx(double *L, const int N, int cell, curandState_t *states, int *idx=NULL) {
 	double *sorted = (double*)malloc(N*sizeof(double));
-	int *idx_t;
+	int *idx_t; int i;
 	if (idx==NULL) idx_t = (int*)malloc(N*sizeof(int));
-	for (int i = 0; i < N; i++) sorted[i] = 1000000000.0f * L[i];
+	for (i = 0; i < N; i++) sorted[i] = 1000000000.0f * L[i];
 	bitonic_sort(sorted, 0, N, false);
-	double sum = 0;
-	for (int i = 0; i < N; i++) sum += sorted[i];
+	double sum = 0.0f;
+	for (i = 0; i < N; i++) sum += sorted[i];
 	double rnd = curand_uniform_double(&states[cell]) * sum;
-	for (int i = 0; i < N; i++) {
+	for (i = 0; i < N; i++) {
 		rnd -= sorted[i];
 		if (rnd < 0) {
 			if (idx==NULL) {
@@ -47,20 +44,21 @@ __device__ int get_rand_idx(double *L, const int N, int cell, curandState_t *sta
 }
 
 struct Cell {
+	int device;
 	int state;
 	int age;
-	int device;
 	int *neighbourhood;
 	double *phenotype;
 	double *mutations;
-	double *consumption;
 
 	double *W_y_init;
 	MutationNN *NN;
 
-	void initialize(int x, int y, int grid_size, int n_in, int n_out, double *carcinogen_mutation_map) {
+	int chosen_phenotype;
+
+	void initialize(int x, int y, int grid_size, int n_in, int n_out) {
 		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(MutationNN)));
-		NN[0] = MutationNN(n_in, n_out);
+		*NN = MutationNN(n_in, n_out);
 		int n_input = NN->n_input; int n_hidden = NN->n_hidden; int n_output = NN->n_output;
 
 		double *W_x = (double*)malloc(n_hidden*n_input*sizeof(double));
@@ -116,7 +114,6 @@ struct Cell {
 		memset(b_y, 0.0f, n_output*sizeof(double));
 
 		NN->memory_allocate(W_x, b_x, W_y, b_y, device);
-		CudaSafeCall(cudaMemPrefetchAsync(NN, sizeof(NN), device, NULL));
 
 		free(W_x);
 		free(b_x);
@@ -124,7 +121,6 @@ struct Cell {
 		CudaSafeCall(cudaMallocManaged((void**)&W_y_init, n_hidden*n_output*sizeof(double)));
 		memcpy(W_y_init, W_y, n_hidden*n_output*sizeof(double));
 		free(W_y);
-		CudaSafeCall(cudaMemPrefetchAsync(W_y_init, n_hidden*n_output*sizeof(double), device, NULL));
 
 		CudaSafeCall(cudaMallocManaged((void**)&phenotype, 4*sizeof(double)));
 
@@ -137,21 +133,17 @@ struct Cell {
 		neighbourhood[5] = ((x+1) % grid_size) + abs((y-1) % grid_size) * grid_size; // se
 		neighbourhood[6] = abs((x-1) % grid_size) + abs((y-1) % grid_size) * grid_size; // sw
 		neighbourhood[7] = abs((x-1) % grid_size) + ((y+1) % grid_size) * grid_size; // nw
-		CudaSafeCall(cudaMemPrefetchAsync(neighbourhood, 8*sizeof(int), device, NULL));
 
 		CudaSafeCall(cudaMallocManaged((void**)&mutations, n_output*sizeof(double)));
 		memset(mutations, 0.0f, n_output*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(mutations, n_output*sizeof(double), device, NULL));
-
-		CudaSafeCall(cudaMallocManaged((void**)&consumption, (n_input-1)*sizeof(double)));
-		memset(consumption, 0.0f, (n_input-1)*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(consumption, (n_input-1)*sizeof(double), device, NULL));
 
 		age = 0;
 
+		chosen_phenotype = -1;
+
 	}
 
-	Cell(int x, int y, int grid_size, int n_in, int n_out, double *carcin_map, int dev) {
+	Cell(int x, int y, int grid_size, int n_in, int n_out, int dev) {
 		device = dev;
 		set_seed();
 		int init_states[3] = {0, 2, 6};
@@ -166,27 +158,38 @@ struct Cell {
 		else
 			state = init_states[1];
 
-		initialize(x, y, grid_size, n_in, n_out, carcin_map);
+		initialize(x, y, grid_size, n_in, n_out);
 
 		phenotype[0] = phenotype_init[state*4];
 		phenotype[1] = phenotype_init[state*4+1];
 		phenotype[2] = phenotype_init[state*4+2];
 		phenotype[3] = phenotype_init[state*4+3];
-		CudaSafeCall(cudaMemPrefetchAsync(phenotype, 4*sizeof(double), device, NULL));
 	}
 
 	void free_resources(void) {
 		CudaSafeCall(cudaDeviceSynchronize());
 		CudaSafeCall(cudaFree(neighbourhood));
 		CudaSafeCall(cudaFree(mutations));
-		CudaSafeCall(cudaFree(consumption));
 		CudaSafeCall(cudaFree(W_y_init));
 		NN->free_resources();
 		CudaSafeCall(cudaFree(NN));
 	}
 
+	void prefetch_cell_params(int loc, int g_size) {
+		int loc1 = loc;
+		if (loc == -1) loc1 = cudaCpuDeviceId;
+		int n_hidden = NN->n_hidden; int n_output = NN->n_output;
+		NN->prefetch_nn_params(loc1);
+		CudaSafeCall(cudaMemPrefetchAsync(NN, sizeof(NN), loc1, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(W_y_init, n_hidden*n_output*sizeof(double), loc1, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(neighbourhood, 8*sizeof(int), loc1, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(mutations, n_output*sizeof(double), loc1, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(phenotype, 4*sizeof(double), loc1, NULL));
+	}
+
 	__device__ void change_state(int new_state) {
-		for (int i = 0; i < 4; i++) {
+		int i;
+		for (i = 0; i < 4; i++) {
 			double check = phenotype_init[new_state*4+i] + phenotype[i] - phenotype_init[state*4+i];
 			if (check < 0.0f)
 				phenotype[i] = 0.0f;
@@ -205,7 +208,8 @@ struct Cell {
 	}
 
 	__device__ void copy_mutations(Cell *c) {
-		for (int i = 0; i < 4; i++) {
+		int i;
+		for (i = 0; i < 4; i++) {
 			double check = c->phenotype[i] + phenotype[i] - phenotype_init[state*4+i];
 			if (check < 0.0f)
 				c->phenotype[i] = 0.0f;
@@ -214,15 +218,18 @@ struct Cell {
 			else
 				c->phenotype[i] += phenotype[i] - phenotype_init[state*4+i];
 		}
-		for (int i = 0; i < NN->n_hidden*NN->n_output; i++)
+		for (i = 0; i < NN->n_hidden*NN->n_output; i++)
 			c->NN->W_out[i] = NN->W_out[i];
-		for (int i = 0; i < 11; i++)
+		for (i = 0; i < 11; i++)
 			c->mutations[i] = mutations[i];
 	}
 
 	__device__ int proliferate(Cell *c, int cell, curandState_t *states) {
 		int idx = get_rand_idx(mutations, 11, cell, states);
 		int new_state = -1;
+
+		if (c->state != 6) return new_state;
+
 		if ((state == 4 && mutations[3] >= MUT_THRESHOLD) || state != 4) {
 			if (mutations[idx] < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
 			else {
@@ -244,6 +251,9 @@ struct Cell {
 	__device__ int differentiate(Cell *c, int cell, curandState_t *states) {
 		int idx = get_rand_idx(mutations, 11, cell, states);
 		int new_state = -1;
+
+		if (c->state != 6) return new_state;
+
 		if (mutations[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
 		else {
 			if (curand_uniform_double(&states[cell]) <= 0.5f) {
@@ -262,6 +272,8 @@ struct Cell {
 	}
 
 	__device__ void move(Cell *c, int cell, curandState_t *states) {
+		if (c->state != 6) return;
+
 		if (curand_uniform_double(&states[cell]) <= CHANCE_MOVE) {
 			c->change_state(state);
 			copy_mutations(c);
@@ -272,89 +284,84 @@ struct Cell {
 
 	__device__ void apoptosis(void) {
 		state = 6;
-		for (int i = 0; i < 4; i++) {
+		int i;
+		for (i = 0; i < 4; i++) {
 			phenotype[i] = phenotype_init[6*4+i];
 		}
-		for (int i = 0; i < NN->n_hidden*NN->n_output; i++) {
+		for (i = 0; i < NN->n_hidden*NN->n_output; i++) {
 			NN->W_out[i] = W_y_init[i];
 		}
-		for (int i = 0; i < 11; i++) {
+		for (i = 0; i < 11; i++) {
 			mutations[i] = 0.0f;
 		}
 		age = 0;
 	}
 
 	__device__ void phenotype_mutate(int M, double *prevMut, double *newMut) {
+		int i;
 		if (newMut[M] >= MUT_THRESHOLD) {
 			// down-regulation
 			if (prevMut[M] > newMut[M]) {
-				for (int j = 0; j < 4; j++) {
-					if (downreg_phenotype_map[M*4+j] < 0.0f)
-						phenotype[j] = fmaxf(0.0f, phenotype[j] + downreg_phenotype_map[M*4+j]);
+				for (i = 0; i < 4; i++) {
+					if (downreg_phenotype_map[M*4+i] < 0.0f)
+						phenotype[i] = fmaxf(0.0f, phenotype[i] + downreg_phenotype_map[M*4+i]);
 					else
-						phenotype[j] = fminf(phenotype[j] + downreg_phenotype_map[M*4+j], 1.0f);
+						phenotype[i] = fminf(phenotype[i] + downreg_phenotype_map[M*4+i], 1.0f);
 				}
 			// up-regulation
 			} else {
-				for (int j = 0; j < 4; j++) {
-					if (upreg_phenotype_map[M*4+j] < 0.0f)
-						phenotype[j] = fmaxf(0.0f, phenotype[j] + upreg_phenotype_map[M*4+j]);
+				for (i = 0; i < 4; i++) {
+					if (upreg_phenotype_map[M*4+i] < 0.0f)
+						phenotype[i] = fmaxf(0.0f, phenotype[i] + upreg_phenotype_map[M*4+i]);
 					else
-						phenotype[j] = fminf(phenotype[j] + upreg_phenotype_map[M*4+j], 1.0f);
+						phenotype[i] = fminf(phenotype[i] + upreg_phenotype_map[M*4+i], 1.0f);
 				}
 			}
 		}
 	}
 
-	__device__ void update_consumption(int idx, double *in, double *prevMut, double *newMut, int cell, curandState_t *states) {
-		int M_idx[11];
-		for (int i = 0; i < NN->n_input; i++) NN->input[i] = 0.0f;
-		consumption[idx] = 0.0f;
-		NN->input[idx] = in[idx];
-		NN->evaluate();
-		int count = get_rand_idx(NN->output, 11, cell, states, M_idx);
-		for (int i = 0; i < count; i++) consumption[idx] += fabsf(newMut[M_idx[i]] - prevMut[M_idx[i]]);
-	}
-
 	__device__ void mutate(double *in, double *result, int cell, curandState_t *states) {
-		int M_idx[11];
-		int count = get_rand_idx(result, 11, cell, states, M_idx);
-
-		for (int i = 0; i < count; i++) {
-			int M = M_idx[i];
-			if (M != 0 && state != 6) {
-				double prevMut[11];
-				for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
-				NN->mutate(M, mutations, cell, states);
-				phenotype_mutate(M, prevMut, mutations);
-				for (int j = 0; j < NN->n_input-1; j++) update_consumption(j, in, prevMut, mutations, cell, states);
-			}
-		}
+		int i, j, k;
 
 		if (state != 6) {
+			int M_idx[11];
+			M_idx[0] = -1;
+			int count = get_rand_idx(result, 11, cell, states, M_idx);
+			if (M_idx[0] == -1) { M_idx[0] = count; count = 1; }
+			for (i = 0; i < count; i++) {
+				int M = M_idx[i];
+				if (M != 0) {
+					double prevMut[11];
+					for (j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
+					NN->mutate(M, mutations, cell, states);
+					phenotype_mutate(M, prevMut, mutations);
+				}
+			}
+
 			// Random mutations
 			if ((int) ceilf(curand_uniform_double(&states[cell])*1000.0f) <= 10) {
 				int num = (int) ceilf(curand_uniform_double(&states[cell])*4.0f) % 4;
-				for (int i = 0; i < num; i++) {
+				for (i = 0; i < num; i++) {
 					int idx = (int) ceilf(curand_uniform_double(&states[cell])*11.0f) % 11;
 					double prevMut[11];
-					for (int j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
+					for (j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
 					NN->mutate(idx, mutations, cell, states);
-					for (int j = 0; j < NN->n_input; j++) NN->input[j] = in[j];
+					for (j = 0; j < NN->n_input; j++) NN->input[j] = in[j];
 					NN->evaluate();
+					M_idx[0] = -1;
 					count = get_rand_idx(NN->output, 11, cell, states, M_idx);
-					for (int k = 0; k < count; k++) {
+					if (M_idx[0] == -1) { M_idx[0] = count; count = 1; }
+					for (k = 0; k < count; k++) {
 						int M = M_idx[k];
 						if (M != 0 && state != 6) {
 							phenotype_mutate(M, prevMut, mutations);
-							for (int l = 0; l < NN->n_input-1; l++) update_consumption(l, in, prevMut, mutations, cell, states);
 						}
 					}
 				}
 			}
-		}
 
-		if (state != 6) age++;
+			age++;
+		}
 	}
 };
 
