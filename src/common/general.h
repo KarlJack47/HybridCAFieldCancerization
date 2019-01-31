@@ -2,6 +2,7 @@
 #define __GENERAL_H__
 
 #include <stdio.h>
+#include <omp.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand.h>
@@ -11,12 +12,11 @@
 #include <sys/time.h>
 #include "error_check.h"
 
-#ifndef BLOCK_SIZE
+#define NTHREADS 4
 #define BLOCK_SIZE 16
-#endif
 
-#ifndef PARAMS
-#define PARAMS
+__managed__ double carcinogen_mutation_map[10] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+
 __managed__ int index_map[11*12] = {0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 				    9, 2, 3, 4, 5, 6, 7, 8, 9, 10, -1, -1,
 				    0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -82,22 +82,33 @@ __managed__ int diff_mut_map[6*11] = {-1, 1, -1, -1, 4, -1, -1, -1, 4, -1, 4,
 				      1, 1, 1, 1, 1, 1, 1, 1, 4, 1, 4,
 				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
 				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
-#endif
+#pragma omp threadprivate(carcinogen_mutation_map, index_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
+
+void prefetch_params(int loc) {
+	int location = loc;
+	if (loc == -1) location = cudaCpuDeviceId;
+	CudaSafeCall(cudaMemPrefetchAsync(carcinogen_mutation_map, 10*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(index_map, 11*12*sizeof(int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(upreg_phenotype_map, 11*4*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(downreg_phenotype_map, 11*4*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(phenotype_init, 7*4*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(state_mut_map, 6*11*sizeof(int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(prolif_mut_map, 6*11*sizeof(int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(diff_mut_map, 6*11*sizeof(int), location, NULL));
+}
 
 /* Start Array Functions */
-#ifndef MAX_IDX
-#define MAX_IDX
 __device__ int max_idx(double *L, int *location, int N) {
         double max = L[0];
-        int count = 0;
+        int count = 0; int i;
 
-        for (int i = 1; i < N; i++) {
+        for (i = 1; i < N; i++) {
                 if (L[i] > max) {
                         max = L[i];
                 }
         }
 
-        for (int i = 0; i < N; i++) {
+        for (i = 0; i < N; i++) {
                 if (L[i] == max) {
                         location[count] = i;
                         count++;
@@ -106,13 +117,11 @@ __device__ int max_idx(double *L, int *location, int N) {
 
         return count;
 }
-#endif
 
-#ifndef GET_INDEXES
-#define GET_INDEXES
 __device__ int get_indexes(double val, double *L, int *idx, int N) {
-        int count = 0;
-        for (int i = 0; i < N; i++) {
+        int count = 0; int i;
+
+        for (i = 0; i < N; i++) {
                 if (L[i] == val) {
                         idx[count] = i;
                         count++;
@@ -121,12 +130,9 @@ __device__ int get_indexes(double val, double *L, int *idx, int N) {
 
         return count;
 }
-#endif
 
 
 // Bitonic Sort Functions
-#ifndef EXCHANGE
-#define EXCHANGE
 __device__ unsigned int greatestPowerOfTwoLessThan(int n) {
 	int k = 1;
 	while (k > 0 && k < n)
@@ -139,31 +145,23 @@ __device__ void exchange(double *L, int i, int j) {
         L[i] = L[j];
         L[j] = t;
 }
-#endif
 
-#ifndef COMPARE
-#define COMPARE
 __device__ void compare(double *L, int i, int j, bool dir) {
         if (dir==(L[i] > L[j]))
                 exchange(L, i, j);
 }
-#endif
 
-#ifndef BITONIC_MERGE
-#define BITONIC_MERGE
 __device__ void bitonic_merge(double *L, int lo, int N, bool dir) {
+	int i;
         if (N > 1) {
                 int m =greatestPowerOfTwoLessThan(N);
-                for (int i = lo; i < lo+N-m; i++)
+                for (i = lo; i < lo+N-m; i++)
                         compare(L, i, i+m, dir);
                 bitonic_merge(L, lo, m, dir);
                 bitonic_merge(L, lo+m, N-m, dir);
         }
 }
-#endif
 
-#ifndef BITONIC_SORT
-#define BITONIC_SORT
 __device__ void bitonic_sort(double *L, int lo, int N, bool dir ) {
         if (N > 1) {
                 int m = N/2;
@@ -172,32 +170,23 @@ __device__ void bitonic_sort(double *L, int lo, int N, bool dir ) {
                 bitonic_merge(L, lo, N, dir);
         }
 }
-#endif
 /* end array functions */
 
 /* Start functions around random number generation */
-#ifndef SET_SEED
-#define SET_SEED
 // Set random seed for host
 void set_seed( void ) {
         timespec seed;
         clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &seed);
         srand(seed.tv_nsec);
 }
-#endif
 
-#ifndef INIT_CURAND
-#define INIT_CURAND
 // Set random seed for gpu
 __global__ void init_curand(unsigned int seed, curandState_t* states) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         curand_init(seed, id, 0, &states[id]);
 }
-#endif
 /* end functions around random number generation */
 
-#ifndef NUMDIGITS
-#define NUMDIGITS
 int numDigits(double x) {
         x = fabsf(x);
         return (x < 10 ? 1 :
@@ -211,6 +200,12 @@ int numDigits(double x) {
                (x < 1000000000 ? 9 :
                 10)))))))));
 }
-#endif
+
+#include "../mutation_nn.h"
+#include "../cell.h"
+#include "../carcinogen_pde.h"
+#include "gpu_anim.h"
+#include "lodepng.h"
+#include "../ca.h"
 
 #endif // __GENERAL_H__
