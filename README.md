@@ -3,7 +3,7 @@
 The parameters are set such that the only carcinogen is alcohol and there are 10 genes that are allowed to mutate. The parameters are tuned towards the formation of head and neck carcinomas. 
 
 # Notes
-1. This program only currently supports Ubuntu and requires two NVIDIA gpus to run.
+1. This program only currently supports Ubuntu and requires one NVIDIA gpu to run.
 2. The minimum grid size with the default BLOCK_SIZE (in src/common/general.h) is 16.
 3. The stability of the program has only been checked up to a time step of 200 and grid size of 512.
 4. If you want to consider more carcinogens you need to update the main.cu file and change the appropriate variables.
