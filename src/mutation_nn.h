@@ -1,14 +1,11 @@
 #ifndef __MUTATION_NN_H__
 #define __MUTATION_NN_H__
 
-#ifndef MUTATION_PARAM
-#define MUTATION_PARAM
 #define RAND_INCR_A 5000000.0f // 0.005
 #define RAND_INCR_B 10000000.0f // 0.01
 #define RAND_DECR_A 10000000.0f // 0.01
 #define RAND_DECR_B 100000000.0f // 0.1
 #define CHANCE_UPREG 0.5f
-#endif
 
 __device__ void activation(int idx, double *input, double *output) {
 	/*  Computes the value of the sigmoid function f(x) = 1/(1 + e^-2x).
@@ -32,11 +29,13 @@ __device__ double* dot(int idx, double *m1, double *m2, double *output, int m1_r
 	    m2_columns: int, number of columns in the right matrix m2
 	*/
 
-	for (int i = idx; i < m1_rows*m2_columns; i += m2_columns*m1_rows) {
+	int i, k;
+
+	for (i = idx; i < m1_rows*m2_columns; i += m2_columns*m1_rows) {
 		int r = i / m2_columns;
 		int c = i % m2_columns;
 		double t_output = 0.0f;
-		for(int k = 0; k < m1_columns; k++) {
+		for(k = 0; k < m1_columns; k++) {
 			t_output += m1[r*m1_columns+k] * m2[k*m2_columns+c];
 		}
 		output[i] = t_output;
@@ -61,11 +60,13 @@ __device__ double* matrixAddMatrix(int idx, double *m1, double *m2, double *outp
 __device__ void feedforward(double *input, double *W_in, double *b_in, double *hidden, double *W_out, double *b_out, double *output,
 			    int n_input, int n_hidden, int n_output) {
 
-	for (int i = 0; i < n_hidden; i++) {
+	int i;
+
+	for (i = 0; i < n_hidden; i++) {
 		activation(i, matrixAddMatrix(i, dot(i, W_in, input, hidden, n_hidden, n_input, 1), b_in, hidden), hidden);
 	}
 
-	for (int i = 0; i < n_output; i++) {
+	for (i = 0; i < n_output; i++) {
 		activation(i, matrixAddMatrix(i, dot(i, W_out, hidden, output, n_hidden, n_output, 1), b_out, output), output);
 	}
 }
@@ -95,26 +96,19 @@ struct MutationNN {
 
 		CudaSafeCall(cudaMallocManaged((void**)&input, n_input*sizeof(double)));
 		memset(input, 0.0f, n_input*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(input, n_input*sizeof(double), device, NULL));
 		CudaSafeCall(cudaMallocManaged((void**)&output, n_output*sizeof(double)));
 		memset(output, 0.0f, n_output*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(output, n_output*sizeof(double), device, NULL));
 		CudaSafeCall(cudaMallocManaged((void**)&W_in, n_hidden*n_input*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&b_in, n_hidden*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&hidden, n_hidden*sizeof(double)));
 		memset(hidden, 0.0f, n_hidden*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(hidden, n_hidden*sizeof(double), device, NULL));
 		CudaSafeCall(cudaMallocManaged((void**)&W_out, n_hidden*n_output*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&b_out, n_output*sizeof(double)));
 
 		memcpy(W_in, W_x, n_hidden*n_input*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(W_in, n_hidden*n_input*sizeof(double), device, NULL));
 		memcpy(b_in, b_x, n_hidden*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(b_in, n_hidden*sizeof(double), device, NULL));
 		memcpy(W_out, W_y, n_hidden*n_output*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(W_out, n_hidden*n_output*sizeof(double), device, NULL));
 		memcpy(b_out, b_y, n_output*sizeof(double));
-		CudaSafeCall(cudaMemPrefetchAsync(b_out, n_output*sizeof(double), device, NULL));
 	}
 
 	void free_resources(void) {
@@ -128,11 +122,24 @@ struct MutationNN {
 		CudaSafeCall(cudaFree(b_out));
 	}
 
+	void prefetch_nn_params(int loc) {
+		int location = loc;
+		if (loc == -1) location = cudaCpuDeviceId;
+		CudaSafeCall(cudaMemPrefetchAsync(input, n_input*sizeof(double), location, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(output, n_output*sizeof(double), location, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(hidden, n_hidden*sizeof(double), location, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(W_in, n_hidden*n_input*sizeof(double), location, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(b_in, n_hidden*sizeof(double), location, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(W_out, n_hidden*n_output*sizeof(double), location, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(b_out, n_output*sizeof(double), location, NULL));
+	}
+
 	__device__ void evaluate(void) {
 		feedforward(input, W_in, b_in, hidden, W_out, b_out, output, n_input, n_hidden, n_output);
 	}
 
 	__device__ void mutate(int M, double *mutations, int cell, curandState_t *states) {
+		//printf("%d\n", M);
 		if (M != 0) {
 			if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
 				double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
