@@ -144,9 +144,6 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, 
 		else if (phenotype == 1 && prevG[offset].chosen_phenotype == 1)
 			newG[offset].move(&newG[idx], offset, states);
 
-		if (state == -1)
-			newG[offset].move(&newG[idx], offset, states);
-
 		check_CSC_or_TC_formed(prevG, newG, offset, t);
 	}
 }
@@ -305,9 +302,11 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 					rule<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, pheno, ticks, states);
 					CudaCheckError();
 					CudaSafeCall(cudaDeviceSynchronize());
-					cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
-					CudaCheckError();
-					CudaSafeCall(cudaDeviceSynchronize());
+					if (pheno == 1) {
+						cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
+						CudaCheckError();
+						CudaSafeCall(cudaDeviceSynchronize());
+					}
 
 					used_pheno[pheno] = true;
 				}
