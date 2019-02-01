@@ -1,5 +1,5 @@
-#ifndef __MUTATION_NN_H__
-#define __MUTATION_NN_H__
+#ifndef __GENE_EXPRESSION_NN_H__
+#define __GENE_EXPRESSION_NN_H__
 
 #define RAND_INCR_A 5000000.0f // 0.005
 #define RAND_INCR_B 10000000.0f // 0.01
@@ -68,7 +68,7 @@ __device__ void feedforward(double *input, double *W_in, double *b_in, double *h
 		activation(i, matrixAddMatrix(i, dot(i, W_out, hidden, output, n_hidden, n_output, 1), b_out, output), output);
 }
 
-struct MutationNN {
+struct GeneExpressionNN {
 	int device;
 	double *input;
 	double *output;
@@ -82,7 +82,7 @@ struct MutationNN {
 	int n_hidden;
 	int n_output;
 
-	MutationNN(int n_in, int n_out) {
+	GeneExpressionNN(int n_in, int n_out) {
 		n_input = n_in;
 		n_hidden = n_out;
 		n_output = n_out;
@@ -135,18 +135,18 @@ struct MutationNN {
 		feedforward(input, W_in, b_in, hidden, W_out, b_out, output, n_input, n_hidden, n_output);
 	}
 
-	__device__ void mutate(int M, double *mutations, int cell, curandState_t *states) {
+	__device__ void mutate(int M, double *gene_expressions, int cell, curandState_t *states) {
 		//printf("%d\n", M);
 		if (M != 0) {
 			if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
 				double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
 				W_out[M*n_output+M] += incr;
-				mutations[M] += incr;
+				gene_expressions[M] += incr;
 				W_out[0] = fmaxf(0.0f, W_out[0] - incr);
 			} else {
 				double decr = (curand_uniform_double(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
 				W_out[M*n_output+M] = fmaxf(0.0f, W_out[M*n_output+M] - decr);
-				mutations[M] = fmaxf(0.0f, mutations[M] - decr);
+				gene_expressions[M] -= decr;
 				W_out[0] += decr;
 			}
 		}
@@ -173,4 +173,4 @@ struct MutationNN {
 	}
 };
 
-#endif // __MUTATION_NN_H__
+#endif // __GENE_EXPRESSION_NN_H__
