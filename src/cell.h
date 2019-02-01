@@ -3,8 +3,8 @@
 
 #include "common/general.h"
 
-#define MUT_THRESHOLD 0.1f
-#define CHANCE_MOVE 0.05f
+#define MUT_THRESHOLD 0.1f // possibly decrease to 0.05
+#define CHANCE_MOVE 0.05f // possibly increase to 0.25 or higher
 
 // "NC": 0
 // "MNC": 1
