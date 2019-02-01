@@ -194,7 +194,7 @@ int numDigits(double x) {
                 10)))))))));
 }
 
-#include "../mutation_nn.h"
+#include "../gene_expression_nn.h"
 #include "../cell.h"
 #include "../carcinogen_pde.h"
 #include "gpu_anim.h"

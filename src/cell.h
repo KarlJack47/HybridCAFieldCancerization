@@ -49,16 +49,16 @@ struct Cell {
 	int age;
 	int *neighbourhood;
 	double *phenotype;
-	double *mutations;
+	double *gene_expressions;
 
 	double *W_y_init;
-	MutationNN *NN;
+	GeneExpressionNN *NN;
 
 	int chosen_phenotype;
 
 	void initialize(int x, int y, int grid_size, int n_in, int n_out) {
-		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(MutationNN)));
-		*NN = MutationNN(n_in, n_out);
+		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(GeneExpressionNN)));
+		*NN = GeneExpressionNN(n_in, n_out);
 		int n_input = NN->n_input; int n_hidden = NN->n_hidden; int n_output = NN->n_output;
 
 		double *W_x = (double*)malloc(n_hidden*n_input*sizeof(double));
@@ -131,8 +131,8 @@ struct Cell {
 		neighbourhood[6] = abs((x-1) % grid_size) + abs((y-1) % grid_size) * grid_size; // sw
 		neighbourhood[7] = abs((x-1) % grid_size) + ((y+1) % grid_size) * grid_size; // nw
 
-		CudaSafeCall(cudaMallocManaged((void**)&mutations, n_output*sizeof(double)));
-		memset(mutations, 0.0f, n_output*sizeof(double));
+		CudaSafeCall(cudaMallocManaged((void**)&gene_expressions, n_output*sizeof(double)));
+		memset(gene_expressions, 0.0f, n_output*sizeof(double));
 
 		age = 0;
 
@@ -180,7 +180,7 @@ struct Cell {
 		CudaSafeCall(cudaMemPrefetchAsync(NN, sizeof(NN), loc1, NULL));
 		CudaSafeCall(cudaMemPrefetchAsync(W_y_init, n_hidden*n_output*sizeof(double), loc1, NULL));
 		CudaSafeCall(cudaMemPrefetchAsync(neighbourhood, 8*sizeof(int), loc1, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(mutations, n_output*sizeof(double), loc1, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(gene_expressions, n_output*sizeof(double), loc1, NULL));
 		CudaSafeCall(cudaMemPrefetchAsync(phenotype, 4*sizeof(double), loc1, NULL));
 	}
 
@@ -218,17 +218,17 @@ struct Cell {
 		for (i = 0; i < NN->n_hidden*NN->n_output; i++)
 			c->NN->W_out[i] = NN->W_out[i];
 		for (i = 0; i < 11; i++)
-			c->mutations[i] = mutations[i];
+			c->gene_expressions[i] = gene_expressions[i];
 	}
 
 	__device__ int proliferate(Cell *c, int cell, curandState_t *states) {
-		int idx = get_rand_idx(mutations, 11, cell, states);
+		int idx = get_rand_idx(gene_expressions, 11, cell, states);
 		int new_state = -1;
 
 		if (c->state != 6) return new_state;
 
-		if ((state == 4 && mutations[3] >= MUT_THRESHOLD) || state != 4) {
-			if (mutations[idx] < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
+		if ((state == 4 && gene_expressions[3] >= MUT_THRESHOLD) || state != 4) {
+			if (gene_expressions[idx] < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
 			else {
 				if ((int) ceilf(curand_uniform_double(&states[cell])*2.0f) % 2 == 0) {
 					change_state(state_mut_map[state*11+idx]);
@@ -246,12 +246,12 @@ struct Cell {
 	}
 
 	__device__ int differentiate(Cell *c, int cell, curandState_t *states) {
-		int idx = get_rand_idx(mutations, 11, cell, states);
+		int idx = get_rand_idx(gene_expressions, 11, cell, states);
 		int new_state = -1;
 
 		if (c->state != 6) return new_state;
 
-		if (mutations[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
+		if (gene_expressions[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
 		else {
 			if (curand_uniform_double(&states[cell]) <= 0.5f) {
 				change_state(state_mut_map[state*11+idx]);
@@ -326,9 +326,9 @@ struct Cell {
 				int M = M_idx[i];
 				if (M != 0) {
 					double prevMut[11];
-					for (j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
-					NN->mutate(M, mutations, cell, states);
-					phenotype_mutate(M, prevMut, mutations);
+					for (j = 0; j < NN->n_output; j++) prevMut[j] = gene_expressions[j];
+					NN->mutate(M, gene_expressions, cell, states);
+					phenotype_mutate(M, prevMut, gene_expressions);
 				}
 			}
 
@@ -338,8 +338,8 @@ struct Cell {
 				for (i = 0; i < num; i++) {
 					int idx = (int) ceilf(curand_uniform_double(&states[cell])*11.0f) % 11;
 					double prevMut[11];
-					for (j = 0; j < NN->n_output; j++) prevMut[j] = mutations[j];
-					NN->mutate(idx, mutations, cell, states);
+					for (j = 0; j < NN->n_output; j++) prevMut[j] = gene_expressions[j];
+					NN->mutate(idx, gene_expressions, cell, states);
 					for (j = 0; j < NN->n_input; j++) NN->input[j] = in[j];
 					NN->evaluate();
 					M_idx[0] = -1;
@@ -348,7 +348,7 @@ struct Cell {
 					for (k = 0; k < count; k++) {
 						int M = M_idx[k];
 						if (M != 0 && state != 6) {
-							phenotype_mutate(M, prevMut, mutations);
+							phenotype_mutate(M, prevMut, gene_expressions);
 						}
 					}
 				}
