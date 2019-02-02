@@ -39,7 +39,7 @@ __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, int g_size) {
         	dst[idx].age = src[idx].age;
 
         	for (i = 0; i < 4; i++) dst[idx].phenotype[i] = src[idx].phenotype[i];
-        	for (i = 0; i < src[idx].NN->n_output; i++) dst[idx].mutations[i] = src[idx].mutations[i];
+        	for (i = 0; i < src[idx].NN->n_output; i++) dst[idx].gene_expressions[i] = src[idx].gene_expressions[i];
 
         	dst[idx].NN->n_input = src[idx].NN->n_input;
         	dst[idx].NN->n_hidden = src[idx].NN->n_hidden;
@@ -110,7 +110,10 @@ __device__ void choose_idx_and_phenotype(Cell *prevG, int g_size, int offset, in
 
 		if (num_empty == 0) { *idx = -1; return; }
 
-		*idx = empty[(int) ceilf(curand_uniform(&states[offset])*num_empty) % num_empty];
+		if (prevG[offset].state == 5)
+			*idx = prevG[offset].neighbourhood[(int) ceilf(curand_uniform(&states[offset])*8) % 8];
+		else
+			*idx = empty[(int) ceilf(curand_uniform(&states[offset])*num_empty) % num_empty];
 	}
 }
 
@@ -135,14 +138,24 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, 
 
 		if (idx == -1) return;
 
-		int state = -2;
+		int state = -2; int i;
 
-		if (phenotype == 0 && prevG[offset].chosen_phenotype == 0)
-			state = newG[offset].proliferate(&newG[idx], offset, states);
-		else if (phenotype == 3 && prevG[offset].chosen_phenotype == 3)
-			state = newG[offset].differentiate(&newG[idx], offset, states);
-		else if (phenotype == 1 && prevG[offset].chosen_phenotype == 1)
-			newG[offset].move(&newG[idx], offset, states);
+		bool neigh[8] = { false, false, false, false, false, false, false, false };
+		while (state == -2 || (!neigh[0] && !neigh[1] && !neigh[2] && !neigh[3] && !neigh[4] && !neigh[5] && !neigh[6] && !neigh[7])) {
+			bool check = false;
+			for (i = 0; i < 8; i++) if (prevG[offset].neighbourhood[i] == idx && neigh[i] == false) { check = true; break; }
+			if (check) {
+				if (phenotype == 0 && prevG[offset].chosen_phenotype == 0)
+					state = newG[offset].proliferate(&newG[idx], offset, states);
+				else if (phenotype == 3 && prevG[offset].chosen_phenotype == 3)
+					state = newG[offset].differentiate(&newG[idx], offset, states);
+				else if (phenotype == 1 && prevG[offset].chosen_phenotype == 1)
+					state = newG[offset].move(&newG[idx], offset, states);
+				neigh[i] = true;
+			}
+			idx = -1;
+			choose_idx_and_phenotype(prevG, g_size, offset, &idx, &prevG[offset].chosen_phenotype, states);
+		}
 
 		check_CSC_or_TC_formed(prevG, newG, offset, t);
 	}

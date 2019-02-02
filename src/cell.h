@@ -166,7 +166,7 @@ struct Cell {
 	void free_resources(void) {
 		CudaSafeCall(cudaDeviceSynchronize());
 		CudaSafeCall(cudaFree(neighbourhood));
-		CudaSafeCall(cudaFree(mutations));
+		CudaSafeCall(cudaFree(gene_expressions));
 		CudaSafeCall(cudaFree(W_y_init));
 		NN->free_resources();
 		CudaSafeCall(cudaFree(NN));
@@ -225,7 +225,7 @@ struct Cell {
 		int idx = get_rand_idx(gene_expressions, 11, cell, states);
 		int new_state = -1;
 
-		if (c->state != 6) return new_state;
+		if (state != 5 && c->state != 6) return -2;
 
 		if ((state == 4 && gene_expressions[3] >= MUT_THRESHOLD) || state != 4) {
 			if (gene_expressions[idx] < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
@@ -249,7 +249,7 @@ struct Cell {
 		int idx = get_rand_idx(gene_expressions, 11, cell, states);
 		int new_state = -1;
 
-		if (c->state != 6) return new_state;
+		if (state != 5 && c->state != 6) return -2;
 
 		if (gene_expressions[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
 		else {
@@ -268,8 +268,8 @@ struct Cell {
 		return new_state;
 	}
 
-	__device__ void move(Cell *c, int cell, curandState_t *states) {
-		if (c->state != 6) return;
+	__device__ int move(Cell *c, int cell, curandState_t *states) {
+		if (state != 5 && c->state != 6) return -2;
 
 		if (curand_uniform_double(&states[cell]) <= CHANCE_MOVE) {
 			c->change_state(state);
@@ -277,6 +277,8 @@ struct Cell {
 			c->age = age;
 			apoptosis();
 		}
+
+		return 0;
 	}
 
 	__device__ void apoptosis(void) {
@@ -287,7 +289,7 @@ struct Cell {
 		for (i = 0; i < NN->n_hidden*NN->n_output; i++)
 			NN->W_out[i] = W_y_init[i];
 		for (i = 0; i < 11; i++)
-			mutations[i] = 0.0f;
+			gene_expressions[i] = 0.0f;
 		age = 0;
 	}
 
