@@ -141,9 +141,10 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, 
 		int state = -2; int i;
 
 		bool neigh[8] = { false, false, false, false, false, false, false, false };
-		while (state == -2 || (!neigh[0] && !neigh[1] && !neigh[2] && !neigh[3] && !neigh[4] && !neigh[5] && !neigh[6] && !neigh[7])) {
+		for (i = 0; i < 8; i++) if (prevG[offset].state != 5 && prevG[prevG[offset].neighbourhood[i]].state == 6) neigh[i] = true;
+		while (!neigh[0] && !neigh[1] && !neigh[2] && !neigh[3] && !neigh[4] && !neigh[5] && !neigh[6] && !neigh[7]) {
 			bool check = false;
-			for (i = 0; i < 8; i++) if (prevG[offset].neighbourhood[i] == idx && neigh[i] == false) { check = true; break; }
+			for (i = 0; i < 8; i++) if (prevG[offset].neighbourhood[i] == idx && !neigh[i]) { check = true; break; }
 			if (check) {
 				if (phenotype == 0 && prevG[offset].chosen_phenotype == 0)
 					state = newG[offset].proliferate(&newG[idx], offset, states);
@@ -151,6 +152,7 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, 
 					state = newG[offset].differentiate(&newG[idx], offset, states);
 				else if (phenotype == 1 && prevG[offset].chosen_phenotype == 1)
 					state = newG[offset].move(&newG[idx], offset, states);
+				if (state != -2) break;
 				neigh[i] = true;
 			}
 			idx = -1;
