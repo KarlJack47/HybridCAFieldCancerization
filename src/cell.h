@@ -238,6 +238,7 @@ struct Cell {
 					change_state(state_mut_map[state*11+idx]);
 				}
 			}
+			if (c->state != 6 && state == 5) c->apoptosis();
 			c->change_state(new_state);
 			copy_mutations(c);
 		}
