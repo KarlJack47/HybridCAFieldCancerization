@@ -263,6 +263,7 @@ struct Cell {
 			}
 		}
 		if (new_state == -1) return new_state;
+		if (c->state != 6 && state == 5) c->apoptosis();
 		c->change_state(new_state);
 		copy_mutations(c);
 
@@ -271,6 +272,7 @@ struct Cell {
 
 	__device__ int move(Cell *c, int cell, curandState_t *states) {
 		if (state != 5 && c->state != 6) return -2;
+		if (c->state != 6 && state == 5) c->apoptosis();
 
 		if (curand_uniform_double(&states[cell]) <= CHANCE_MOVE) {
 			c->change_state(state);
