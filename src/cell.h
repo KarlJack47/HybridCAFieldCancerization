@@ -226,7 +226,7 @@ struct Cell {
 		int new_state = -1;
 
 		if (state != 5 && c->state != 6) return -2;
-		if (state == 5 && c->state == 5) return -2;
+		if (state == 5 && (c->state == 5 || c->state == 4)) return -2;
 
 		if ((state == 4 && gene_expressions[3] >= MUT_THRESHOLD) || state != 4) {
 			if (gene_expressions[idx] < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
@@ -252,7 +252,7 @@ struct Cell {
 		int new_state = -1;
 
 		if (state != 5 && c->state != 6) return -2;
-		if (state == 5 && c->state == 5) return -2;
+		if (state == 5 && (c->state == 5 || c->state == 4)) return -2;
 
 		if (gene_expressions[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
 		else {
@@ -274,7 +274,7 @@ struct Cell {
 
 	__device__ int move(Cell *c, int cell, curandState_t *states) {
 		if (state != 5 && c->state != 6) return -2;
-		if (state == 5 && c->state == 5) return -2;
+		if (state == 5 && (c->state == 5 || c->state == 4)) return -2;
 
 		if (curand_uniform_double(&states[cell]) <= CHANCE_MOVE) {
 			if (c->state != 6 && state == 5) c->apoptosis();
