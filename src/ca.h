@@ -94,29 +94,6 @@ __global__ void reset_rule_params(Cell *prevG, int g_size) {
 	if (x < g_size && y < g_size) prevG[x + y * blockDim.x * gridDim.x].chosen_phenotype = -1;
 }
 
-__device__ void choose_idx_and_phenotype(Cell *prevG, int g_size, int offset, int *idx, int *phenotype, curandState_t *states) {
-	if (*phenotype == -1)
-		*phenotype = prevG[offset].get_phenotype(offset, states);
-
-	if (*idx == -1) {
-		int i;
-		int empty[8]; int num_empty = 0;
-
-		for (i = 0; i < 8; i++) {
-			int neigh_idx = prevG[offset].neighbourhood[i];
-			if (prevG[neigh_idx].state == 6)
-				empty[num_empty++] = neigh_idx;
-		}
-
-		if (num_empty == 0) { *idx = -1; return; }
-
-		if (prevG[offset].state == 5)
-			*idx = prevG[offset].neighbourhood[(int) ceilf(curand_uniform(&states[offset])*8) % 8];
-		else
-			*idx = empty[(int) ceilf(curand_uniform(&states[offset])*num_empty) % num_empty];
-	}
-}
-
 __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, curandState_t *states) {
 	// map from threadIdx/blockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -127,36 +104,31 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, 
 
 		if (prevG[offset].state == 6) return;
 
-		int idx = -1;
-		if (phenotype == 2) idx = -2;
-		choose_idx_and_phenotype(prevG, g_size, offset, &idx, &prevG[offset].chosen_phenotype, states);
+		if (prevG[offset].chosen_phenotype == -1)
+			prevG[offset].chosen_phenotype = prevG[offset].get_phenotype(offset, states);
 
 		if (phenotype == 2 && prevG[offset].chosen_phenotype == 2) {
 			newG[offset].apoptosis();
 			return;
 		}
 
-		if (idx == -1) return;
-
 		int state = -2; int i;
 
 		bool neigh[8] = { false, false, false, false, false, false, false, false };
-		for (i = 0; i < 8; i++) if (prevG[offset].state != 5 && prevG[prevG[offset].neighbourhood[i]].state == 6) neigh[i] = true;
-		while (!neigh[0] && !neigh[1] && !neigh[2] && !neigh[3] && !neigh[4] && !neigh[5] && !neigh[6] && !neigh[7]) {
-			bool check = false;
-			for (i = 0; i < 8; i++) if (prevG[offset].neighbourhood[i] == idx && !neigh[i]) { check = true; break; }
-			if (check) {
+		while (neigh[0] == false && neigh[1] == false && neigh[2] == false && neigh[3] == false &&
+		       neigh[4] == false && neigh[5] == false && neigh[6] == false && neigh[7] == false) {
+			int idx = (int) ceilf(curand_uniform(&states[offset])*8) % 8;
+			int neigh_idx = prevG[offset].neighbourhood[idx];
+			if (neigh[idx] == false) {
 				if (phenotype == 0 && prevG[offset].chosen_phenotype == 0)
-					state = newG[offset].proliferate(&newG[idx], offset, states);
+					state = newG[offset].proliferate(&newG[neigh_idx], offset, states);
 				else if (phenotype == 3 && prevG[offset].chosen_phenotype == 3)
-					state = newG[offset].differentiate(&newG[idx], offset, states);
+					state = newG[offset].differentiate(&newG[neigh_idx], offset, states);
 				else if (phenotype == 1 && prevG[offset].chosen_phenotype == 1)
-					state = newG[offset].move(&newG[idx], offset, states);
+					state = newG[offset].move(&newG[neigh_idx], offset, states);
 				if (state != -2) break;
 				neigh[i] = true;
 			}
-			idx = -1;
-			choose_idx_and_phenotype(prevG, g_size, offset, &idx, &prevG[offset].chosen_phenotype, states);
 		}
 
 		check_CSC_or_TC_formed(prevG, newG, offset, t);
@@ -310,7 +282,6 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaSafeCall(cudaDeviceSynchronize());
 
 			bool used_pheno[4] = { false, false, false, false };
-			int pheno = rand() % 4;
 			while (used_pheno[0] == false && used_pheno[1] == false && used_pheno[2] == false && used_pheno[3] == false) {
 				int pheno = rand() % 4;
 				if (used_pheno[pheno] == false) {
