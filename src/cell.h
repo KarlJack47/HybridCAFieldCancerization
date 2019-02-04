@@ -3,8 +3,9 @@
 
 #include "common/general.h"
 
-#define MUT_THRESHOLD 0.05f // possibly decrease to 0.05
-#define CHANCE_MOVE 0.25f // possibly increase to 0.25 or higher
+#define MUT_THRESHOLD 0.04f // very sensitive parameter
+#define CHANCE_MOVE 0.25f
+#define CHANCE_KILL 0.4f
 
 // "NC": 0
 // "MNC": 1
@@ -228,7 +229,8 @@ struct Cell {
 		if (state != 5 && c->state != 6) return -2;
 		if (state == 5 && (c->state == 5 || c->state == 4)) return -2;
 
-		if ((state == 4 && gene_expressions[3] >= MUT_THRESHOLD) || state != 4) {
+		if ((state == 4 && gene_expressions[3] >= MUT_THRESHOLD) || state != 4 ||
+		    (state == 5 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL)) {
 			if (gene_expressions[idx] < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
 			else {
 				if ((int) ceilf(curand_uniform_double(&states[cell])*2.0f) % 2 == 0) {
@@ -254,20 +256,22 @@ struct Cell {
 		if (state != 5 && c->state != 6) return -2;
 		if (state == 5 && (c->state == 5 || c->state == 4)) return -2;
 
-		if (gene_expressions[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
-		else {
-			if (curand_uniform_double(&states[cell]) <= 0.5f) {
-				change_state(state_mut_map[state*11+idx]);
-				new_state = diff_mut_map[state*11+idx];
-			} else {
-				new_state = diff_mut_map[state*11+idx];
-				change_state(state_mut_map[state*11+idx]);
+		if (state != 5 || (state == 5 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL)) {
+			if (gene_expressions[idx] < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
+			else {
+				if (curand_uniform_double(&states[cell]) <= 0.5f) {
+					change_state(state_mut_map[state*11+idx]);
+					new_state = diff_mut_map[state*11+idx];
+				} else {
+					new_state = diff_mut_map[state*11+idx];
+					change_state(state_mut_map[state*11+idx]);
+				}
 			}
+			if (new_state == -1) return new_state;
+			if (c->state != 6 && state == 5) c->apoptosis();
+			c->change_state(new_state);
+			copy_mutations(c);
 		}
-		if (new_state == -1) return new_state;
-		if (c->state != 6 && state == 5) c->apoptosis();
-		c->change_state(new_state);
-		copy_mutations(c);
 
 		return new_state;
 	}
@@ -277,11 +281,13 @@ struct Cell {
 		if (state == 5 && (c->state == 5 || c->state == 4)) return -2;
 
 		if (curand_uniform_double(&states[cell]) <= CHANCE_MOVE) {
-			if (c->state != 6 && state == 5) c->apoptosis();
-			c->change_state(state);
-			copy_mutations(c);
-			c->age = age;
-			apoptosis();
+			if (state != 5 || (state == 5 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL)) {
+				if (c->state != 6 && state == 5) c->apoptosis();
+				c->change_state(state);
+				copy_mutations(c);
+				c->age = age;
+				apoptosis();
+			}
 		}
 
 		return 0;
