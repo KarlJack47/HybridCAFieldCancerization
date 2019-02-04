@@ -148,7 +148,7 @@ __global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int
 	int i, j;
 
 	if (x < g_size && y < g_size) {
-		if (grid[offset].state == 6.0f) { // white (empty)
+		if (grid[offset].state == 6) { // white (empty)
 			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 				for (j = i; j < i + cell_size * dim; j += dim) {
 					optr[j].x = 255;
@@ -157,7 +157,7 @@ __global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int
 					optr[j].w = 255;
 				}
 			}
-		} else if (grid[offset].state == 0.0f) { // black (NC)
+		} else if (grid[offset].state == 0) { // black (NC)
 			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 				for (j = i; j < i + cell_size * dim; j += dim) {
 					optr[j].x = 0;
@@ -166,7 +166,7 @@ __global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int
 					optr[j].w = 255;
 				}
 			}
-		} else if (grid[offset].state == 1.0f) { // green (MNC)
+		} else if (grid[offset].state == 1) { // green (MNC)
 			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 				for (j = i; j < i + cell_size * dim; j += dim) {
 					optr[j].x = 87;
@@ -175,7 +175,7 @@ __global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int
 					optr[j].w = 255;
 				}
 			}
-		} else if (grid[offset].state == 2.0f) { // orange (SC)
+		} else if (grid[offset].state == 2) { // orange (SC)
 			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 				for (j = i; j < i + cell_size * dim; j += dim) {
 					optr[j].x = 244;
@@ -184,7 +184,7 @@ __global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int
 					optr[j].w = 255;
 				}
 			}
-		} else if (grid[offset].state == 3.0f) { // blue (MSC)
+		} else if (grid[offset].state == 3) { // blue (MSC)
 			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 				for (j = i; j < i + cell_size * dim; j += dim) {
 					optr[j].x = 0;
@@ -193,7 +193,7 @@ __global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int
 					optr[j].w = 255;
 				}
 			}
-		} else if (grid[offset].state == 4.0f) { // purple (CSC)
+		} else if (grid[offset].state == 4) { // purple (CSC)
 			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 				for (j = i; j < i + cell_size * dim; j += dim) {
 					optr[j].x = 89;
@@ -202,7 +202,7 @@ __global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int
 					optr[j].w = 255;
 				}
 			}
-		} else if (grid[offset].state == 5.0f) { // red (TC)
+		} else if (grid[offset].state == 5) { // red (TC)
 			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 				for (j = i; j < i + cell_size * dim; j += dim) {
 					optr[j].x = 255;
@@ -292,6 +292,11 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 					rule<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, pheno, states);
 					CudaCheckError();
 					CudaSafeCall(cudaDeviceSynchronize());
+
+					check_CSC_or_TC_formed<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, ticks);
+					CudaCheckError();
+					CudaSafeCall(cudaDeviceSynchronize());
+
 					if (pheno == 1) {
 						cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
 						CudaCheckError();
@@ -301,10 +306,6 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 					used_pheno[pheno] = true;
 				}
 			}
-
-			check_CSC_or_TC_formed<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, ticks);
-			CudaCheckError();
-			CudaSafeCall(cudaDeviceSynchronize());
 
 			reset_rule_params<<< blocks, threads >>>(d->prevGrid, d->grid_size);
 			CudaCheckError();
