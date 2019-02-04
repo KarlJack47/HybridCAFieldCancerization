@@ -76,14 +76,20 @@ __global__ void mutate_grid(Cell *prevG, int g_size, int t, CarcinogenPDE *pdes,
 	}
 }
 
-__device__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, int idx, int t) {
-	if (csc_formed == false && prevG[idx].state != 4 && newG[idx].state == 4) {
-		printf("A CSC was formed at time step %d.\n", t);
-		csc_formed = true;
-	}
-	if (tc_formed == false && prevG[idx].state != 5 && newG[idx].state == 5) {
-		printf("A TC was formed at time step %d.\n", t);
-		tc_formed = true;
+__global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, int g_size, int t) {
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.x + blockIdx.y * blockDim.y;
+
+	if (x < g_size && y < g_size) {
+		int offset = x + y * blockDim.x * gridDim.x;
+		if (csc_formed == false && prevG[offset].state != 4 && newG[offset].state == 4) {
+			printf("A CSC was formed at time step %d.\n", t);
+			csc_formed = true;
+		}
+		if (tc_formed == false && prevG[offset].state != 5 && newG[offset].state == 5) {
+			printf("A TC was formed at time step %d.\n", t);
+			tc_formed = true;
+		}
 	}
 }
 
@@ -94,7 +100,7 @@ __global__ void reset_rule_params(Cell *prevG, int g_size) {
 	if (x < g_size && y < g_size) prevG[x + y * blockDim.x * gridDim.x].chosen_phenotype = -1;
 }
 
-__global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, curandState_t *states) {
+__global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, curandState_t *states) {
 	// map from threadIdx/blockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -130,8 +136,6 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, int t, 
 				neigh[i] = true;
 			}
 		}
-
-		check_CSC_or_TC_formed(prevG, newG, offset, t);
 	}
 }
 
@@ -285,7 +289,7 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			while (used_pheno[0] == false && used_pheno[1] == false && used_pheno[2] == false && used_pheno[3] == false) {
 				int pheno = rand() % 4;
 				if (used_pheno[pheno] == false) {
-					rule<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, pheno, ticks, states);
+					rule<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, pheno, states);
 					CudaCheckError();
 					CudaSafeCall(cudaDeviceSynchronize());
 					if (pheno == 1) {
@@ -297,6 +301,10 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 					used_pheno[pheno] = true;
 				}
 			}
+
+			check_CSC_or_TC_formed<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, ticks);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
 
 			reset_rule_params<<< blocks, threads >>>(d->prevGrid, d->grid_size);
 			CudaCheckError();
