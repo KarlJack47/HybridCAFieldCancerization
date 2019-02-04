@@ -78,7 +78,7 @@ __global__ void mutate_grid(Cell *prevG, int g_size, int t, CarcinogenPDE *pdes,
 
 __global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, int g_size, int t) {
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.x + blockIdx.y * blockDim.y;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
 
 	if (x < g_size && y < g_size) {
 		int offset = x + y * blockDim.x * gridDim.x;
@@ -293,10 +293,6 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 					CudaCheckError();
 					CudaSafeCall(cudaDeviceSynchronize());
 
-					check_CSC_or_TC_formed<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, ticks);
-					CudaCheckError();
-					CudaSafeCall(cudaDeviceSynchronize());
-
 					if (pheno == 1) {
 						cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
 						CudaCheckError();
@@ -306,6 +302,10 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 					used_pheno[pheno] = true;
 				}
 			}
+
+			check_CSC_or_TC_formed<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, ticks);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
 
 			reset_rule_params<<< blocks, threads >>>(d->prevGrid, d->grid_size);
 			CudaCheckError();
