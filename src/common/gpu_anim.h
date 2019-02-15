@@ -1,192 +1,185 @@
-/*
- * Copyright 1993-2010 NVIDIA Corporation.  All rights reserved.
- *
- * NVIDIA Corporation and its licensors retain all intellectual property and
- * proprietary rights in and to this software and related documentation.
- * Any use, reproduction, disclosure, or distribution of this software
- * and related documentation without an express license agreement from
- * NVIDIA Corporation is strictly prohibited.
- *
- * Please refer to the applicable NVIDIA end user license agreement (EULA)
- * associated with this source code for terms and conditions that govern
- * your use of this NVIDIA software.
- *
- */
-
-
 #ifndef __GPU_ANIM_H__
 #define __GPU_ANIM_H__
 
 #include "general.h"
-#include <GL/glut.h>
-#include <GL/glx.h>
-#include <GL/glext.h>
+
+#include "glad/glad.h"
+#include <GLFW/glfw3.h>
 
 #include <cuda_gl_interop.h>
 #include <iostream>
 #include <unistd.h>
 
-#define GET_PROC_ADDRESS(str) glXGetProcAddress((const GLubyte *)str)
-
-PFNGLBINDBUFFERARBPROC glBindBuffer = NULL;
-PFNGLDELETEBUFFERSARBPROC glDeleteBuffers = NULL;
-PFNGLGENBUFFERSARBPROC glGenBuffers = NULL;
-PFNGLBUFFERDATAARBPROC glBufferData = NULL;
+static void error_callback(int error, const char* description) {
+	fprintf(stderr, "Error: %s\n", description);
+}
 
 struct GPUAnimBitmap {
-    GLuint  bufferObj;
+    GLFWwindow *windows[2];
+    GLuint bufferObj;
     cudaGraphicsResource *resource;
     int width, height;
     void *dataBlock;
-    void (*fAnim)(uchar4*,void*,int);
-    void (*animExit)(void*);
-    void (*clickDrag)(void*,int,int,int,int);
+    void (*fAnimCA)(uchar4*,void*,int);
+    void (*fAnimCarcin)(uchar4*,void*,int,int);
+    void (*fAnimTimer)(void*,bool,int);
     int dragStartX, dragStartY;
-    int maxT;
-    int save_frames;
     int display;
+    int n_carcin;
+    int current_carcin;
 
-    GPUAnimBitmap(int w, int h, void *d=NULL, int T=200, int save=1, int show=1) {
+    GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int n_car=1) {
         width = w;
         height = h;
         dataBlock = d;
-        clickDrag = NULL;
-	maxT = T;
-	save_frames = save;
 	display = show;
+	n_carcin = n_car;
 
-	int c=1;
-	char* temp = (char*)malloc(sizeof(char));
-	temp[0] = 'a';
-       	glutInit(&c, &temp);
-	free(temp);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowSize(width, height);
-	glutCreateWindow("CA");
+	glfwSetErrorCallback(error_callback);
 
-        glBindBuffer    = (PFNGLBINDBUFFERARBPROC)GET_PROC_ADDRESS("glBindBuffer");
-        glDeleteBuffers = (PFNGLDELETEBUFFERSARBPROC)GET_PROC_ADDRESS("glDeleteBuffers");
-        glGenBuffers    = (PFNGLGENBUFFERSARBPROC)GET_PROC_ADDRESS("glGenBuffers");
-        glBufferData    = (PFNGLBUFFERDATAARBPROC)GET_PROC_ADDRESS("glBufferData");
+	if (!glfwInit())
+		exit(EXIT_FAILURE);
 
-        glGenBuffers(1, &bufferObj);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, bufferObj);
-        glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, width * height * 4,
-                     NULL, GL_DYNAMIC_DRAW_ARB);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-        cudaGraphicsGLRegisterBuffer(&resource, bufferObj, cudaGraphicsMapFlagsNone);
+	windows[0] = glfwCreateWindow(width, height, "CA", NULL, NULL);
+	if (!windows[0]) {
+		glfwTerminate();
+		exit(EXIT_FAILURE);
+	}
+
+	glfwSetKeyCallback(windows[0], key_callback);
+
+	glfwMakeContextCurrent(windows[0]);
+
+	gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+
+	glfwSwapInterval(1);
+
+	glGenBuffers(1, &bufferObj);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, bufferObj);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*4, NULL, GL_DYNAMIC_DRAW_ARB);
+	cudaGraphicsGLRegisterBuffer(&resource, bufferObj, cudaGraphicsMapFlagsNone);
     }
 
     ~GPUAnimBitmap(void) {
         free_resources();
     }
 
-    void hide_window(void) {
-	glutHideWindow();
+    static GPUAnimBitmap** get_bitmap_ptr(void) {
+	static GPUAnimBitmap *gBitmap;
+	return &gBitmap;
+    }
+
+    void hide_window(GLFWwindow *window) {
+	glfwHideWindow(window);
     }
 
     void free_resources(void) {
         cudaGraphicsUnregisterResource(resource);
 
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-        glDeleteBuffers(1, &bufferObj);
-    }
+	for (int i = 0; i < 2; i++) {
+		glfwMakeContextCurrent(windows[i]);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+	}
+	glDeleteBuffers(1, &bufferObj);
 
+	glfwTerminate();
+    }
 
     long image_size(void) const { return width * height * 4; }
 
-    void click_drag(void (*f)(void*,int,int,int,int)) {
-        clickDrag = f;
-    }
+    void anim(void(*fCA)(uchar4*,void*,int), void(*fCarcin)(uchar4*,void*,int,int), void(*fTime)(void*,bool,int), char **carcin_names) {
+	GPUAnimBitmap **bitmap = get_bitmap_ptr();
+	*bitmap = this;
 
-    void anim_and_exit(void (*f)(uchar4*,void*,int), void(*e)(void*)) {
-        GPUAnimBitmap** bitmap = get_bitmap_ptr();
-        *bitmap = this;
-        fAnim = f;
-        animExit = e;
+        fAnimCA = fCA;
+	fAnimCarcin = fCarcin;
+	fAnimTimer = fTime;
 
-	glutKeyboardFunc(Key);
-	if (display == 1) glutDisplayFunc(Draw);
-        if (clickDrag != NULL) glutMouseFunc(mouse_func);
-        glutIdleFunc(idle_func);
-	glutMainLoop();
-    }
+	windows[1] = glfwCreateWindow(width, height, carcin_names[0], NULL, windows[0]);
+	if (!windows[1]) {
+		glfwTerminate();
+		exit(EXIT_FAILURE);
+	}
 
-    // static method used for glut callbacks
-    static GPUAnimBitmap** get_bitmap_ptr(void) {
-        static GPUAnimBitmap* gBitmap;
-        return &gBitmap;
-    }
+	glfwMakeContextCurrent(windows[1]);
+	int xpos, ypos, left, right, w;
+	glfwGetWindowSize(windows[0], &w, NULL);
+	glfwGetWindowFrameSize(windows[0], &left, NULL, &right, NULL);
+	glfwGetWindowPos(windows[0], &xpos, &ypos);
+	glfwSetWindowPos(windows[1], xpos+w+left+right, ypos);
+	glfwSetKeyCallback(windows[1], key_callback);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, bufferObj);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*4, NULL, GL_DYNAMIC_DRAW_ARB);
 
-    // static method used for glut callbacks
-    static void mouse_func(int button, int state, int mx, int my) {
-        if (button == GLUT_LEFT_BUTTON) {
-            GPUAnimBitmap* bitmap = *(get_bitmap_ptr());
-            if (state == GLUT_DOWN) {
-                bitmap->dragStartX = mx;
-                bitmap->dragStartY = my;
-            } else if (state == GLUT_UP) {
-                bitmap->clickDrag(bitmap->dataBlock,
-                                  bitmap->dragStartX,
-                                  bitmap->dragStartY,
-                                  mx, my);
-            }
-        }
-    }
+	if (display == 0) hide_window(windows[1]);
 
-    // static method used for glut callbacks
-    static void idle_func(void) {
-	static int ticks = 0;
-        GPUAnimBitmap* bitmap = *(get_bitmap_ptr());
-        uchar4* devPtr;
-        size_t size;
+	int ticks = 0;
+	current_carcin = 0;
+	while (!glfwWindowShouldClose(windows[0]) && !glfwWindowShouldClose(windows[1])) {
+        	uchar4* devPtr;
+        	size_t size;
 
-        cudaGraphicsMapResources(1, &(bitmap->resource), NULL);
-        cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, bitmap->resource);
+		fAnimTimer(dataBlock, true, ticks);
 
-        bitmap->fAnim(devPtr, bitmap->dataBlock, ticks++);
+		cudaGraphicsMapResources(1, &(resource), NULL);
+        	cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, resource);
 
-        cudaGraphicsUnmapResources(1, &(bitmap->resource), NULL);
+		fAnimCA(devPtr, dataBlock, ticks);
+		if (display == 1)
+			draw(windows[0], width, height);
 
-	if (bitmap->display == 1) glutPostRedisplay();
+		cudaGraphicsUnmapResources(1, &(resource), NULL);
 
-	if (ticks == bitmap->maxT+1) {
-		if (bitmap->save_frames == 1) {
-			if (numDigits(bitmap->maxT) == 1)
-                        	system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
-                	else if (numDigits(bitmap->maxT) == 2)
-                       		system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %02d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
-                	else if (numDigits(bitmap->maxT) == 3)
-                        	system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %03d.png -c:v libx264 -pix_fmt yuv420p out.mp4");
-		}
-		char command[15] = { 'k', 'i', 'l', 'l', ' ' };
-		int digs_pid = numDigits(getpid());
-		char pid[10];
-		sprintf(pid, "%d", getpid());
-		for (int i = 5; i < digs_pid+5; i++) command[i] = pid[i-5];
-		system(command);
+		cudaGraphicsMapResources(1, &(resource), NULL);
+        	cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, resource);
+
+		glfwSetWindowTitle(windows[1], carcin_names[current_carcin]);
+		fAnimCarcin(devPtr, dataBlock, current_carcin, ticks);
+		if (display == 1)
+			draw(windows[1], width, height);
+
+		cudaGraphicsUnmapResources(1, &(resource), NULL);
+
+		fAnimTimer(dataBlock, false, ticks);
+
+		ticks++;
+
+		glfwWaitEvents();
 	}
     }
 
-    // static method used for glut callbacks
-    static void Key(unsigned char key, int x, int y) {
+    // static method used for callbacks
+    static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+	GPUAnimBitmap *bitmap = *(get_bitmap_ptr());
         switch (key) {
-            case 27:
-                GPUAnimBitmap* bitmap = *(get_bitmap_ptr());
-                if (bitmap->animExit) bitmap->animExit(bitmap->dataBlock);
-                bitmap->free_resources();
-                exit(0);
-        }
+            case GLFW_KEY_ESCAPE:
+		if (action == GLFW_PRESS) {
+			glfwSetWindowShouldClose(window, GLFW_TRUE);
+			exit(EXIT_SUCCESS);
+		}
+	    case GLFW_KEY_RIGHT:
+		if (action == GLFW_PRESS) {
+			if (bitmap->current_carcin != bitmap->n_carcin-1) bitmap->current_carcin++;
+			else bitmap->current_carcin = 0;
+		}
+            case GLFW_KEY_LEFT:
+		if (action == GLFW_PRESS) {
+			if (bitmap->current_carcin != 0) bitmap->current_carcin--;
+			else bitmap->current_carcin = bitmap->n_carcin-1;
+		}
+	}
     }
 
-    // static method used for glut callbacks
-    static void Draw(void) {
-        GPUAnimBitmap* bitmap = *(get_bitmap_ptr());
-        glClearColor(0.0, 0.0, 0.0, 1.0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glDrawPixels(bitmap->width, bitmap->height, GL_RGBA,
-                     GL_UNSIGNED_BYTE, 0);
-        glutSwapBuffers();
+    void draw(GLFWwindow *window, int width, int height) {
+	glfwMakeContextCurrent(window);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glDrawPixels(width, height, GL_RGBA,
+		     GL_UNSIGNED_BYTE, 0);
+	glfwSwapBuffers(window);
     }
 };
 
