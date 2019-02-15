@@ -5,7 +5,7 @@ verbose=0
 num_sim=100
 display=0
 save=0
-max_time=200
+max_time=600
 grid_size=512
 while getopts hvdsn:t:g: option; do
     case "${option}"
@@ -29,7 +29,7 @@ if [ $help -eq 1 ]; then
     echo "  -d		whether to display the simulation as it is running"
     echo "  -s		whether to save the time steps into a file and create an output video"
     echo "  -n int	number of simulations to run, default is 100"
-    echo "  -t int	number of time steps, default is 200 (note simulation hasn't been verified for >200 steps)"
+    echo "  -t int	number of time steps, default is 600 (note simulation hasn't been verified for >800 steps)"
     echo "  -g int	size of the CA grid, default is 512 (should be a power of 2 between 16 and 1024)"
     exit 0
 fi
