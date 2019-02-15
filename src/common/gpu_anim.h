@@ -133,15 +133,18 @@ struct GPUAnimBitmap {
 
 		cudaGraphicsUnmapResources(1, &(resource), NULL);
 
-		cudaGraphicsMapResources(1, &(resource), NULL);
-        	cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, resource);
+		for (int i = 0; i < n_carcin; i++) {
+			cudaGraphicsMapResources(1, &(resource), NULL);
+        		cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, resource);
 
-		glfwSetWindowTitle(windows[1], carcin_names[current_carcin]);
-		fAnimCarcin(devPtr, dataBlock, current_carcin, ticks);
-		if (display == 1)
-			draw(windows[1], width, height);
+			fAnimCarcin(devPtr, dataBlock, i, ticks);
+			if (display == 1 && i == current_carcin) {
+				glfwSetWindowTitle(windows[1], carcin_names[current_carcin]);
+				draw(windows[1], width, height);
+			}
 
-		cudaGraphicsUnmapResources(1, &(resource), NULL);
+			cudaGraphicsUnmapResources(1, &(resource), NULL);
+		}
 
 		fAnimTimer(dataBlock, false, ticks);
 
