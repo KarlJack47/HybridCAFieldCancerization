@@ -18,6 +18,7 @@ struct DataBlock {
 	int n_output;
 
 	clock_t start, end;
+	clock_t start_step, end_step;
 	int frames, save_frames;
 } d;
 #pragma omp threadprivate(d)
@@ -139,7 +140,7 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, curandS
 	}
 }
 
-__global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int dim) {
+__global__ void display_ca(uchar4 *optr, Cell *grid, int g_size, int cell_size, int dim) {
 	// map from threadIdx/BlockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -216,6 +217,26 @@ __global__ void display(uchar4 *optr, Cell *grid, int g_size, int cell_size, int
 	}
 }
 
+__global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, int g_size, int cell_size, int dim, int t) {
+	// map from threadIdx/BlockIdx to pixel position
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	int offset = x + y * blockDim.x * gridDim.x;
+	int offsetOptr = x * cell_size + y * cell_size * dim;
+	int i, j;
+
+	if (x < g_size && y < g_size) {
+		for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+			for (j = i; j < i + cell_size * dim; j += dim) {
+				optr[j].x = ceil(fmaxf(0.0f, 255.0f - 255.0f*pde->get(offset, t)));
+				optr[j].y = ceil(fmaxf(0.0f, 255.0f - 255.0f*pde->get(offset, t)));
+				optr[j].z = ceil(fmaxf(0.0f, 255.0f - 255.0f*pde->get(offset, t)));
+				optr[j].w = 255;
+			}
+		}
+	}
+}
+
 __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 	// map from threadIdx/BlockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -244,20 +265,15 @@ void prefetch_pdes(int loc) {
 	CudaSafeCall(cudaMemPrefetchAsync(d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE), location, NULL));
 }
 
-void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
-	clock_t start_step, end_step;
-	start_step = clock();
-	if (ticks == 0) d->start = clock();
+void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 	set_seed();
 
 	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
 	if (ticks <= d->maxT) {
-		printf("Starting %d\n", ticks);
-
 		if (ticks == 0) {
-			display<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
+			display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 		} else {
@@ -316,7 +332,7 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaSafeCall(cudaDeviceSynchronize());
 
 			if (ticks % d->frame_rate == 0) {
-				display<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
+				display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
 				CudaCheckError();
 				CudaSafeCall(cudaDeviceSynchronize());
 			}
@@ -328,7 +344,6 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 		}
 
 		++d->frames;
-		printf("Done %d\n", ticks);
 	}
 
 	if (d->save_frames == 1 && ticks <= d->maxT) {
@@ -356,19 +371,104 @@ void anim_gpu(uchar4* outputBitmap, DataBlock *d, int ticks) {
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	end_step = clock();
-	printf("The time step took %f seconds to complete.\n", (double) (end_step - start_step) / CLOCKS_PER_SEC);
-
 	if (ticks == d->maxT) {
+		if (d->save_frames == 1) {
+			if (numDigits(d->maxT) == 1)
+                        	system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
+                	else if (numDigits(d->maxT) == 2)
+                       		system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %02d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
+                	else if (numDigits(d->maxT) == 3)
+                        	system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %03d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
+		}
+	}
+}
+
+void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int ticks) {
+	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
+	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
+
+	if (ticks % d->frame_rate == 0) {
+		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].T*d->pdes[carcin_idx].Nx*sizeof(double), d->dev_id_2, NULL));
+		prefetch_pdes(d->dev_id_2);
+
+		if (ticks % d->frame_rate == 0) {
+			display_carcin<<< blocks, threads >>>(outputBitmap, &d->pdes[carcin_idx], d->grid_size, d->cell_size, d->dim, ticks);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
+		}
+
+		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].T*d->pdes[carcin_idx].Nx*sizeof(double), cudaCpuDeviceId, NULL));
+		prefetch_pdes(-1);
+	}
+
+	if (d->save_frames == 1 && ticks <= d->maxT) {
+		char fname[25] = {'c', 'a', 'r', 'c', 'i', 'n'};
+		sprintf(&fname[6], "%d", carcin_idx);
+		int dig_car = numDigits(carcin_idx);
+		fname[6+dig_car] = '_';
+		int dig_max = numDigits(d->maxT);
+		int dig = numDigits(ticks);
+		for (int i = 6+dig_car+1; i < 6+dig_car+1+dig_max-dig; i++) fname[i] = '0';
+		sprintf(&fname[6+dig_car+1+dig_max-dig], "%d", ticks);
+		fname[6+dig_car+1+dig_max] = '.';
+		fname[6+dig_car+1+dig_max+1] = 'p';
+		fname[6+dig_car+1+dig_max+2] = 'n';
+		fname[6+dig_car+1+dig_max+3] = 'g';
+		unsigned char *frame;
+		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
+		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
+		dim3 blocks1(d->dim/16, d->dim/16);
+		dim3 threads1(16, 16);
+		copy_frame<<< blocks1, threads1 >>>(outputBitmap, frame);
+		CudaCheckError();
+		CudaSafeCall(cudaDeviceSynchronize());
+
+		unsigned error = lodepng_encode32_file(fname, frame, d->dim, d->dim);
+		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+		CudaSafeCall(cudaFree(frame));
+	}
+
+	if (ticks == d->maxT && d->save_frames == 1) {
+		char command[250] = { '\0' };
+		char car_idx[5] = { '\0' };
+		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i carcin");
+		sprintf(car_idx, "%d", carcin_idx);
+		strcat(command, car_idx);
+		strcat(command, "_");
+		if (numDigits(d->maxT) == 1)
+			strcat(command, "%d.png -c:v libx264 -pix_fmt yuv420p out_carcin");
+		else if (numDigits(d->maxT) == 2)
+			strcat(command, "%02d.png -c:v libx264 -pix_fmt yuv420p out_carcin");
+		else if (numDigits(d->maxT) == 3)
+			strcat(command, "%03d.png -c:v libx264 -pix_fmt yuv420p out_carcin");
+		strcat(command, car_idx);
+		strcat(command, ".mp4");
+		system(command);
+	}
+}
+
+void anim_gpu_timer(DataBlock *d, bool start, int ticks) {
+	if (start) {
+		d->start_step = clock();
+		printf("starting %d\n", ticks);
+	} else {
+		printf("done %d\n", ticks);
+		d->end_step = clock();
+		printf("The time step took %f seconds to complete.\n", (double) (d->end_step - d->start_step) / CLOCKS_PER_SEC);
+	}
+	if (ticks == 0) d->start = clock();
+
+	if (ticks == d->maxT && !start) {
 		d->end = clock();
 		printf("It took %f seconds to run the %d time steps.\n", (double) (d->end - d->start) / CLOCKS_PER_SEC, d->maxT);
+		exit(EXIT_SUCCESS);
 	}
 }
 
 void anim_exit( DataBlock *d ) {
 	CudaSafeCall(cudaDeviceSynchronize());
 	prefetch_params(-1);
-	prefetch_grids(-1, -1);
 	#pragma omp parallel for schedule(guided)
 		for (int i = 0; i < d->grid_size*d->grid_size; i++) {
 			d->prevGrid[i].prefetch_cell_params(-1, d->grid_size);
@@ -376,6 +476,7 @@ void anim_exit( DataBlock *d ) {
 			d->prevGrid[i].prefetch_cell_params(-1, d->grid_size);
 			d->newGrid[i].free_resources();
 		}
+	prefetch_grids(-1, -1);
 	CudaSafeCall(cudaFree(d->prevGrid));
 	CudaSafeCall(cudaFree(d->newGrid));
 	for (int i = 0; i < d->n_carcinogens; i++)
@@ -389,21 +490,19 @@ struct CA {
 		d.grid_size = g_size;
 		d.cell_size = d.dim/d.grid_size;
 		d.maxT = T;
-		bitmap.maxT = T;
 		d.n_carcinogens = n_carcin;
 		d.n_output = n_out;
 		d.save_frames = save_frames;
-		bitmap.save_frames = save_frames;
 		bitmap.display = display;
+		bitmap.n_carcin = n_carcin;
 		if (bitmap.display == 0)
-			bitmap.hide_window();
+			bitmap.hide_window(bitmap.windows[0]);
 		csc_formed = false;
 		tc_formed = false;
 	}
 
 	~CA(void) {
 		anim_exit(&d);
-		bitmap.free_resources();
 	}
 
 	void initialize_memory() {
@@ -448,9 +547,10 @@ struct CA {
 		prefetch_params(d.dev_id_1);
 	}
 
-	void animate(int frame_rate) {
+	void animate(int frame_rate, char **carcin_names) {
 		d.frame_rate = frame_rate;
-		bitmap.anim_and_exit((void (*)(uchar4*, void*, int))anim_gpu, (void (*)(void*))anim_exit);
+		bitmap.anim((void (*)(uchar4*, void*, int))anim_gpu_ca, (void (*)(uchar4*, void*, int, int))anim_gpu_carcin,
+			    (void (*)(void*, bool, int))anim_gpu_timer, carcin_names);
 	}
 };
 
