@@ -13,5 +13,5 @@ The parameters are set such that the only carcinogen is alcohol and there are 10
 To compile the program run the bin/compile.sh bash script in the directory you want the program.
 
 # Running Simulations
-To run 100 simulations with the default grid size of 512 and number of time steps 200 run the bin/simulations.sh script
+To run 100 simulations with the default grid size of 512 and number of time steps 600 run the bin/simulations.sh script
 in the directory you want the output of the program to be.
