@@ -1,8 +1,8 @@
 # Files
 1. cell.h: header file that includes the Cell 
    structure definition and related functions.
-2. mutation_nn.h: header file that includes the
-   MutationNN structure definition and related functions.
+2. gene_expression_nn.h: header file that includes the
+   GeneExpressionNN structure definition and related functions.
 3. carcinogen_pde.h: header file that includes the CarcinogenPDE
    structure definition and related functions.
 4. ca.h: header file that includes the CA structure definition and
@@ -19,3 +19,4 @@
    definition. This structure is used to create and run the CA animations.
 9. common/lodepng.h, common/lodepng.cpp, common/lodepng.o: allow the creation
    of png files.  
+10. common/glad/glad.h, common/glad.c, common/glad.o: used by GLFW to acquire the addresses of the OpenGL functions.
