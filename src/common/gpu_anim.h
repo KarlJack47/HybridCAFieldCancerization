@@ -128,8 +128,7 @@ struct GPUAnimBitmap {
         	cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, resource);
 
 		fAnimCA(devPtr, dataBlock, ticks);
-		if (display == 1)
-			draw(windows[0], width, height);
+		if (display == 1) draw(windows[0], width, height);
 
 		cudaGraphicsUnmapResources(1, &(resource), NULL);
 
@@ -150,7 +149,7 @@ struct GPUAnimBitmap {
 
 		ticks++;
 
-		glfwWaitEvents();
+		if (display == 1) glfwWaitEvents();
 	}
     }
 
