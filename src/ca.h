@@ -371,15 +371,13 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	if (ticks == d->maxT) {
-		if (d->save_frames == 1) {
-			if (numDigits(d->maxT) == 1)
-                        	system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
-                	else if (numDigits(d->maxT) == 2)
-                       		system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %02d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
-                	else if (numDigits(d->maxT) == 3)
-                        	system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %03d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
-		}
+	if (ticks == d->maxT && d->save_frames == 1) {
+		if (numDigits(d->maxT) == 1)
+                    system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
+                else if (numDigits(d->maxT) == 2)
+                    system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %02d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
+                else if (numDigits(d->maxT) == 3)
+                    system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %03d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
 	}
 }
 
