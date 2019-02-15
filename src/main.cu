@@ -33,8 +33,12 @@ int main(int argc, char *argv[]) {
 	clock_t start, end;
 	start = clock();
 
+	char **carcin_names = (char**)malloc(sizeof(char*));
+	carcin_names[0] = (char*)malloc(8*sizeof(char));
+	sprintf(carcin_names[0], "%s", "Alcohol");
 	CA ca(grid_size, T, 1, 11, save_frames, display);
 	ca.initialize_memory();
+
 	double diffusion[1] = {1.266389e-5};
 	double consum[1] = {9.722222e-8 / (double) (grid_size * grid_size)};
 	double in[1] = {2.37268e-6 / (double) (grid_size * grid_size)};
@@ -44,7 +48,9 @@ int main(int argc, char *argv[]) {
 	end = clock();
 	printf("It took %f seconds to initialize the memory.\n", (double) (end - start) / CLOCKS_PER_SEC); 
 
-	ca.animate(1);
+	ca.animate(1, carcin_names);
+
+	free(carcin_names[0]); free(carcin_names);
 
 	return 0;
 }
