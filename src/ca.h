@@ -6,7 +6,6 @@
 // globals needed by the update routines
 struct DataBlock {
 	int dev_id_1, dev_id_2;
-	unsigned char *output_bitmap;
 	Cell *prevGrid, *newGrid;
 	CarcinogenPDE *pdes;
 
@@ -40,7 +39,10 @@ __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, int g_size) {
         	dst[idx].age = src[idx].age;
 
         	for (i = 0; i < 4; i++) dst[idx].phenotype[i] = src[idx].phenotype[i];
-        	for (i = 0; i < src[idx].NN->n_output; i++) dst[idx].gene_expressions[i] = src[idx].gene_expressions[i];
+        	for (i = 0; i < src[idx].NN->n_output; i++) {
+			dst[idx].gene_expressions[i*2] = src[idx].gene_expressions[i*2];
+			dst[idx].gene_expressions[i*2+1] = src[idx].gene_expressions[i*2+1];
+		}
 
         	dst[idx].NN->n_input = src[idx].NN->n_input;
         	dst[idx].NN->n_hidden = src[idx].NN->n_hidden;
@@ -237,6 +239,35 @@ __global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, int g_size, int
 	}
 }
 
+__global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int dim) {
+	// map from threadIdx/BlockIdx to pixel position
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	int offset = x + y * blockDim.x * gridDim.x;
+	int gene = x / (float) (dim / 21);
+	if (gene % 2 == 1) gene = ceil((float) gene / 2.0f);
+	else return;
+	int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * 100;
+	int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * 100;
+	int height = y / (float) (dim / 201);
+
+	if (x < dim && y < dim) {
+		if (((gene_expr_up < gene_expr_down || gene_expr_up == gene_expr_down) && height < 100 && (100 - height) <= gene_expr_down) ||
+		     ((gene_expr_up > gene_expr_down || gene_expr_up == gene_expr_down) && height > 100 && height - 100 <= gene_expr_up))  {
+			optr[offset].x = 255;
+			optr[offset].y = 255;
+			optr[offset].z = 255;
+			optr[offset].w = 255;
+		} else {
+			optr[offset].x = 0;
+			optr[offset].y = 0;
+			optr[offset].z = 0;
+			optr[offset].w = 255;
+		}
+	}
+}
+
+
 __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 	// map from threadIdx/BlockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -386,14 +417,12 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int tic
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
 	if (ticks % d->frame_rate == 0) {
-		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].T*d->pdes[carcin_idx].Nx*sizeof(double), d->dev_id_2, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].T*d->pdes[carcin_idx].Nx*sizeof(double), d->dev_id_1, NULL));
 		prefetch_pdes(d->dev_id_2);
 
-		if (ticks % d->frame_rate == 0) {
-			display_carcin<<< blocks, threads >>>(outputBitmap, &d->pdes[carcin_idx], d->grid_size, d->cell_size, d->dim, ticks);
-			CudaCheckError();
-			CudaSafeCall(cudaDeviceSynchronize());
-		}
+		display_carcin<<< blocks, threads >>>(outputBitmap, &d->pdes[carcin_idx], d->grid_size, d->cell_size, d->dim, ticks);
+		CudaCheckError();
+		CudaSafeCall(cudaDeviceSynchronize());
 
 		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].T*d->pdes[carcin_idx].Nx*sizeof(double), cudaCpuDeviceId, NULL));
 		prefetch_pdes(-1);
@@ -446,6 +475,17 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int tic
 	}
 }
 
+void anim_gpu_cell(uchar4* outputBitmap, DataBlock *d, int cell_idx, int ticks) {
+	dim3 blocks(d->dim / BLOCK_SIZE, d->dim / BLOCK_SIZE);
+	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
+
+	if (ticks % d->frame_rate == 0) {
+		display_cell_data<<< blocks, threads >>>(outputBitmap, d->newGrid, cell_idx, d->dim);
+		CudaCheckError();
+		CudaSafeCall(cudaDeviceSynchronize());
+	}
+}
+
 void anim_gpu_timer(DataBlock *d, bool start, int ticks) {
 	if (start) {
 		d->start_step = clock();
@@ -483,7 +523,7 @@ void anim_exit( DataBlock *d ) {
 }
 
 struct CA {
-	CA(int g_size, int T, int n_carcin, int n_out, int save_frames, int display) {
+	CA(int g_size, int T, int n_carcin, int n_out, int save_frames, int display, char **carcin_names) {
 		d.frames = 0;
 		d.grid_size = g_size;
 		d.cell_size = d.dim/d.grid_size;
@@ -493,8 +533,17 @@ struct CA {
 		d.save_frames = save_frames;
 		bitmap.display = display;
 		bitmap.n_carcin = n_carcin;
+		bitmap.grid_size = g_size;
+
+		bitmap.carcin_names = (char**)malloc(n_carcin*sizeof(char*));
+		for (int i = 0; i < n_carcin; i++) {
+			bitmap.carcin_names[i] = (char*)malloc((strlen(carcin_names[i])+1)*sizeof(char));
+			strcpy(bitmap.carcin_names[i], carcin_names[i]);
+		}
+		bitmap.create_window(2, bitmap.width, bitmap.height, carcin_names[0], &bitmap.key_carcin);
 		if (bitmap.display == 0)
-			bitmap.hide_window(bitmap.windows[0]);
+			for (int i = 0; i < 3; i++)
+				bitmap.hide_window(bitmap.windows[i]);
 		csc_formed = false;
 		tc_formed = false;
 	}
@@ -517,7 +566,6 @@ struct CA {
 		if (num_devices == 2) d.dev_id_2 = 1;
 
 		CudaSafeCall(cudaMallocManaged((void**)&d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE)));
-		CudaSafeCall(cudaMalloc((void**)&d.output_bitmap, bitmap.image_size()));
 		CudaSafeCall(cudaMallocManaged((void**)&d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 		CudaSafeCall(cudaMallocManaged((void**)&d.newGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 	}
@@ -545,10 +593,10 @@ struct CA {
 		prefetch_params(d.dev_id_1);
 	}
 
-	void animate(int frame_rate, char **carcin_names) {
+	void animate(int frame_rate) {
 		d.frame_rate = frame_rate;
 		bitmap.anim((void (*)(uchar4*, void*, int))anim_gpu_ca, (void (*)(uchar4*, void*, int, int))anim_gpu_carcin,
-			    (void (*)(void*, bool, int))anim_gpu_timer, carcin_names);
+			    (void (*)(uchar4*, void*, int, int))anim_gpu_cell, (void (*)(void*, bool, int))anim_gpu_timer);
 	}
 };
 

@@ -15,174 +15,269 @@ static void error_callback(int error, const char* description) {
 }
 
 struct GPUAnimBitmap {
-    GLFWwindow *windows[2];
-    GLuint bufferObj;
-    cudaGraphicsResource *resource;
-    int width, height;
-    void *dataBlock;
-    void (*fAnimCA)(uchar4*,void*,int);
-    void (*fAnimCarcin)(uchar4*,void*,int,int);
-    void (*fAnimTimer)(void*,bool,int);
-    int dragStartX, dragStartY;
-    int display;
-    int n_carcin;
-    int current_carcin;
+	GLFWwindow *windows[3];
+	GLuint bufferObjs[3];
+	cudaGraphicsResource *resources[3];
+	uchar4 *devPtrs[3]; size_t sizes[3];
+	int width, height;
+	void *dataBlock;
+	void (*fAnimCA)(uchar4*,void*,int);
+	void (*fAnimCarcin)(uchar4*,void*,int,int);
+	void (*fAnimCell)(uchar4*,void*,int,int);
+	void (*fAnimTimer)(void*,bool,int);
+	int dragStartX, dragStartY;
+	int display;
+	int n_carcin;
+	int grid_size;
+	char **carcin_names;
+	int current_carcin;
+	int current_cell[2];
+	bool paused;
 
-    GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int n_car=1) {
-        width = w;
-        height = h;
-        dataBlock = d;
-	display = show;
-	n_carcin = n_car;
+	GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int n_car=1, int g_size=512, char **car_names=NULL) {
+		width = w;
+		height = h;
+		dataBlock = d;
+		display = show;
+		n_carcin = n_car;
+		grid_size = g_size;
+		paused = false;
 
-	glfwSetErrorCallback(error_callback);
-
-	if (!glfwInit())
-		exit(EXIT_FAILURE);
-
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-
-	windows[0] = glfwCreateWindow(width, height, "CA", NULL, NULL);
-	if (!windows[0]) {
-		glfwTerminate();
-		exit(EXIT_FAILURE);
-	}
-
-	glfwSetKeyCallback(windows[0], key_callback);
-
-	glfwMakeContextCurrent(windows[0]);
-
-	gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
-
-	glfwSwapInterval(1);
-
-	glGenBuffers(1, &bufferObj);
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, bufferObj);
-	glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*4, NULL, GL_DYNAMIC_DRAW_ARB);
-	cudaGraphicsGLRegisterBuffer(&resource, bufferObj, cudaGraphicsMapFlagsNone);
-    }
-
-    ~GPUAnimBitmap(void) {
-        free_resources();
-    }
-
-    static GPUAnimBitmap** get_bitmap_ptr(void) {
-	static GPUAnimBitmap *gBitmap;
-	return &gBitmap;
-    }
-
-    void hide_window(GLFWwindow *window) {
-	glfwHideWindow(window);
-    }
-
-    void free_resources(void) {
-        cudaGraphicsUnregisterResource(resource);
-
-	for (int i = 0; i < 2; i++) {
-		glfwMakeContextCurrent(windows[i]);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-	}
-	glDeleteBuffers(1, &bufferObj);
-
-	glfwTerminate();
-    }
-
-    long image_size(void) const { return width * height * 4; }
-
-    void anim(void(*fCA)(uchar4*,void*,int), void(*fCarcin)(uchar4*,void*,int,int), void(*fTime)(void*,bool,int), char **carcin_names) {
-	GPUAnimBitmap **bitmap = get_bitmap_ptr();
-	*bitmap = this;
-
-        fAnimCA = fCA;
-	fAnimCarcin = fCarcin;
-	fAnimTimer = fTime;
-
-	windows[1] = glfwCreateWindow(width, height, carcin_names[0], NULL, windows[0]);
-	if (!windows[1]) {
-		glfwTerminate();
-		exit(EXIT_FAILURE);
-	}
-
-	glfwMakeContextCurrent(windows[1]);
-	int xpos, ypos, left, right, w;
-	glfwGetWindowSize(windows[0], &w, NULL);
-	glfwGetWindowFrameSize(windows[0], &left, NULL, &right, NULL);
-	glfwGetWindowPos(windows[0], &xpos, &ypos);
-	glfwSetWindowPos(windows[1], xpos+w+left+right, ypos);
-	glfwSetKeyCallback(windows[1], key_callback);
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, bufferObj);
-	glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*4, NULL, GL_DYNAMIC_DRAW_ARB);
-
-	if (display == 0) hide_window(windows[1]);
-
-	int ticks = 0;
-	current_carcin = 0;
-	while (!glfwWindowShouldClose(windows[0]) && !glfwWindowShouldClose(windows[1])) {
-        	uchar4* devPtr;
-        	size_t size;
-
-		fAnimTimer(dataBlock, true, ticks);
-
-		cudaGraphicsMapResources(1, &(resource), NULL);
-        	cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, resource);
-
-		fAnimCA(devPtr, dataBlock, ticks);
-		if (display == 1) draw(windows[0], width, height);
-
-		cudaGraphicsUnmapResources(1, &(resource), NULL);
-
-		for (int i = 0; i < n_carcin; i++) {
-			cudaGraphicsMapResources(1, &(resource), NULL);
-        		cudaGraphicsResourceGetMappedPointer((void**)&devPtr, &size, resource);
-
-			fAnimCarcin(devPtr, dataBlock, i, ticks);
-			if (display == 1 && i == current_carcin) {
-				glfwSetWindowTitle(windows[1], carcin_names[current_carcin]);
-				draw(windows[1], width, height);
+		if (car_names != NULL) {
+			carcin_names = (char**)malloc(n_carcin*sizeof(char*));
+			for (int i = 0; i < n_carcin; i++) {
+				carcin_names[i] = (char*)malloc((strlen(car_names[i])+1)*sizeof(char));
+				strcpy(carcin_names[i], car_names[i]);
 			}
-
-			cudaGraphicsUnmapResources(1, &(resource), NULL);
 		}
 
-		fAnimTimer(dataBlock, false, ticks);
+		glfwSetErrorCallback(error_callback);
 
-		ticks++;
+		if (!glfwInit())
+			exit(EXIT_FAILURE);
 
-		if (display == 1) glfwWaitEvents();
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
+		char window_name[12] = { '\0' };
+		strcpy(window_name, "CA");
+		create_window(0, width, height, window_name, &key_ca);
+		strcpy(window_name, "Cell (0, 0)");
+		create_window(1, width, height, window_name, &key_cell);
+		if (car_names != NULL)
+			create_window(2, width, height, carcin_names[0], &key_carcin);
 	}
-    }
 
-    // static method used for callbacks
-    static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-	GPUAnimBitmap *bitmap = *(get_bitmap_ptr());
-        switch (key) {
-            case GLFW_KEY_ESCAPE:
-		if (action == GLFW_PRESS) {
-			glfwSetWindowShouldClose(window, GLFW_TRUE);
-			exit(EXIT_SUCCESS);
+	~GPUAnimBitmap(void) { free_resources(); }
+
+	static GPUAnimBitmap** get_bitmap_ptr(void) {
+		static GPUAnimBitmap *gBitmap;
+		return &gBitmap;
+    	}
+
+	void hide_window(GLFWwindow *window) { glfwHideWindow(window); }
+
+	void free_resources(void) {
+		if (carcin_names != NULL) {
+			for (int i = 0; i < n_carcin; i++) free(carcin_names[i]);
+			free(carcin_names);
 		}
-	    case GLFW_KEY_RIGHT:
-		if (action == GLFW_PRESS) {
-			if (bitmap->current_carcin != bitmap->n_carcin-1) bitmap->current_carcin++;
-			else bitmap->current_carcin = 0;
+
+		for (int i = 0; i < 3; i++) {
+			CudaSafeCall(cudaGraphicsUnregisterResource(resources[i]));
+			glfwMakeContextCurrent(windows[i]);
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 		}
-            case GLFW_KEY_LEFT:
-		if (action == GLFW_PRESS) {
-			if (bitmap->current_carcin != 0) bitmap->current_carcin--;
-			else bitmap->current_carcin = bitmap->n_carcin-1;
+		glDeleteBuffers(3, bufferObjs);
+
+		glfwTerminate();
+    	}
+
+	long image_size(void) const { return width * height * sizeof(uchar4); }
+
+	void create_window(int window_idx, int w, int h, char *name,
+			   void(*key)(GLFWwindow *,int,int,int,int)) {
+		windows[window_idx] = glfwCreateWindow(w, h, name, NULL, NULL);
+		if (!windows[window_idx]) {
+			glfwTerminate();
+			exit(EXIT_FAILURE);
+		}
+
+		glfwMakeContextCurrent(windows[window_idx]);
+
+		if (window_idx != 0) {
+			int xpos, ypos, left, right, wid;
+			glfwGetWindowSize(windows[window_idx-1], &wid, NULL);
+			glfwGetWindowFrameSize(windows[window_idx-1], &left, NULL, &right, NULL);
+			glfwGetWindowPos(windows[window_idx-1], &xpos, &ypos);
+			glfwSetWindowPos(windows[window_idx], xpos+wid+left+right, ypos);
+		}
+
+		glfwSetKeyCallback(windows[window_idx], key);
+
+		if (window_idx == 0)
+			gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+
+		glGenBuffers(1, &bufferObjs[window_idx]);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, bufferObjs[window_idx]);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, image_size(), NULL, GL_DYNAMIC_DRAW_ARB);
+		CudaSafeCall(cudaGraphicsGLRegisterBuffer(&resources[window_idx], bufferObjs[window_idx], cudaGraphicsRegisterFlagsNone));
+
+		glfwSwapInterval(1);
+	}
+
+	void update_window(int window_idx, int ticks, int idx=0, int current=0) {
+		CudaSafeCall(cudaGraphicsMapResources(1, &resources[window_idx], NULL));
+		CudaSafeCall(cudaGraphicsResourceGetMappedPointer((void**)&devPtrs[window_idx], &sizes[window_idx], resources[window_idx]));
+
+		if (window_idx == 0) fAnimCA(devPtrs[window_idx], dataBlock, ticks);
+		else if (window_idx == 1) fAnimCell(devPtrs[window_idx], dataBlock, idx, ticks);
+		else if (window_idx == 2) fAnimCarcin(devPtrs[window_idx], dataBlock, idx, ticks);
+
+		CudaSafeCall(cudaGraphicsUnmapResources(1, &resources[window_idx], NULL));
+
+		if (display == 1 && idx == current) draw(window_idx, width, height);
+	}
+
+	void anim(void(*fCA)(uchar4*,void*,int), void(*fCarcin)(uchar4*,void*,int,int),
+		  void(*fCell)(uchar4*,void*,int,int), void(*fTime)(void*,bool,int)) {
+
+		GPUAnimBitmap **bitmap = get_bitmap_ptr();
+		*bitmap = this;
+
+		fAnimCA = fCA;
+		fAnimCarcin = fCarcin;
+		fAnimCell = fCell;
+		fAnimTimer = fTime;
+
+		int ticks = 0;
+		current_carcin = 0;
+		current_cell[0] = 0;
+		current_cell[1] = 0;
+		while (!glfwWindowShouldClose(windows[0]) &&
+		       !glfwWindowShouldClose(windows[1]) &&
+		       !glfwWindowShouldClose(windows[2])) {
+
+			if (display == 1) glfwPollEvents();
+
+			char cell_name[18] = { '\0' };
+			strcat(cell_name, "Cell (");
+			sprintf(&cell_name[6], "%d", current_cell[0]);
+			strcat(cell_name, ", ");
+			sprintf(&cell_name[6+numDigits(current_cell[0])+2], "%d", current_cell[1]);
+			strcat(cell_name, ")");
+			glfwSetWindowTitle(windows[1], cell_name);
+
+			glfwSetWindowTitle(windows[2], carcin_names[current_carcin]);
+
+			if (!paused) fAnimTimer(dataBlock, true, ticks);
+
+			if (!paused) update_window(0, ticks);
+			update_window(1, ticks, current_cell[0]*grid_size+current_cell[1], current_cell[0]*grid_size+current_cell[1]);
+			if (paused) glfwSwapBuffers(windows[1]);
+			for (int i = 0; i < n_carcin; i++)
+				if ((paused && i == current_carcin) || !paused)
+					update_window(2, ticks, i, current_carcin);
+
+			if (!paused) fAnimTimer(dataBlock, false, ticks);
+
+			if (!paused) ticks++;
 		}
 	}
-    }
 
-    void draw(GLFWwindow *window, int width, int height) {
-	glfwMakeContextCurrent(window);
-	glClearColor(0.0, 0.0, 0.0, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glDrawPixels(width, height, GL_RGBA,
-		     GL_UNSIGNED_BYTE, 0);
-	glfwSwapBuffers(window);
-    }
+	static void change_current(GLFWwindow *window, int *current, int n, bool incr=true) {
+		int amount = -1; int limit = 0; int prev = n-1;
+		if (incr) { amount = 1; limit = n-1; prev = 0; }
+		if (*current != limit) *current += amount;
+		else *current = prev;
+	}
+
+	static void key_ca(GLFWwindow *window, int key, int scancode, int action, int mods) {
+		GPUAnimBitmap *bitmap = *(get_bitmap_ptr());
+		switch (key) {
+			case GLFW_KEY_ESCAPE:
+				if (action == GLFW_PRESS) {
+					glfwSetWindowShouldClose(window, GLFW_TRUE);
+					exit(EXIT_SUCCESS);
+				}
+				break;
+			case GLFW_KEY_SPACE:
+				if (action == GLFW_PRESS) {
+					if (bitmap->paused) bitmap->paused = false;
+					else bitmap->paused = true;
+				}
+				break;
+		}
+	}
+
+	static void key_carcin(GLFWwindow *window, int key, int scancode, int action, int mods) {
+		GPUAnimBitmap *bitmap = *(get_bitmap_ptr());
+		switch (key) {
+			case GLFW_KEY_ESCAPE:
+				if (action == GLFW_PRESS) {
+					glfwSetWindowShouldClose(window, GLFW_TRUE);
+					exit(EXIT_SUCCESS);
+				}
+				break;
+			case GLFW_KEY_SPACE:
+				if (action == GLFW_PRESS) {
+					if (bitmap->paused) bitmap->paused = false;
+					else bitmap->paused = true;
+				}
+				break;
+			case GLFW_KEY_RIGHT:
+				if (action == GLFW_PRESS)
+					change_current(window, &bitmap->current_carcin, bitmap->n_carcin);
+				break;
+			case GLFW_KEY_LEFT:
+				if (action == GLFW_PRESS)
+					change_current(window, &bitmap->current_carcin, bitmap->n_carcin, false);
+				break;
+		}
+	}
+
+	static void key_cell(GLFWwindow *window, int key, int scancode, int action, int mods) {
+		GPUAnimBitmap *bitmap = *(get_bitmap_ptr());
+		switch (key) {
+			case GLFW_KEY_ESCAPE:
+				if (action == GLFW_PRESS) {
+					glfwSetWindowShouldClose(window, GLFW_TRUE);
+					exit(EXIT_SUCCESS);
+				}
+				break;
+			case GLFW_KEY_SPACE:
+				if (action == GLFW_PRESS) {
+					if (bitmap->paused) bitmap->paused = false;
+					else bitmap->paused = true;
+				}
+				break;
+			case GLFW_KEY_RIGHT:
+				if (action == GLFW_PRESS)
+					change_current(window, &bitmap->current_cell[0], bitmap->grid_size);
+				break;
+			case GLFW_KEY_LEFT:
+				if (action == GLFW_PRESS)
+					change_current(window, &bitmap->current_cell[0], bitmap->grid_size, false);
+				break;
+			case GLFW_KEY_UP:
+				if (action == GLFW_PRESS)
+					change_current(window, &bitmap->current_cell[1], bitmap->grid_size);
+				break;
+			case GLFW_KEY_DOWN:
+				if (action == GLFW_PRESS)
+					change_current(window, &bitmap->current_cell[1], bitmap->grid_size, false);
+				break;
+		}
+	}
+
+	void draw(int window_idx, int w, int h) {
+		glfwMakeContextCurrent(windows[window_idx]);
+		glClearColor(0.0, 0.0, 0.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT);
+		glDrawPixels(w, h, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+		if (!paused) glfwSwapBuffers(windows[window_idx]);
+	}
 };
 
 #endif  // __GPU_ANIM_H__
