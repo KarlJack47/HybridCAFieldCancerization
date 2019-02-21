@@ -54,12 +54,12 @@ __managed__ double downreg_phenotype_map[11*4] = {0.0f, 0.0f, 0.0f, 0.0f,
 						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
 						  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
 
-__managed__ double phenotype_init[7*4] = {0.05f, 0.9f, 0.2f, 0.0f,
-					  0.1f, 0.9f, 0.1f, 0.0f,
-					  0.1f, 0.9f, 0.05f, 0.3f,
-					  0.2f, 0.9f, 0.025f, 0.4f,
-					  0.2f, 0.9f, 0.0125f, 0.5f,
-					  0.4f, 0.9f, 0.00625f, 0.0f,
+__managed__ double phenotype_init[7*4] = {0.05f, 0.9f, 0.1f, 0.0f,
+					  0.1f, 0.9f, 0.05f, 0.0f,
+					  0.1f, 0.9f, 0.025f, 0.3f,
+					  0.2f, 0.9f, 0.0125f, 0.4f,
+					  0.2f, 0.9f, 0.00625f, 0.5f,
+					  0.4f, 0.9f, 0.003125f, 0.0f,
 					  0.0f, 0.0f, 0.0f, 0.0f};
 
 __managed__ int state_mut_map[6*11] = {0, 1, 1, 1, 4, 1, 1, 1, 4, 1, 4,
