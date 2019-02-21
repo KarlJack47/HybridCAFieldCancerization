@@ -141,12 +141,12 @@ struct GeneExpressionNN {
 			if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
 				double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
 				W_out[M*n_output+M] += incr;
-				gene_expressions[M] += incr;
-				W_out[0] = fmaxf(0.0f, W_out[0] - incr);
+				gene_expressions[M*2] += incr;
+				W_out[0] = W_out[0] - incr;
 			} else {
 				double decr = (curand_uniform_double(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
-				W_out[M*n_output+M] = fmaxf(0.0f, W_out[M*n_output+M] - decr);
-				gene_expressions[M] -= decr;
+				W_out[M*n_output+M] = W_out[M*n_output+M] - decr;
+				gene_expressions[M*2+1] += decr;
 				W_out[0] += decr;
 			}
 		}
@@ -158,7 +158,7 @@ struct GeneExpressionNN {
 			} else {
 				double decr = (curand_uniform(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
 				W_out[index_map[M*12+(i+1)]*n_output+index_map[M*12+(i+1)]] = fmaxf(0.0f, W_out[index_map[M*12+(i+1)]*n_output+index_map[M*12+(i+1)]] - decr);
-				W_out[index_map[M*12+(i+1)]*n_output] = fminf(W_out[index_map[M*12+(i+1)]*n_output]+decr, 0.0f);
+				W_out[index_map[M*12+(i+1)]*n_output] = W_out[index_map[M*12+(i+1)]*n_output]+decr;
 			}
 			if (index_map[(i+1)*12+(i+1)] == M) {
 				if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
@@ -166,7 +166,7 @@ struct GeneExpressionNN {
 					W_out[index_map[M*12+(i+1)]*n_output+M] += incr;
 				} else {
 					double decr = (curand_uniform_double(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
-					W_out[index_map[M*12+(i+1)]*n_output+M] = fmaxf(0, W_out[index_map[M*12+(i+1)]*n_output+M] - decr);
+					W_out[index_map[M*12+(i+1)]*n_output+M] = W_out[index_map[M*12+(i+1)]*n_output+M] - decr;
 				}
 			}
 		}
