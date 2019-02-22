@@ -267,20 +267,6 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 	}
 }
 
-
-__global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
-	// map from threadIdx/BlockIdx to pixel position
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int dim = gridDim.x*blockDim.x;
-	int idx = x + ((dim-1)-y)*dim;
-
-	frame[4*dim*y+4*x] = optr[idx].x;
-	frame[4*dim*y+4*x+1] = optr[idx].y;
-	frame[4*dim*y+4*x+2] = optr[idx].z;
-	frame[4*dim*y+4*x+3] = 255;
-}
-
 void prefetch_grids(int loc1, int loc2) {
 	int location1 = loc1; int location2 = loc2;
 	if (loc1 == -1) location1 = cudaCpuDeviceId;
@@ -428,7 +414,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int tic
 		prefetch_pdes(-1);
 	}
 
-	if (d->save_frames == 1 && ticks <= d->maxT) {
+	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
 		char fname[25] = {'c', 'a', 'r', 'c', 'i', 'n'};
 		sprintf(&fname[6], "%d", carcin_idx);
 		int dig_car = numDigits(carcin_idx);
@@ -456,7 +442,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int tic
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	if (ticks == d->maxT && d->save_frames == 1) {
+	if (!bitmap.paused && ticks == d->maxT && d->save_frames == 1) {
 		char command[250] = { '\0' };
 		char car_idx[5] = { '\0' };
 		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i carcin");
@@ -534,6 +520,8 @@ struct CA {
 		bitmap.display = display;
 		bitmap.n_carcin = n_carcin;
 		bitmap.grid_size = g_size;
+		bitmap.maxT = T;
+		if (display == 0) bitmap.paused = false;
 
 		bitmap.carcin_names = (char**)malloc(n_carcin*sizeof(char*));
 		for (int i = 0; i < n_carcin; i++) {
