@@ -3,7 +3,7 @@
 
 #include "common/general.h"
 
-#define MUT_THRESHOLD 0.05f // very sensitive parameter
+#define MUT_THRESHOLD 0.1f // very sensitive parameter
 #define CHANCE_MOVE 0.25f
 #define CHANCE_KILL 0.4f
 
