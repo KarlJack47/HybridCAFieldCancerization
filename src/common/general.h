@@ -194,11 +194,24 @@ int numDigits(double x) {
                 10)))))))));
 }
 
+__global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
+	// map from threadIdx/BlockIdx to pixel position
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	int dim = gridDim.x*blockDim.x;
+	int idx = x + ((dim-1)-y)*dim;
+
+	frame[4*dim*y+4*x] = optr[idx].x;
+	frame[4*dim*y+4*x+1] = optr[idx].y;
+	frame[4*dim*y+4*x+2] = optr[idx].z;
+	frame[4*dim*y+4*x+3] = 255;
+}
+
 #include "../gene_expression_nn.h"
 #include "../cell.h"
 #include "../carcinogen_pde.h"
-#include "gpu_anim.h"
 #include "lodepng.h"
+#include "gpu_anim.h"
 #include "../ca.h"
 
 #endif // __GENERAL_H__
