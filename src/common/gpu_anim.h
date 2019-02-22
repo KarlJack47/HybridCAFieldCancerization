@@ -29,12 +29,14 @@ struct GPUAnimBitmap {
 	int display;
 	int n_carcin;
 	int grid_size;
+	int maxT;
+	int ticks;
 	char **carcin_names;
 	int current_carcin;
 	int current_cell[2];
 	bool paused;
 
-	GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int n_car=1, int g_size=512, char **car_names=NULL) {
+	GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int n_car=1, int g_size=512, int T=600, char **car_names=NULL) {
 		width = w;
 		height = h;
 		dataBlock = d;
@@ -42,6 +44,9 @@ struct GPUAnimBitmap {
 		n_carcin = n_car;
 		grid_size = g_size;
 		paused = false;
+		if (display == 1) paused = true;
+		maxT = T;
+		ticks = 0;
 
 		if (car_names != NULL) {
 			carcin_names = (char**)malloc(n_carcin*sizeof(char*));
@@ -151,7 +156,6 @@ struct GPUAnimBitmap {
 		fAnimCell = fCell;
 		fAnimTimer = fTime;
 
-		int ticks = 0;
 		current_carcin = 0;
 		current_cell[0] = 0;
 		current_cell[1] = 0;
@@ -207,6 +211,10 @@ struct GPUAnimBitmap {
 					if (bitmap->paused) bitmap->paused = false;
 					else bitmap->paused = true;
 				}
+				break;
+			case GLFW_KEY_RIGHT:
+				if (action == GLFW_PRESS) bitmap->paused = false;
+				else if (action == GLFW_RELEASE) bitmap->paused = true;
 				break;
 		}
 	}
@@ -268,6 +276,41 @@ struct GPUAnimBitmap {
 				if (action == GLFW_PRESS)
 					change_current(window, &bitmap->current_cell[1], bitmap->grid_size, false);
 				break;
+			case GLFW_KEY_S:
+				if (action == GLFW_PRESS && bitmap->paused) {
+					char fname[100] = {'c', 'e', 'l', 'l', '(', '\0'};
+					sprintf(&fname[5], "%d", bitmap->current_cell[0]);
+					int dig_cell_x = numDigits(bitmap->current_cell[0]);
+					fname[5+dig_cell_x] = ',';
+					fname[5+dig_cell_x+1] = ' ';
+					sprintf(&fname[7+dig_cell_x], "%d", bitmap->current_cell[1]);
+					int dig_cell_y = numDigits(bitmap->current_cell[1]);
+					fname[7+dig_cell_x+dig_cell_y] = ')';
+					fname[7+dig_cell_x+dig_cell_y+1] = '_';
+					int dig_max = numDigits(bitmap->maxT);
+					int dig = numDigits(bitmap->ticks-1);
+					for (int i = 8+dig_cell_x+dig_cell_y; i < 8+dig_cell_x+dig_cell_y+dig_max-dig; i++)
+						fname[i] = '0';
+					sprintf(&fname[8+dig_cell_x+dig_cell_y+dig_max-dig], "%d", bitmap->ticks-1);
+					fname[8+dig_cell_x+dig_cell_y+dig_max] = '.';
+					fname[8+dig_cell_x+dig_cell_y+dig_max+1] = 'p';
+					fname[8+dig_cell_x+dig_cell_y+dig_max+2] = 'n';
+					fname[8+dig_cell_x+dig_cell_y+dig_max+3] = 'g';
+					unsigned char *frame;
+					CudaSafeCall(cudaMallocManaged((void**)&frame, bitmap->width*bitmap->height*4*sizeof(unsigned char)));
+					CudaSafeCall(cudaMemPrefetchAsync(frame, bitmap->width*bitmap->height*4*sizeof(unsigned char), 1, NULL));
+					dim3 blocks(bitmap->width/16, bitmap->height/16);
+					dim3 threads(16, 16);
+					copy_frame<<< blocks, threads >>>(bitmap->devPtrs[1], frame);
+					CudaCheckError();
+					CudaSafeCall(cudaDeviceSynchronize());
+
+					unsigned error = lodepng_encode32_file(fname, frame, bitmap->width, bitmap->height);
+					if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+					CudaSafeCall(cudaFree(frame));
+			}
+			break;
 		}
 	}
 
