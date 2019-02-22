@@ -304,7 +304,7 @@ struct Cell {
 		if ((state == 4 || state == 5) && (c->state == 5 || c->state == 4)) return -2;
 
 		if (curand_uniform_double(&states[cell]) <= CHANCE_MOVE) {
-			if (((state == 4 || state == 5) && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
+			if ((state == 5 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 			     c->state == 6) {
 				if (c->state != 6 && (state == 4 || state == 5)) c->apoptosis();
 				c->change_state(state);
