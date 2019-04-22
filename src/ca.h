@@ -55,10 +55,8 @@ __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, int g_size) {
                 	dst[idx].NN->b_out[i] = src[idx].NN->b_out[i];
         	}
         	for (i = 0; i < src[idx].NN->n_input*src[idx].NN->n_hidden; i++) dst[idx].NN->W_in[i] = src[idx].NN->W_in[i];
-        	for (i = 0; i < src[idx].NN->n_hidden*src[idx].NN->n_output; i++) {
+        	for (i = 0; i < src[idx].NN->n_hidden*src[idx].NN->n_output; i++)
                 	dst[idx].NN->W_out[i] = src[idx].NN->W_out[i];
-                	dst[idx].W_y_init[i] = src[idx].W_y_init[i];
-        	}
 	}
 }
 
@@ -558,15 +556,15 @@ struct CA {
 		CudaSafeCall(cudaMallocManaged((void**)&d.newGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 	}
 
-	void init(double *diffusion, double *consum, double *in, bool *liquid) {
+	void init(double *diffusion, double *consum, double *in, bool *liquid, double *W_x, double *b_x, double *W_y, double *b_y) {
 		int i, j;
 
 		#pragma omp parallel for collapse(2) schedule(guided)
 			for (i = 0; i < d.grid_size; i++) {
 				for (j = 0; j < d.grid_size; j++) {
-					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_1);
+					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_1, W_x, b_x, W_y, b_y);
 					d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
-					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_2);
+					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_2, W_x, b_x, W_y, b_y);
 					d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
 				}
 			}
