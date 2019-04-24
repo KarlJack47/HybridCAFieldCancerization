@@ -3,10 +3,6 @@
 
 #include "common/general.h"
 
-#define MUT_THRESHOLD 0.1f // very sensitive parameter
-#define CHANCE_MOVE 0.25f
-#define CHANCE_KILL 0.4f
-
 // "NC": 0
 // "MNC": 1
 // "SC": 2
@@ -14,7 +10,6 @@
 // "CSC": 4
 // "TC": 5
 // "Empty": 6
-
 
 __device__ int get_rand_idx(double *L, const int N, int cell, curandState_t *states, int *idx=NULL) {
 	double *sorted = (double*)malloc(N*sizeof(double));
@@ -56,11 +51,11 @@ struct Cell {
 
 	int chosen_phenotype;
 
-	void initialize(int x, int y, int grid_size, int n_in, int n_out, double *W_x, double *b_x, double *W_y, double *b_y) {
+	void initialize(int x, int y, int grid_size, int n_in, int n_out, double *W_x, double *W_y, double *b_y) {
 		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(GeneExpressionNN)));
 		*NN = GeneExpressionNN(n_in, n_out);
 
-		NN->memory_allocate(W_x, b_x, W_y, b_y, device);
+		NN->memory_allocate(W_x, W_y, b_y, device);
 
 		CudaSafeCall(cudaMallocManaged((void**)&phenotype, 4*sizeof(double)));
 
@@ -83,7 +78,7 @@ struct Cell {
 
 	}
 
-	Cell(int x, int y, int grid_size, int n_in, int n_out, int dev, double *W_x, double *b_x, double *W_y, double *b_y) {
+	Cell(int x, int y, int grid_size, int n_in, int n_out, int dev, double *W_x, double *W_y, double *b_y) {
 		device = dev;
 		set_seed();
 		int init_states[3] = {0, 2, 6};
@@ -98,7 +93,7 @@ struct Cell {
 		else
 			state = init_states[1];
 
-		initialize(x, y, grid_size, n_in, n_out, W_x, b_x, W_y, b_y);
+		initialize(x, y, grid_size, n_in, n_out, W_x, W_y, b_y);
 
 		phenotype[0] = phenotype_init[state*4];
 		phenotype[1] = phenotype_init[state*4+1];
@@ -133,7 +128,7 @@ struct Cell {
 			else if (check > 1.0f)
 				phenotype[i] = 1.0f;
 			else
-				phenotype[i] = phenotype_init[new_state*4+i] + phenotype[i] - phenotype_init[state*4+i];
+				phenotype[i] = check;
 		}
 		state = new_state;
 	}
@@ -153,49 +148,34 @@ struct Cell {
 			else if (check > 1.0f)
 				c->phenotype[i] = 1.0f;
 			else
-				c->phenotype[i] += phenotype[i] - phenotype_init[state*4+i];
+				c->phenotype[i] = check;
 		}
-		for (i = 0; i < NN->n_hidden*NN->n_output; i++)
-			c->NN->W_out[i] = NN->W_out[i];
 		for (i = 0; i < NN->n_output; i++) {
 			c->gene_expressions[i*2] = gene_expressions[i*2];
 			c->gene_expressions[i*2+1] = gene_expressions[i*2+1];
+			c->NN->b_out[i] = NN->b_out[i];
 		}
 	}
 
-	__device__ void max_gene_expression(double *genes, double *output) {
-		for (int i = 0; i < NN->n_output; i++)
-			output[i] = fmaxf(genes[i*2], genes[i*2+1]);
-	}
-
 	__device__ int proliferate(Cell *c, int cell, curandState_t *states) {
-		double output[11];
-		max_gene_expression(gene_expressions, output);
-		int idx = get_rand_idx(output, 11, cell, states);
+		int idx = (int) ceilf(curand_uniform_double(&states[cell]) * (double) NN->n_output) % NN->n_output;
 		int new_state = -1;
 
 		if ((state != 4 || state != 5) && c->state != 6) return -2;
 		if ((state == 4 || state == 5) && (c->state == 5 || c->state == 4)) return -2;
 
-		bool check_equal = false;
-		if (fabsf(gene_expressions[3*2] - gene_expressions[3*2+1]) <= DBL_EPSILON)
-			check_equal = true;
-
-		if ((state == 4 && !check_equal && fmaxf(gene_expressions[3*2], gene_expressions[3*2+1]) >= MUT_THRESHOLD && c->state == 6) ||
-		    (state == 4 && !check_equal && fmaxf(gene_expressions[3*2+1], gene_expressions[3*2+1]) >= MUT_THRESHOLD &&
-		     c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
+		if ((state == 4 && fabs(NN->b_out[2] - BIAS) <= FLT_EPSILON && c->state == 6) ||
+		    (state == 4 && fabs(NN->b_out[2] - BIAS) <= FLT_EPSILON && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		    (state == 5 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		     state != 4) {
-			check_equal = false;
-			if (fabsf(gene_expressions[idx*2] - gene_expressions[idx*2+1]) <= DBL_EPSILON) check_equal = true;
-			if (!check_equal && fmaxf(gene_expressions[idx*2], gene_expressions[idx*2+1]) < MUT_THRESHOLD) new_state = prolif_mut_map[state*11];
+			if (!(fabsf(NN->b_out[idx] - BIAS) <= FLT_EPSILON)) new_state = state;
 			else {
-				if ((int) ceilf(curand_uniform_double(&states[cell])*2.0f) % 2 == 0) {
-					change_state(state_mut_map[state*11+idx]);
-					new_state = prolif_mut_map[state*11+idx];
+				if (curand_uniform_double(&states[cell]) <= 0.5f) {
+					change_state(state_mut_map[state*NN->n_output+idx]);
+					new_state = prolif_mut_map[state*NN->n_output+idx];
 				} else {
-					new_state = prolif_mut_map[state*11+idx];
-					change_state(state_mut_map[state*11+idx]);
+					new_state = prolif_mut_map[state*NN->n_output+idx];
+					change_state(state_mut_map[state*NN->n_output+idx]);
 				}
 			}
 			if (c->state != 6 && (state == 4 || state == 5)) c->apoptosis();
@@ -207,9 +187,7 @@ struct Cell {
 	}
 
 	__device__ int differentiate(Cell *c, int cell, curandState_t *states) {
-		double output[11];
-		max_gene_expression(gene_expressions, output);
-		int idx = get_rand_idx(output, 11, cell, states);
+		int idx = (int) ceilf(curand_uniform_double(&states[cell]) * (double) NN->n_output) % NN->n_output;
 		int new_state = -1;
 
 		if ((state != 4 || state != 5) && c->state != 6) return -2;
@@ -217,16 +195,14 @@ struct Cell {
 
 		if (((state == 4 || state == 5) && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		    c->state == 6) {
-			bool check_equal = false;
-			if (fabsf(gene_expressions[idx*2] - gene_expressions[idx*2+1]) <= DBL_EPSILON) check_equal = true;
-			if (!check_equal && fmaxf(gene_expressions[idx*2], gene_expressions[idx*2+1]) < MUT_THRESHOLD) new_state = diff_mut_map[state*11];
+			if (!(fabsf(NN->b_out[idx] - BIAS) <= FLT_EPSILON)) new_state = diff_mut_map[state*(NN->n_output+1)];
 			else {
 				if (curand_uniform_double(&states[cell]) <= 0.5f) {
-					change_state(state_mut_map[state*11+idx]);
-					new_state = diff_mut_map[state*11+idx];
+					change_state(state_mut_map[state*NN->n_output+idx]);
+					new_state = diff_mut_map[state*(NN->n_output+1)+(idx+1)];
 				} else {
-					new_state = diff_mut_map[state*11+idx];
-					change_state(state_mut_map[state*11+idx]);
+					new_state = diff_mut_map[state*(NN->n_output+1)+(idx+1)];
+					change_state(state_mut_map[state*NN->n_output+idx]);
 				}
 			}
 			if (new_state == -1) return new_state;
@@ -261,16 +237,19 @@ struct Cell {
 		int i;
 		for (i = 0; i < 4; i++)
 			phenotype[i] = phenotype_init[6*4+i];
-		for (i = 0; i < 11; i++) {
+		for (i = 0; i < NN->n_output; i++) {
 			gene_expressions[i*2] = 0.0f;
 			gene_expressions[i*2+1] = 0.0f;
+			NN->b_out[i] = 0.0f;
 		}
 		age = 0;
 	}
 
-	__device__ void phenotype_mutate(int M) {
+	__device__ void phenotype_mutate(int M, int cell, curandState_t *states) {
 		int i;
-		if (fmax(gene_expressions[M*2], gene_expressions[M*2+1]) >= MUT_THRESHOLD) {
+		if (!(fabsf(NN->b_out[M] - BIAS) <= FLT_EPSILON)) return;
+		if (!(curand_uniform_double(&states[cell]) <= CHANCE_PHENO_MUT)) return;
+		if (!(fabsf(gene_expressions[M*2] - gene_expressions[M*2+1]) <= FLT_EPSILON) && fmaxf(gene_expressions[M*2], gene_expressions[M*2+1]) >= MUT_THRESHOLD) {
 			// down-regulation
 			if (gene_expressions[M*2] < gene_expressions[M*2+1]) {
 				for (i = 0; i < 4; i++) {
@@ -291,41 +270,19 @@ struct Cell {
 		}
 	}
 
-	__device__ void mutate(double *in, double *result, int cell, curandState_t *states) {
-		int i, j, k;
+	__device__ void mutate(double *result, int cell, curandState_t *states) {
+		int i;
 
 		if (state != 6) {
-			int M_idx[11];
-			M_idx[0] = -1;
-			int count = get_rand_idx(result, 11, cell, states, M_idx);
-			if (M_idx[0] == -1) { M_idx[0] = count; count = 1; }
-			for (i = 0; i < count; i++) {
-				int M = M_idx[i];
-				if (M != 0) {
-					NN->mutate(M, gene_expressions, cell, states);
-					phenotype_mutate(M);
-				}
+			for (i = 0; i < NN->n_output; i++) {
+				if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG)
+					gene_expressions[i*2] += result[i];
+				else
+					gene_expressions[i*2+1] -= result[i];
 			}
+			NN->mutate(gene_expressions);
 
-			// Random mutations
-			if ((int) ceilf(curand_uniform_double(&states[cell])*1000.0f) <= 10) {
-				int num = (int) ceilf(curand_uniform_double(&states[cell])*4.0f) % 4;
-				for (i = 0; i < num; i++) {
-					int idx = (int) ceilf(curand_uniform_double(&states[cell])*11.0f) % 11;
-					NN->mutate(idx, gene_expressions, cell, states);
-					for (j = 0; j < NN->n_input; j++) NN->input[j] = in[j];
-					NN->evaluate();
-					M_idx[0] = -1;
-					count = get_rand_idx(NN->output, 11, cell, states, M_idx);
-					if (M_idx[0] == -1) { M_idx[0] = count; count = 1; }
-					for (k = 0; k < count; k++) {
-						int M = M_idx[k];
-						if (M != 0 && state != 6) {
-							phenotype_mutate(M);
-						}
-					}
-				}
-			}
+			for (i = 0; i < NN->n_output; i++) phenotype_mutate(i, cell, states);
 
 			age++;
 		}
