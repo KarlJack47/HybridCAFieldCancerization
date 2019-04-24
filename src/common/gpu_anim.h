@@ -35,7 +35,7 @@ struct GPUAnimBitmap {
 	int current_carcin;
 	int current_cell[2];
 	bool paused;
-	bool resect;
+	bool excise;
 
 	GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int n_car=1, int g_size=512, int T=600, char **car_names=NULL) {
 		width = w;
@@ -46,7 +46,7 @@ struct GPUAnimBitmap {
 		grid_size = g_size;
 		paused = false;
 		if (display == 1) paused = true;
-		resect = false;
+		excise = false;
 		maxT = T;
 		ticks = 0;
 
@@ -224,10 +224,10 @@ struct GPUAnimBitmap {
 					else bitmap->paused = false;
 				}
 				break;
-			case GLFW_KEY_T:
+			case GLFW_KEY_K:
 				if (action == GLFW_PRESS) {
-					if (bitmap->resect == false) bitmap->resect = true;
-					else bitmap->resect = false;
+					if (bitmap->excise == false) bitmap->excise = true;
+					else bitmap->excise = false;
 				}
 				break;
 		}

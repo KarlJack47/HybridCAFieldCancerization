@@ -138,7 +138,7 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, curandS
 	}
 }
 
-__global__ void tumor_resection(Cell *G, int g_size) {
+__global__ void tumour_excision(Cell *G, int g_size) {
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -366,8 +366,8 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 
 			CudaSafeCall(cudaFree(states));
 
-			if (bitmap.resect == true) {
-				tumor_resection<<< blocks, threads >>>(d->newGrid, d->grid_size);
+			if (bitmap.excise == true) {
+				tumour_excision<<< blocks, threads >>>(d->newGrid, d->grid_size);
 				CudaCheckError();
 				CudaSafeCall(cudaDeviceSynchronize());
 			}
