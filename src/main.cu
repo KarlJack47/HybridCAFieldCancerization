@@ -36,20 +36,18 @@ int main(int argc, char *argv[]) {
 	char **carcin_names = (char**)malloc(sizeof(char*));
 	carcin_names[0] = (char*)malloc(8*sizeof(char));
 	sprintf(carcin_names[0], "%s", "Alcohol");
-	unsigned int n_input = 1;
+	unsigned int n_input = 2;
 	unsigned int n_hidden = 10;
 	unsigned int n_output = 10;
-	CA ca(grid_size, T, n_input, n_output, save_frames, display, carcin_names);
+	CA ca(grid_size, T, 1, n_output, save_frames, display, carcin_names);
 	free(carcin_names[0]); free(carcin_names);
 	ca.initialize_memory();
 
 	double diffusion[1] = {1.266389e-5};
-	double consum[1] = {9.722222e-8 / (double) (grid_size * grid_size)};
+	double out[1] = {9.722222e-8 / (double) (grid_size * grid_size)};
 	double in[1] = {2.37268e-6 / (double) (grid_size * grid_size)};
-	bool liquid[1] = {true};
 
 	double *W_x = (double*)malloc(n_hidden*n_input*sizeof(double));
-	double *b_x = (double*)malloc(n_hidden*sizeof(double));
 	double *W_y = (double*)malloc(n_hidden*n_output*sizeof(double));
 	double *b_y = (double*)malloc(n_output*sizeof(double));
 	
@@ -57,48 +55,37 @@ int main(int argc, char *argv[]) {
 
 	for (int i = 0; i < n_hidden; i++) {
 		for (int j = 0; j < n_input; j++) {
-			if (i == 0 && j == n_input-1) W_x[i*n_input+j] = -0.1f;
-			else if (i == 0) W_x[i*n_input+j] = -1.0f;
-			else {
-				if (j != n_input-1)
-					W_x[i*n_input+j] = carcinogen_mutation_map[j*(n_input-1)+(i-1)];
-				else W_x[i*n_input+j] = 0.01f;
-			}
+			if (j != n_input-1)
+				W_x[i*n_input+j] = carcinogen_mutation_map[j*(n_input-1)+i];
+			else W_x[i*n_input+j] = 0.00001f;
 		}
 	}
 
-	memset(b_x, 0.0f, n_hidden*sizeof(double));
-
-	W_y[0] = 0.5f;
-	W_y[n_output+1] = 0.25f;
-	W_y[2*n_output+2] = 0.25f;
-	W_y[3*n_output+3] = 0.167f;
-	W_y[4*n_output+4] = 0.125f;
-	W_y[5*n_output+5] = 0.25f;
-	W_y[6*n_output+6] = 0.25f;
-	W_y[7*n_output+7] = 0.125f;
-	W_y[8*n_output+8] = 0.167f;
-	W_y[9*n_output+9] = 0.25f;
-	W_y[10*n_output+10] = 0.167f;
-	for (int i = 1; i < n_hidden; i++)
-		W_y[i*n_output] = -1.45f;
-	for (int i = 2; i < n_hidden; i++)
-		W_y[i*n_output+1] = 0.01f;
-	W_y[3*n_output+1] = 0.02f;
-	W_y[n_output+3] = 0.02f;
-	W_y[7*n_output+3] = 0.01f;
-	W_y[4*n_output+7] = 0.01f;
-	W_y[4*n_output+8] = 0.01f;
-	W_y[10*n_output+8] = 0.02f;
-	W_y[7*n_output+10] = 0.01f;
-	W_y[8*n_output+10] = 0.02f;
+	W_y[0] = 1.0f;
+	W_y[n_output+1] = 0.1f;
+	W_y[2*n_output+2] = 0.3f;
+	W_y[3*n_output+3] = 0.1f;
+	W_y[4*n_output+4] = 0.1f;
+	W_y[5*n_output+5] = 0.1f;
+	W_y[6*n_output+6] = 0.2f;
+	W_y[7*n_output+7] = 0.3f;
+	W_y[8*n_output+8] = 0.1f;
+	W_y[9*n_output+9] = 0.3f;
+	for (int i = 1; i < n_hidden; i++) W_y[i*n_output] = 0.01f;
+	W_y[2*n_output] = 0.01f;
+	W_y[n_output+2] = 0.01f;
+	W_y[6*n_output+2] = 0.01f;
+	W_y[3*n_output+6] = 0.01f;
+	W_y[3*n_output+7] = -0.01f;
+	W_y[9*n_output+7] = 0.01f;
+	W_y[6*n_output+9] = 0.01f;
+	W_y[7*n_output+9] = 0.01f;
 
 	memset(b_y, 0.0f, n_output*sizeof(double));
 
-	ca.init(diffusion, consum, in, liquid, W_x, b_x, W_y, b_y);
+	ca.init(diffusion, out, in, W_x, W_y, b_y);
 
 	free(W_x);
-	free(b_x);
 	free(W_y);
 	free(b_y);
 
