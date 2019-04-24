@@ -200,13 +200,13 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 	int gene = x / (float) (dim / 20);
 	if (gene % 2 == 1) gene = floor((float) gene / 2.0f);
 	else return;
-	int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * 100000;
-	int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * 100000;
-	int height = y / (float) (dim / 200001);
+	int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * 100;
+	int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * 100;
+	int height = y / (float) (dim / 201);
 
 	if (x < dim && y < dim) {
-		if (((gene_expr_up < gene_expr_down || gene_expr_up == gene_expr_down) && height < 100000 && (100000 - height) <= gene_expr_down) ||
-		     ((gene_expr_up > gene_expr_down || gene_expr_up == gene_expr_down) && height > 100000 && height - 100000 <= gene_expr_up))  {
+		if ((gene_expr_up < gene_expr_down && height < 100 && (100 - height) <= gene_expr_down) ||
+		     (gene_expr_up > gene_expr_down && height > 100 && height - 100 <= gene_expr_up))  {
 			optr[offset].x = state_colors[grid[cell_idx].state*3];
 			optr[offset].y = state_colors[grid[cell_idx].state*3 + 1];
 			optr[offset].z = state_colors[grid[cell_idx].state*3 + 2];
