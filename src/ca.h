@@ -51,7 +51,6 @@ __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, int g_size) {
         	for (i = 0; i < src[idx].NN->n_hidden; i++) {
                 	dst[idx].NN->hidden[i] = src[idx].NN->hidden[i];
                 	dst[idx].NN->output[i] = src[idx].NN->output[i];
-                	dst[idx].NN->b_in[i] = src[idx].NN->b_in[i];
                 	dst[idx].NN->b_out[i] = src[idx].NN->b_out[i];
         	}
         	for (i = 0; i < src[idx].NN->n_input*src[idx].NN->n_hidden; i++) dst[idx].NN->W_in[i] = src[idx].NN->W_in[i];
@@ -73,7 +72,7 @@ __global__ void mutate_grid(Cell *prevG, int g_size, int t, CarcinogenPDE *pdes,
 		prevG[offset].NN->input[prevG[offset].NN->n_input-1] = prevG[offset].age;
 		prevG[offset].NN->evaluate();
 
-		prevG[offset].mutate(prevG[offset].NN->input, prevG[offset].NN->output, offset, states);
+		prevG[offset].mutate(prevG[offset].NN->output, offset, states);
 	}
 }
 
@@ -242,16 +241,16 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int offset = x + y * blockDim.x * gridDim.x;
-	int gene = x / (float) (dim / 21);
-	if (gene % 2 == 1) gene = ceil((float) gene / 2.0f);
+	int gene = x / (float) (dim / 20);
+	if (gene % 2 == 1) gene = floor((float) gene / 2.0f);
 	else return;
-	int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * 100;
-	int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * 100;
-	int height = y / (float) (dim / 201);
+	int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * 100000;
+	int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * 100000;
+	int height = y / (float) (dim / 200001);
 
 	if (x < dim && y < dim) {
-		if (((gene_expr_up < gene_expr_down || gene_expr_up == gene_expr_down) && height < 100 && (100 - height) <= gene_expr_down) ||
-		     ((gene_expr_up > gene_expr_down || gene_expr_up == gene_expr_down) && height > 100 && height - 100 <= gene_expr_up))  {
+		if (((gene_expr_up < gene_expr_down || gene_expr_up == gene_expr_down) && height < 100000 && (100000 - height) <= gene_expr_down) ||
+		     ((gene_expr_up > gene_expr_down || gene_expr_up == gene_expr_down) && height > 100000 && height - 100000 <= gene_expr_up))  {
 			optr[offset].x = 255;
 			optr[offset].y = 255;
 			optr[offset].z = 255;
@@ -556,15 +555,15 @@ struct CA {
 		CudaSafeCall(cudaMallocManaged((void**)&d.newGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 	}
 
-	void init(double *diffusion, double *consum, double *in, bool *liquid, double *W_x, double *b_x, double *W_y, double *b_y) {
+	void init(double *diffusion, double *out, double *in, double *W_x, double *W_y, double *b_y) {
 		int i, j;
 
 		#pragma omp parallel for collapse(2) schedule(guided)
 			for (i = 0; i < d.grid_size; i++) {
 				for (j = 0; j < d.grid_size; j++) {
-					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_1, W_x, b_x, W_y, b_y);
+					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_1, W_x, W_y, b_y);
 					d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
-					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_2, W_x, b_x, W_y, b_y);
+					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_2, W_x, W_y, b_y);
 					d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
 				}
 			}
@@ -572,7 +571,7 @@ struct CA {
 		prefetch_grids(d.dev_id_1, d.dev_id_2);
 
 		for (int k = 0; k < d.n_carcinogens; k++) {
-			d.pdes[k] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[k], consum[k], in[k], liquid[k], k, d.dev_id_2);
+			d.pdes[k] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[k], out[k], in[k], k, d.dev_id_2);
 			d.pdes[k].init();
 		}
 
