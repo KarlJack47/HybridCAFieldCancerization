@@ -101,7 +101,6 @@ __global__ void reset_rule_params(Cell *prevG, int g_size) {
 }
 
 __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, curandState_t *states) {
-	// map from threadIdx/blockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -139,8 +138,21 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, curandS
 	}
 }
 
+__global__ void tumor_resection(Cell *G, int g_size) {
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+	if (x < g_size && y < g_size) {
+		int offset = x + y * blockDim.x * gridDim.x;
+
+		if (G[offset].state != 5) return;
+
+		for (int i = 0; i < 8; i++) G[G[offset].neighbourhood[i]].apoptosis();
+		G[offset].apoptosis();
+	}
+}
+
 __global__ void display_ca(uchar4 *optr, Cell *grid, int g_size, int cell_size, int dim) {
-	// map from threadIdx/BlockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int offset = x + y * blockDim.x * gridDim.x;
@@ -217,7 +229,6 @@ __global__ void display_ca(uchar4 *optr, Cell *grid, int g_size, int cell_size, 
 }
 
 __global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, int g_size, int cell_size, int dim, int t) {
-	// map from threadIdx/BlockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int offset = x + y * blockDim.x * gridDim.x;
@@ -237,7 +248,6 @@ __global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, int g_size, int
 }
 
 __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int dim) {
-	// map from threadIdx/BlockIdx to pixel position
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int offset = x + y * blockDim.x * gridDim.x;
