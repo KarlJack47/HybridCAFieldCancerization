@@ -23,6 +23,14 @@
 #define CHANCE_UPREG 0.5f
 #define CHANCE_PHENO_MUT 0.5f
 
+__managed__ unsigned int state_colors[7*3] = {0, 0, 0, // black (NC)
+					      87, 207, 0, // green (MNC)
+					      244, 131, 0, // orange (SC)
+					      0, 0, 255, // blue (MSC)
+					      89, 35, 112, // purple (CSC)
+					      255, 0, 0, // red (TC)
+					      255, 255, 255}; // white (empty)
+
 __managed__ double carcinogen_mutation_map[10] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 __managed__ double upreg_phenotype_map[10*4] = {-PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
 					        0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,

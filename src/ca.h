@@ -163,71 +163,14 @@ __global__ void display_ca(uchar4 *optr, Cell *grid, int g_size, int cell_size, 
 	int i, j;
 
 	if (x < g_size && y < g_size) {
-		if (grid[offset].state == 6) { // white (empty)
-			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
-				for (j = i; j < i + cell_size * dim; j += dim) {
-					optr[j].x = 255;
-					optr[j].y = 255;
-					optr[j].z = 255;
-					optr[j].w = 255;
-				}
-			}
-		} else if (grid[offset].state == 0) { // black (NC)
-			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
-				for (j = i; j < i + cell_size * dim; j += dim) {
-					optr[j].x = 0;
-					optr[j].y = 0;
-					optr[j].z = 0;
-					optr[j].w = 255;
-				}
-			}
-		} else if (grid[offset].state == 1) { // green (MNC)
-			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
-				for (j = i; j < i + cell_size * dim; j += dim) {
-					optr[j].x = 87;
-					optr[j].y = 207;
-					optr[j].z = 0;
-					optr[j].w = 255;
-				}
-			}
-		} else if (grid[offset].state == 2) { // orange (SC)
-			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
-				for (j = i; j < i + cell_size * dim; j += dim) {
-					optr[j].x = 244;
-					optr[j].y = 131;
-					optr[j].z = 0;
-					optr[j].w = 255;
-				}
-			}
-		} else if (grid[offset].state == 3) { // blue (MSC)
-			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
-				for (j = i; j < i + cell_size * dim; j += dim) {
-					optr[j].x = 0;
-					optr[j].y = 0;
-					optr[j].z = 255;
-					optr[j].w = 255;
-				}
-			}
-		} else if (grid[offset].state == 4) { // purple (CSC)
-			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
-				for (j = i; j < i + cell_size * dim; j += dim) {
-					optr[j].x = 89;
-					optr[j].y = 35;
-					optr[j].z = 112;
-					optr[j].w = 255;
-				}
-			}
-		} else if (grid[offset].state == 5) { // red (TC)
-			for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
-				for (j = i; j < i + cell_size * dim; j += dim) {
-					optr[j].x = 255;
-					optr[j].y = 0;
-					optr[j].z = 0;
-					optr[j].w = 255;
-				}
+		for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+			for (j = i; j < i + cell_size * dim; j += dim) {
+				optr[j].x = state_colors[grid[offset].state*3];
+				optr[j].y = state_colors[grid[offset].state*3 + 1];
+				optr[j].z = state_colors[grid[offset].state*3 + 2];
+				optr[j].w = 255;
 			}
 		}
-
 	}
 }
 
@@ -264,9 +207,9 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 	if (x < dim && y < dim) {
 		if (((gene_expr_up < gene_expr_down || gene_expr_up == gene_expr_down) && height < 100000 && (100000 - height) <= gene_expr_down) ||
 		     ((gene_expr_up > gene_expr_down || gene_expr_up == gene_expr_down) && height > 100000 && height - 100000 <= gene_expr_up))  {
-			optr[offset].x = 255;
-			optr[offset].y = 255;
-			optr[offset].z = 255;
+			optr[offset].x = state_colors[grid[cell_idx].state*3];
+			optr[offset].y = state_colors[grid[cell_idx].state*3 + 1];
+			optr[offset].z = state_colors[grid[cell_idx].state*3 + 2];
 			optr[offset].w = 255;
 		} else {
 			optr[offset].x = 0;
