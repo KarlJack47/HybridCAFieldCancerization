@@ -1,20 +1,16 @@
 #ifndef __GENE_EXPRESSION_NN_H__
 #define __GENE_EXPRESSION_NN_H__
 
-#define RAND_INCR_A 5000000.0f // 0.005
-#define RAND_INCR_B 10000000.0f // 0.01
-#define RAND_DECR_A 10000000.0f // 0.01
-#define RAND_DECR_B 100000000.0f // 0.1
-#define CHANCE_UPREG 0.5f
-
-__device__ void activation(int idx, double *input, double *output) {
-	/*  Computes the value of the sigmoid function f(x) = 1/(1 + e^-2x).
+__device__ void activation(int idx, double *input, double alpha, double *output) {
+	/*  Computes the value of the inverse square root unit: f(x) = x/sqrt(1 + alpha*x^2).
             Inputs:
-            input: array
+            idx: current element being computed
+	    input: array, the input array
+	    alpha: parameter that controls range of output, that being (-1/sqrt(alpha), 1/(sqrt(alpha)
             output: array, the results of the computation are to be stored here
 	*/
 
-	output[idx] = 1.0f / (1.0f + std::exp(-2*input[idx]));
+	output[idx] = input[idx] / sqrtf(1.0f + alpha*input[idx]*input[idx]);
 }
 
 __device__ double* dot(int idx, double *m1, double *m2, double *output, int m1_rows , int m1_columns, int m2_columns) {
@@ -56,16 +52,16 @@ __device__ double* matrixAddMatrix(int idx, double *m1, double *m2, double *outp
 	return output;
 }
 
-__device__ void feedforward(double *input, double *W_in, double *b_in, double *hidden, double *W_out, double *b_out, double *output,
+__device__ void feedforward(double *input, double *W_in, double *hidden, double *W_out, double *b_out, double *output,
 			    int n_input, int n_hidden, int n_output) {
 
 	int i;
 
 	for (i = 0; i < n_hidden; i++)
-		activation(i, matrixAddMatrix(i, dot(i, W_in, input, hidden, n_hidden, n_input, 1), b_in, hidden), hidden);
+		activation(i, dot(i, W_in, input, hidden, n_hidden, n_input, 1), ALPHA, hidden);
 
 	for (i = 0; i < n_output; i++)
-		activation(i, matrixAddMatrix(i, dot(i, W_out, hidden, output, n_hidden, n_output, 1), b_out, output), output);
+		activation(i, matrixAddMatrix(i, dot(i, W_out, hidden, output, n_hidden, n_output, 1), b_out, output), ALPHA, output);
 }
 
 struct GeneExpressionNN {
@@ -75,7 +71,6 @@ struct GeneExpressionNN {
 	double *hidden;
 	double *W_in;
 	double *W_out;
-	double *b_in;
 	double *b_out;
 
 	int n_input;
@@ -88,7 +83,7 @@ struct GeneExpressionNN {
 		n_output = n_out;
 	}
 
-	void memory_allocate(double *W_x, double *b_x, double *W_y, double *b_y, int dev) {
+	void memory_allocate(double *W_x, double *W_y, double *b_y, int dev) {
 		device = dev;
 
 		CudaSafeCall(cudaMallocManaged((void**)&input, n_input*sizeof(double)));
@@ -96,14 +91,12 @@ struct GeneExpressionNN {
 		CudaSafeCall(cudaMallocManaged((void**)&output, n_output*sizeof(double)));
 		memset(output, 0.0f, n_output*sizeof(double));
 		CudaSafeCall(cudaMallocManaged((void**)&W_in, n_hidden*n_input*sizeof(double)));
-		CudaSafeCall(cudaMallocManaged((void**)&b_in, n_hidden*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&hidden, n_hidden*sizeof(double)));
 		memset(hidden, 0.0f, n_hidden*sizeof(double));
 		CudaSafeCall(cudaMallocManaged((void**)&W_out, n_hidden*n_output*sizeof(double)));
 		CudaSafeCall(cudaMallocManaged((void**)&b_out, n_output*sizeof(double)));
 
 		memcpy(W_in, W_x, n_hidden*n_input*sizeof(double));
-		memcpy(b_in, b_x, n_hidden*sizeof(double));
 		memcpy(W_out, W_y, n_hidden*n_output*sizeof(double));
 		memcpy(b_out, b_y, n_output*sizeof(double));
 	}
@@ -113,7 +106,6 @@ struct GeneExpressionNN {
 		CudaSafeCall(cudaFree(input));
 		CudaSafeCall(cudaFree(output));
 		CudaSafeCall(cudaFree(W_in));
-		CudaSafeCall(cudaFree(b_in));
 		CudaSafeCall(cudaFree(hidden));
 		CudaSafeCall(cudaFree(W_out));
 		CudaSafeCall(cudaFree(b_out));
@@ -126,49 +118,20 @@ struct GeneExpressionNN {
 		CudaSafeCall(cudaMemPrefetchAsync(output, n_output*sizeof(double), location, NULL));
 		CudaSafeCall(cudaMemPrefetchAsync(hidden, n_hidden*sizeof(double), location, NULL));
 		CudaSafeCall(cudaMemPrefetchAsync(W_in, n_hidden*n_input*sizeof(double), location, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(b_in, n_hidden*sizeof(double), location, NULL));
 		CudaSafeCall(cudaMemPrefetchAsync(W_out, n_hidden*n_output*sizeof(double), location, NULL));
 		CudaSafeCall(cudaMemPrefetchAsync(b_out, n_output*sizeof(double), location, NULL));
 	}
 
 	__device__ void evaluate(void) {
-		feedforward(input, W_in, b_in, hidden, W_out, b_out, output, n_input, n_hidden, n_output);
+		feedforward(input, W_in, hidden, W_out, b_out, output, n_input, n_hidden, n_output);
 	}
 
-	__device__ void mutate(int M, double *gene_expressions, int cell, curandState_t *states) {
-		//printf("%d\n", M);
-		if (M != 0) {
-			if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
-				double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
-				W_out[M*n_output+M] += incr;
-				gene_expressions[M*2] += incr;
-				W_out[0] = fminf(0.0f, W_out[0] - incr);
-			} else {
-				double decr = (curand_uniform_double(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
-				W_out[M*n_output+M] = fmaxf(W_out[M*n_output+M] - decr, 0.0f);
-				gene_expressions[M*2+1] += decr;
-				W_out[0] = fminf(0.0f, W_out[0] + decr);
-			}
-		}
-		for (int i = 0; i < index_map[M*12]; i++) {
-			if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
-				double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
-				W_out[index_map[M*12+(i+1)]*n_output+index_map[M*12+(i+1)]] += incr;
-				W_out[index_map[M*12+(i+1)]*n_output] = fmaxf(0.0f, W_out[index_map[M*12+(i+1)]*n_output] - incr);
-			} else {
-				double decr = (curand_uniform(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
-				W_out[index_map[M*12+(i+1)]*n_output+index_map[M*12+(i+1)]] = fmaxf(0.0f, W_out[index_map[M*12+(i+1)]*n_output+index_map[M*12+(i+1)]] - decr);
-				W_out[index_map[M*12+(i+1)]*n_output] += decr;
-			}
-			if (index_map[(i+1)*12+(i+1)] == M) {
-				if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG) {
-					double incr = (curand_uniform_double(&states[cell]) * (RAND_INCR_B - RAND_INCR_A + 0.999999999f) + RAND_INCR_A) / 1000000000.0f;
-					W_out[index_map[M*12+(i+1)]*n_output+M] += incr;
-				} else {
-					double decr = (curand_uniform_double(&states[cell]) * (RAND_DECR_B - RAND_DECR_A + 0.999999999f) + RAND_DECR_A) / 1000000000.0f;
-					W_out[index_map[M*12+(i+1)]*n_output+M] = fmaxf(0.0f, W_out[index_map[M*12+(i+1)]*n_output+M] - decr);
-				}
-			}
+	__device__ void mutate(double *gene_expressions) {
+		for (int i = 0; i < n_output; i++) {
+			if (b_out[i] <= FLT_EPSILON && !(fabsf(gene_expressions[i*2] - gene_expressions[i*2+1]) <= FLT_EPSILON) && (gene_expressions[i*2] >= MUT_THRESHOLD || gene_expressions[i*2+1] >= MUT_THRESHOLD))
+				b_out[i] = BIAS;
+			else if (fabsf(b_out[i] - BIAS) <= FLT_EPSILON && (fabsf(gene_expressions[i*2] - gene_expressions[i*2+1]) <= FLT_EPSILON || (gene_expressions[i*2] < MUT_THRESHOLD && gene_expressions[i*2+1] < MUT_THRESHOLD)))
+				b_out[i] = 0.0f;
 		}
 	}
 };
