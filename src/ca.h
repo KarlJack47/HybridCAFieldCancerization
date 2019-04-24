@@ -365,6 +365,12 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 				d->pdes[i].time_step(ticks, d->newGrid);
 
 			CudaSafeCall(cudaFree(states));
+
+			if (bitmap.resect == true) {
+				tumor_resection<<< blocks, threads >>>(d->newGrid, d->grid_size);
+				CudaCheckError();
+				CudaSafeCall(cudaDeviceSynchronize());
+			}
 		}
 
 		++d->frames;

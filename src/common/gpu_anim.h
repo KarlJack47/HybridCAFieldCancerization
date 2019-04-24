@@ -35,6 +35,7 @@ struct GPUAnimBitmap {
 	int current_carcin;
 	int current_cell[2];
 	bool paused;
+	bool resect;
 
 	GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int n_car=1, int g_size=512, int T=600, char **car_names=NULL) {
 		width = w;
@@ -45,6 +46,7 @@ struct GPUAnimBitmap {
 		grid_size = g_size;
 		paused = false;
 		if (display == 1) paused = true;
+		resect = false;
 		maxT = T;
 		ticks = 0;
 
@@ -216,6 +218,18 @@ struct GPUAnimBitmap {
 				if (action == GLFW_PRESS) bitmap->paused = false;
 				else if (action == GLFW_RELEASE) bitmap->paused = true;
 				break;
+			case GLFW_KEY_P:
+				if (action == GLFW_PRESS) {
+					if (bitmap->paused == false) bitmap->paused = true;
+					else bitmap->paused = false;
+				}
+				break;
+			case GLFW_KEY_T:
+				if (action == GLFW_PRESS) {
+					if (bitmap->resect == false) bitmap->resect = true;
+					else bitmap->resect = false;
+				}
+				break;
 		}
 	}
 
@@ -299,8 +313,8 @@ struct GPUAnimBitmap {
 					unsigned char *frame;
 					CudaSafeCall(cudaMallocManaged((void**)&frame, bitmap->width*bitmap->height*4*sizeof(unsigned char)));
 					CudaSafeCall(cudaMemPrefetchAsync(frame, bitmap->width*bitmap->height*4*sizeof(unsigned char), 1, NULL));
-					dim3 blocks(bitmap->width/16, bitmap->height/16);
-					dim3 threads(16, 16);
+					dim3 blocks(bitmap->width/BLOCK_SIZE, bitmap->height/BLOCK_SIZE);
+					dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 					copy_frame<<< blocks, threads >>>(bitmap->devPtrs[1], frame);
 					CudaCheckError();
 					CudaSafeCall(cudaDeviceSynchronize());
