@@ -219,12 +219,6 @@ struct GPUAnimBitmap {
 				if (action == GLFW_PRESS) bitmap->paused = false;
 				else if (action == GLFW_RELEASE) bitmap->paused = true;
 				break;
-			case GLFW_KEY_P:
-				if (action == GLFW_PRESS) {
-					if (bitmap->paused == false) bitmap->paused = true;
-					else bitmap->paused = false;
-				}
-				break;
 			case GLFW_KEY_K:
 				if (action == GLFW_PRESS) {
 					if (bitmap->excise == false) bitmap->excise = true;
