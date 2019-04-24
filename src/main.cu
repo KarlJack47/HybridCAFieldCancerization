@@ -41,6 +41,7 @@ int main(int argc, char *argv[]) {
 	unsigned int n_output = 10;
 	CA ca(grid_size, T, 1, n_output, save_frames, display, carcin_names);
 	free(carcin_names[0]); free(carcin_names);
+	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 	ca.initialize_memory();
 
 	double diffusion[1] = {1.266389e-5};
@@ -82,8 +83,6 @@ int main(int argc, char *argv[]) {
 	W_y[7*n_output+9] = 0.01f;
 
 	memset(b_y, 0.0f, n_output*sizeof(double));
-
-	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 
 	ca.init(diffusion, out, in, W_x, W_y, b_y);
 
