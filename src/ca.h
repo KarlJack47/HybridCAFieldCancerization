@@ -23,7 +23,9 @@ struct DataBlock {
 #pragma omp threadprivate(d)
 
 __managed__ bool csc_formed;
-__managed__ bool tc_formed;
+#define MAX_EXCISE 20
+__managed__ bool tc_formed[MAX_EXCISE+1];
+__managed__ int excise_count;
 
 GPUAnimBitmap bitmap(d.dim, d.dim, &d);
 
@@ -87,8 +89,9 @@ __global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, int g_size, int 
 			csc_formed = true;
 		}
 		if (tc_formed == false && prevG[offset].state != 5 && newG[offset].state == 5) {
-			printf("A TC was formed at time step %d.\n", t);
-			tc_formed = true;
+			if (excise_count == 0) printf("A TC was formed at time step %d.\n", t);
+			else printf("A TC was reformed after excision %d at time step %d.\n", excise_count, t);
+			tc_formed[excise_count] = true;
 		}
 	}
 }
@@ -366,10 +369,12 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 
 			CudaSafeCall(cudaFree(states));
 
-			if (bitmap.excise == true) {
+			if (bitmap.excise == true && excise_count <= MAX_EXCISE && tc_formed[excise_count] == true) {
 				tumour_excision<<< blocks, threads >>>(d->newGrid, d->grid_size);
 				CudaCheckError();
 				CudaSafeCall(cudaDeviceSynchronize());
+				printf("Tumour excision was performed at time step %d.\n", ticks);
+				excise_count++;
 			}
 		}
 
@@ -546,7 +551,8 @@ struct CA {
 			for (int i = 0; i < 3; i++)
 				bitmap.hide_window(bitmap.windows[i]);
 		csc_formed = false;
-		tc_formed = false;
+		for (int i = 0; i < MAX_EXCISE+1; i++) tc_formed[i] = false;
+		excise_count = 0;
 	}
 
 	~CA(void) {
