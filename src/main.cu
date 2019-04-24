@@ -83,7 +83,11 @@ int main(int argc, char *argv[]) {
 
 	memset(b_y, 0.0f, n_output*sizeof(double));
 
+	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
+
 	ca.init(diffusion, out, in, W_x, W_y, b_y);
+
+	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.show_window(bitmap.windows[i]);
 
 	free(W_x);
 	free(W_y);

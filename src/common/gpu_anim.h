@@ -84,6 +84,7 @@ struct GPUAnimBitmap {
     	}
 
 	void hide_window(GLFWwindow *window) { glfwHideWindow(window); }
+	void show_window(GLFWwindow *window) { glfwShowWindow(window); }
 
 	void free_resources(void) {
 		if (carcin_names != NULL) {
