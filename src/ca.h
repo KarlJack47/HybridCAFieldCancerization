@@ -88,7 +88,7 @@ __global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, int g_size, int 
 			printf("A CSC was formed at time step %d.\n", t);
 			csc_formed = true;
 		}
-		if (tc_formed == false && prevG[offset].state != 5 && newG[offset].state == 5) {
+		if (tc_formed[excise_count] == false && prevG[offset].state != 5 && newG[offset].state == 5) {
 			if (excise_count == 0) printf("A TC was formed at time step %d.\n", t);
 			else printf("A TC was reformed after excision %d at time step %d.\n", excise_count, t);
 			tc_formed[excise_count] = true;
