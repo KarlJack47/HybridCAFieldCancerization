@@ -278,7 +278,7 @@ struct Cell {
 				if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG)
 					gene_expressions[i*2] += result[i];
 				else
-					gene_expressions[i*2+1] -= result[i];
+					gene_expressions[i*2+1] += result[i];
 			}
 			NN->mutate(gene_expressions);
 
