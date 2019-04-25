@@ -197,6 +197,12 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int offset = x + y * blockDim.x * gridDim.x;
+
+	optr[offset].x = 255;
+	optr[offset].y = 255;
+	optr[offset].z = 255;
+	optr[offset].w = 255;
+
 	int gene = x / (float) (dim / 20);
 	if (gene % 2 == 1) gene = floor((float) gene / 2.0f);
 	else return;
@@ -210,11 +216,6 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 			optr[offset].x = state_colors[grid[cell_idx].state*3];
 			optr[offset].y = state_colors[grid[cell_idx].state*3 + 1];
 			optr[offset].z = state_colors[grid[cell_idx].state*3 + 2];
-			optr[offset].w = 255;
-		} else {
-			optr[offset].x = 255;
-			optr[offset].y = 255;
-			optr[offset].z = 255;
 			optr[offset].w = 255;
 		}
 	}
@@ -297,6 +298,14 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
+			if (bitmap.excise == true && excise_count <= MAX_EXCISE && tc_formed[excise_count] == true) {
+				tumour_excision<<< blocks, threads >>>(d->newGrid, d->grid_size);
+				CudaCheckError();
+				CudaSafeCall(cudaDeviceSynchronize());
+				printf("Tumour excision was performed at time step %d.\n", ticks);
+				excise_count++;
+			}
+
 			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
@@ -311,14 +320,6 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 				d->pdes[i].time_step(ticks, d->newGrid);
 
 			CudaSafeCall(cudaFree(states));
-
-			if (bitmap.excise == true && excise_count <= MAX_EXCISE && tc_formed[excise_count] == true) {
-				tumour_excision<<< blocks, threads >>>(d->newGrid, d->grid_size);
-				CudaCheckError();
-				CudaSafeCall(cudaDeviceSynchronize());
-				printf("Tumour excision was performed at time step %d.\n", ticks);
-				excise_count++;
-			}
 		}
 
 		++d->frames;
