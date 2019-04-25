@@ -447,7 +447,7 @@ void anim_gpu_timer(DataBlock *d, bool start, int ticks) {
 	if (ticks == d->maxT && !start) {
 		d->end = clock();
 		printf("It took %f seconds to run the %d time steps.\n", (double) (d->end - d->start) / CLOCKS_PER_SEC, d->maxT);
-		exit(EXIT_SUCCESS);
+		if (bitmap.display == 0) exit(EXIT_SUCCESS);
 	}
 }
 
