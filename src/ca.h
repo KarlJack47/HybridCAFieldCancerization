@@ -196,23 +196,33 @@ __global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, int g_size, int
 __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int dim) {
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int offset = x + y * blockDim.x * gridDim.x;
-
-	optr[offset].x = 255;
-	optr[offset].y = 255;
-	optr[offset].z = 255;
-	optr[offset].w = 255;
-
-	int gene = x / (float) (dim / 20);
-	if (gene % 2 == 1) gene = floor((float) gene / 2.0f);
-	else return;
-	int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * 100;
-	int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * 100;
-	int height = y / (float) (dim / 201);
 
 	if (x < dim && y < dim) {
-		if ((gene_expr_up < gene_expr_down && height < 100 && (100 - height) <= gene_expr_down) ||
-		     (gene_expr_up > gene_expr_down && height > 100 && (height - 100) <= gene_expr_up))  {
+		int offset = x + y * blockDim.x * gridDim.x;
+		int gene = x / (dim / (double) (2*grid[cell_idx].NN->n_output));
+		int scale = 100;
+		int height = y / (dim / (double) (2*scale+1));
+
+		optr[offset].x = 255;
+		optr[offset].y = 255;
+		optr[offset].z = 255;
+		optr[offset].w = 255;
+
+		if (abs(scale - height) == trunc(MUT_THRESHOLD*(double) scale)) {
+			optr[offset].x = 255;
+			optr[offset].y = 20;
+			optr[offset].z = 147;
+			optr[offset].w = 255;
+		}
+
+		if (gene % 2 == 1) gene = floor(gene / 2.0f);
+		else return;
+
+		int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * scale;
+		int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * scale;
+
+		if ((gene_expr_up < gene_expr_down && height < scale && (scale - height) <= gene_expr_down) ||
+		     (gene_expr_up > gene_expr_down && height > scale && (height - scale) <= gene_expr_up))  {
 			optr[offset].x = state_colors[grid[cell_idx].state*3];
 			optr[offset].y = state_colors[grid[cell_idx].state*3 + 1];
 			optr[offset].z = state_colors[grid[cell_idx].state*3 + 2];
