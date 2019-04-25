@@ -215,11 +215,23 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 			optr[offset].w = 255;
 		}
 
+		if (abs(scale - height) == 0) {
+			optr[offset].x = 0;
+			optr[offset].y = 0;
+			optr[offset].z = 0;
+			optr[offset].w = 255;
+		}
+
 		if (gene % 2 == 1) gene = floor(gene / 2.0f);
 		else return;
 
 		int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * scale;
 		int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * scale;
+
+		optr[offset].x = 255;
+		optr[offset].y = 20;
+		optr[offset].z = 147;
+		optr[offset].w = 255;
 
 		if ((gene_expr_up < gene_expr_down && height < scale && (scale - height) <= gene_expr_down) ||
 		     (gene_expr_up > gene_expr_down && height > scale && (height - scale) <= gene_expr_up))  {
