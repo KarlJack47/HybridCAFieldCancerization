@@ -221,8 +221,14 @@ struct GPUAnimBitmap {
 				break;
 			case GLFW_KEY_K:
 				if (action == GLFW_PRESS) {
-					if (bitmap->excise == false) bitmap->excise = true;
-					else bitmap->excise = false;
+					if (bitmap->excise == false) {
+						bitmap->excise = true;
+						printf("Tumour excision mode is activated.\n");
+					}
+					else {
+						bitmap->excise = false;
+						printf("Tumour excision mode is deactivated.\n");
+					}
 				}
 				break;
 		}
