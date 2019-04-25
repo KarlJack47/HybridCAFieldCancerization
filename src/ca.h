@@ -212,9 +212,9 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 			optr[offset].z = state_colors[grid[cell_idx].state*3 + 2];
 			optr[offset].w = 255;
 		} else {
-			optr[offset].x = 0;
-			optr[offset].y = 0;
-			optr[offset].z = 0;
+			optr[offset].x = 255;
+			optr[offset].y = 255;
+			optr[offset].z = 255;
 			optr[offset].w = 255;
 		}
 	}
@@ -523,6 +523,7 @@ struct CA {
 	void init(double *diffusion, double *out, double *in, double *W_x, double *W_y, double *b_y) {
 		int i, j;
 
+		printf("Grid initialization progress:   0.00/100.00");
 		#pragma omp parallel for collapse(2) schedule(guided)
 			for (i = 0; i < d.grid_size; i++) {
 				for (j = 0; j < d.grid_size; j++) {
@@ -530,8 +531,19 @@ struct CA {
 					d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
 					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_2, W_x, W_y, b_y);
 					d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
+
+					char format[40] = { '\0' };
+					double progress = ((i*d.grid_size + j) / (double) (d.grid_size * d.grid_size)) * 100.0f;
+					int num_dig = numDigits(progress);
+					int limit = num_dig+10;
+					if (trunc(progress*1000.0f) >= 9995 && num_dig == 1) limit += 1;
+					else if (trunc(progress*1000.0f) >= 99995 && num_dig == 2) limit += 1;
+					for (int k = 0; k < limit; k++) strcat(format, "\b");
+					strcat(format, "%.2f/%.2f");
+					printf(format, progress, 100.0f);
 				}
 			}
+		printf("\n");
 
 		prefetch_grids(d.dev_id_1, d.dev_id_2);
 
