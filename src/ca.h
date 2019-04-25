@@ -206,7 +206,7 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 
 	if (x < dim && y < dim) {
 		if ((gene_expr_up < gene_expr_down && height < 100 && (100 - height) <= gene_expr_down) ||
-		     (gene_expr_up > gene_expr_down && height > 100 && height - 100 <= gene_expr_up))  {
+		     (gene_expr_up > gene_expr_down && height > 100 && (height - 100) <= gene_expr_up))  {
 			optr[offset].x = state_colors[grid[cell_idx].state*3];
 			optr[offset].y = state_colors[grid[cell_idx].state*3 + 1];
 			optr[offset].z = state_colors[grid[cell_idx].state*3 + 2];
