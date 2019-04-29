@@ -64,7 +64,7 @@ struct CarcinogenPDE {
 	double *sol;
 	double *results;
 
-	CarcinogenPDE(int space_size, int num_timesteps, double diff, double out, double in, int idx, int dev) {
+	CarcinogenPDE(int space_size, int num_timesteps, double diff, double out, double in, double ic_in, double bc_in, int idx, int dev) {
 		device = dev;
 		N = space_size;
 		T = num_timesteps + 1;
@@ -74,8 +74,8 @@ struct CarcinogenPDE {
 		influx_per_cell = in;
 		dx = 1.0f / (double) N;
 		dt = 5e-4;
-		ic = 0.0f;
-		bc = 0.0f;
+		ic = ic_in;
+		bc = bc_in;
 		Nx = N / dx;
 		maxT = 1 / dt;
 		s = (diffusion * (T_scale / (double) maxT) * dt) / (3 * dx * dx);

@@ -47,6 +47,8 @@ int main(int argc, char *argv[]) {
 	double diffusion[1] = {1.266389e-5};
 	double out[1] = {9.722222e-8 / (double) (grid_size * grid_size)};
 	double in[1] = {2.37268e-6 / (double) (grid_size * grid_size)};
+	double ic[1] = {0.0f};
+	double bc[1] = {1.0f};
 
 	double *W_x = (double*)malloc(n_hidden*n_input*sizeof(double));
 	double *W_y = (double*)malloc(n_hidden*n_output*sizeof(double));
@@ -84,7 +86,7 @@ int main(int argc, char *argv[]) {
 
 	memset(b_y, 0.0f, n_output*sizeof(double));
 
-	ca.init(diffusion, out, in, W_x, W_y, b_y);
+	ca.init(diffusion, out, in, ic, bc, W_x, W_y, b_y);
 
 	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.show_window(bitmap.windows[i]);
 
