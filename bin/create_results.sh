@@ -7,7 +7,7 @@ save=0
 max_time=200
 grid_size=512
 maxt_tc=-1
-while getopts vdsn:t:g: option; do
+while getopts vdsn:t:g:e: option; do
     case "${option}"
     in
         v) verbose=1;;

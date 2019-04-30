@@ -8,7 +8,7 @@ save=0
 max_time=600
 grid_size=512
 maxt_tc=-1
-while getopts hvdsn:t:g: option; do
+while getopts hvdsn:t:g:e: option; do
     case "${option}"
     in
         h) help=1;;
