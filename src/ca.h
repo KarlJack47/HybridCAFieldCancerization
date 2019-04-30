@@ -15,6 +15,7 @@ struct DataBlock {
 	int maxT;
 	int n_carcinogens;
 	int n_output;
+	int maxt_tc_alive;
 
 	clock_t start, end;
 	clock_t start_step, end_step;
@@ -23,9 +24,10 @@ struct DataBlock {
 #pragma omp threadprivate(d)
 
 __managed__ bool csc_formed;
-#define MAX_EXCISE 20
+#define MAX_EXCISE 100
 __managed__ bool tc_formed[MAX_EXCISE+1];
 __managed__ int excise_count;
+__managed__ int time_tc_alive;
 
 GPUAnimBitmap bitmap(d.dim, d.dim, &d);
 
@@ -316,16 +318,22 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
+			if (tc_formed[excise_count] == true) time_tc_alive++;
+
 			reset_rule_params<<< blocks, threads >>>(d->prevGrid, d->grid_size);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			if (bitmap.excise == true && excise_count <= MAX_EXCISE && tc_formed[excise_count] == true) {
-				tumour_excision<<< blocks, threads >>>(d->newGrid, d->grid_size);
-				CudaCheckError();
-				CudaSafeCall(cudaDeviceSynchronize());
-				printf("Tumour excision was performed at time step %d.\n", ticks);
-				excise_count++;
+			if (excise_count <= MAX_EXCISE && tc_formed[excise_count] == true) {
+				if (bitmap.excise == true || time_tc_alive == d->maxt_tc_alive) {
+					tumour_excision<<< blocks, threads >>>(d->newGrid, d->grid_size);
+					CudaCheckError();
+					CudaSafeCall(cudaDeviceSynchronize());
+					printf("Tumour excision was performed at time step %d.\n", ticks);
+					if (excise_count == MAX_EXCISE) printf("The maximum number of tumour excisions has been performed.\n");
+					excise_count++;
+					time_tc_alive = 0;
+				}
 			}
 
 			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
@@ -338,8 +346,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 				CudaSafeCall(cudaDeviceSynchronize());
 			}
 
-			for (int i = 0; i < d->n_carcinogens; i++)
-				d->pdes[i].time_step(ticks, d->newGrid);
+			for (int i = 0; i < d->n_carcinogens; i++) d->pdes[i].time_step(ticks, d->newGrid);
 
 			CudaSafeCall(cudaFree(states));
 		}
@@ -493,7 +500,7 @@ void anim_exit( DataBlock *d ) {
 }
 
 struct CA {
-	CA(int g_size, int T, int n_carcin, int n_out, int save_frames, int display, char **carcin_names) {
+	CA(int g_size, int T, int n_carcin, int n_out, int save_frames, int display, int maxt_tc, char **carcin_names) {
 		d.frames = 0;
 		d.grid_size = g_size;
 		d.cell_size = d.dim/d.grid_size;
@@ -501,6 +508,7 @@ struct CA {
 		d.n_carcinogens = n_carcin;
 		d.n_output = n_out;
 		d.save_frames = save_frames;
+		d.maxt_tc_alive = maxt_tc;
 		bitmap.display = display;
 		bitmap.n_carcin = n_carcin;
 		bitmap.grid_size = g_size;

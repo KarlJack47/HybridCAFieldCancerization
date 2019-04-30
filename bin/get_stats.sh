@@ -18,10 +18,10 @@ fi
 
 if echo "$out_file" | grep -q "_"; then
     num_CSC="$(grep CSC $out_file.t | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
-    num_TC="$(grep TC $out_file.t | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
+    num_TC="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
 else
     num_CSC="$(grep CSC $out_file | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
-    num_TC="$(grep TC $out_file | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
+    num_TC="$(grep 'TC was formed at time step' $out_file | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
 fi
 
 if [ "$num_CSC" == "" ]; then
@@ -57,22 +57,22 @@ fi
 
 if [ ! "$num_TC" == "" ]; then
     if echo "$out_file" | grep -q "_"; then
-        sim_nums_s="$(grep TC $out_file.t | uniq | grep -oP '.* A' | sed -e 's/[^0-9]//g')"
-        sim_vals_s="$(grep TC $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9]//g')"
+        sim_nums_s="$(grep 'TC was formed at time step' $out_file.t | uniq | grep -oP '.* A' | sed -e 's/[^0-9]//g')"
+        sim_vals_s="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9]//g')"
         sim_nums_TC=($sim_nums_s)
         sim_vals_TC=($sim_vals_s)
-        avg_TC="$(grep TC $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | awk '{ total += $_; count++ } END { print total/count }')"
-        min_TC="$(grep TC $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | sort -n | head -1)"
-        max_TC="$(grep TC $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | sort -n | tail -1)"
+        avg_TC="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | awk '{ total += $_; count++ } END { print total/count }')"
+        min_TC="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | sort -n | head -1)"
+        max_TC="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | sort -n | tail -1)"
         rm *.t
     else
-        sim_nums_s="$(grep TC $out_file | sort -t / -k2n | uniq | grep -oP '.*(?=/)' | sed -e 's/[^0-9]//g')"
-        sim_vals_s="$(grep TC $out_file | sort -t / -k2n | uniq | sed 's/^.*://' | sed -e 's/[^0-9]//g')"
+        sim_nums_s="$(grep 'TC was formed at time step' $out_file | sort -t / -k2n | uniq | grep -oP '.*(?=/)' | sed -e 's/[^0-9]//g')"
+        sim_vals_s="$(grep 'TC was formed at time step' $out_file | sort -t / -k2n | uniq | sed 's/^.*://' | sed -e 's/[^0-9]//g')"
         sim_nums_TC=($sim_nums_s)
         sim_vals_TC=($sim_vals_s)
-        avg_TC="$(grep TC $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | awk '{ total += $_; count++ } END { print total/count }')"
-        min_TC="$(grep TC $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | sort -n | head -1)"
-        max_TC="$(grep TC $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | sort -n | tail -1)"
+        avg_TC="$(grep 'TC was formed at time step' $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | awk '{ total += $_; count++ } END { print total/count }')"
+        min_TC="$(grep 'TC was formed at time step' $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | sort -n | head -1)"
+        max_TC="$(grep 'TC was formed at time step' $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | sort -n | tail -1)"
     fi
 fi
 

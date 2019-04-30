@@ -2,32 +2,43 @@
 #include "ca.h"
 
 int main(int argc, char *argv[]) {
-	int grid_size; int T; int save_frames; int display;
+	int display, save_frames, T, grid_size, maxt_tc;
 	if (argc == 1) {
 		display = 0;
 		save_frames = 1;
 		T = 200;
 		grid_size = 512;
+		maxt_tc = -1;
 	} else if (argc == 2) {
 		display = atoi(argv[1]);
 		save_frames = 1;
 		T = 200;
 		grid_size = 512;
+		maxt_tc = -1;
 	} else if (argc == 3) {
 		display = atoi(argv[1]);
 		save_frames = atoi(argv[2]);
 		T = 200;
 		grid_size = 512;
+		maxt_tc = -1;
 	} else if (argc == 4) {
 		display = atoi(argv[1]);
 		save_frames = atoi(argv[2]);
 		T = atoi(argv[3]);
 		grid_size = 512;
+		maxt_tc = -1;
 	} else if (argc == 5) {
 		display = atoi(argv[1]);
 		save_frames = atoi(argv[2]);
 		T = atoi(argv[3]);
 		grid_size = atoi(argv[4]);
+		maxt_tc = -1;
+	} else if (argc == 6) {
+		display = atoi(argv[1]);
+		save_frames = atoi(argv[2]);
+		T = atoi(argv[3]);
+		grid_size = atoi(argv[4]);
+		maxt_tc = atoi(argv[5]);
 	}
 
 	clock_t start, end;
@@ -39,10 +50,10 @@ int main(int argc, char *argv[]) {
 	unsigned int n_input = 2;
 	unsigned int n_hidden = 10;
 	unsigned int n_output = 10;
-	CA ca(grid_size, T, 1, n_output, save_frames, display, carcin_names);
+	CA ca(grid_size, T, 1, n_output, save_frames, display, maxt_tc, carcin_names);
 	free(carcin_names[0]); free(carcin_names);
-	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 	ca.initialize_memory();
+	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 
 	double diffusion[1] = {1.266389e-5};
 	double out[1] = {9.722222e-8 / (double) (grid_size * grid_size)};
