@@ -22,7 +22,11 @@ done
 
 if [ $verbose -eq 1 ]; then
     echo "Simulation Runner"
-    echo "Running $num_sim simulations with a grid size of $grid_size and $max_time time steps."
+    if [ $maxt_tc -eq -1 ]; then
+        echo "Running $num_sim simulations with a grid size of $grid_size and $max_time time steps."
+    else
+        echo "Running $num_sim simulations with a grid size of $grid_size, $max_time time steps, and $maxt_tc time steps before excisions."
+    fi
     echo ""
 fi
 
