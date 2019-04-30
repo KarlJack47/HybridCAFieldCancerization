@@ -6,6 +6,7 @@ display=0
 save=0
 max_time=200
 grid_size=512
+maxt_tc=-1
 while getopts vdsn:t:g: option; do
     case "${option}"
     in
@@ -15,6 +16,7 @@ while getopts vdsn:t:g: option; do
 	n) num_sim=${OPTARG};;
         t) max_time=${OPTARG};;
         g) grid_size=${OPTARG};;
+	e) maxt_tc=${OPTARG};;
     esac
 done
 
@@ -39,17 +41,17 @@ for ((i=1; i <= num_sim; i++)); do
         cd $i
         touch $i.txt
         if [ $verbose -eq 1 ]; then
-            ../../main $display $save $max_time $grid_size | tee $i.txt
+            ../../main $display $save $max_time $grid_size $maxt_tc | tee $i.txt
         else
-            ../../main $display $save $max_time $grid_size > $i.txt
+            ../../main $display $save $max_time $grid_size $maxt_tc > $i.txt
         fi
         cd ..
     else
         echo $i >> $out_file
         if [ $verbose -eq 1 ]; then
-            ./main $display $save $max_time $grid_size | tee -a $out_file
+            ./main $display $save $max_time $grid_size $maxt_tc | tee -a $out_file
         else
-            ./main $display $save $max_time $grid_size >> $out_file
+            ./main $display $save $max_time $grid_size $maxt_tc >> $out_file
         fi
     fi
 

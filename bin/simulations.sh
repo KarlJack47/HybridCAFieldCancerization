@@ -7,6 +7,7 @@ display=0
 save=0
 max_time=600
 grid_size=512
+maxt_tc=-1
 while getopts hvdsn:t:g: option; do
     case "${option}"
     in
@@ -17,6 +18,7 @@ while getopts hvdsn:t:g: option; do
         n) num_sim=${OPTARG};;
         t) max_time=${OPTARG};;
         g) grid_size=${OPTARG};;
+	e) maxt_tc=${OPTARG};;
     esac
 done
 if [ $help -eq 1 ]; then
@@ -31,6 +33,8 @@ if [ $help -eq 1 ]; then
     echo "  -n int	number of simulations to run, default is 100"
     echo "  -t int	number of time steps, default is 600 (note simulation hasn't been verified for >800 steps)"
     echo "  -g int	size of the CA grid, default is 512 (should be a power of 2 between 16 and 1024)"
+    echo "  -e int	number of time steps tumour cells are alive, after which tumour excision is performed."
+    echo "              Default is -1 meaning no excision is performed unless user activates excision mode when the gui is active."
     exit 0
 fi
 
@@ -47,29 +51,29 @@ fi
 if [ $verbose -eq 1 ]; then
     if [ $save -eq 1 ]; then
         if [ $display -eq 1 ]; then
-            bin/create_results.sh -v -d -s -n $num_sim -t $max_time -g $grid_size 2> /dev/null
+            bin/create_results.sh -v -d -s -n $num_sim -t $max_time -g $grid_size -e $maxt_tc 2> /dev/null
         else
-            bin/create_results.sh -v -s -n $num_sim -t $max_time -g $grid_size 2> /dev/null
+            bin/create_results.sh -v -s -n $num_sim -t $max_time -g $grid_size -e $maxt_tc 2> /dev/null
         fi
     else
         if [ $display -eq 1 ]; then
-            bin/create_results.sh -v -d -n $num_sim -t $max_time -g $grid_size 2> /dev/null
+            bin/create_results.sh -v -d -n $num_sim -t $max_time -g $grid_size -e $maxt_tc 2> /dev/null
         else
-            bin/create_results.sh -v -n $num_sim -t $max_time -g $grid_size 2> /dev/null
+            bin/create_results.sh -v -n $num_sim -t $max_time -g $grid_size -e $maxt_tc 2> /dev/null
         fi
     fi
 else
     if [ $save -eq 1 ]; then
         if [ $display -eq 1 ]; then
-            bin/create_results.sh -d -s -n $num_sim -t $max_time -g $grid_size 2> /dev/null
+            bin/create_results.sh -d -s -n $num_sim -t $max_time -g $grid_size -e $maxt_tc 2> /dev/null
         else
-            bin/create_results.sh -s -n $num_sim -t $max_time -g $grid_size 2> /dev/null
+            bin/create_results.sh -s -n $num_sim -t $max_time -g $grid_size -e $maxt_tc 2> /dev/null
         fi
     else
         if [ $display -eq 1 ]; then
-            bin/create_results.sh -d -n $num_sim -t $max_time -g $grid_size 2> /dev/null
+            bin/create_results.sh -d -n $num_sim -t $max_time -g $grid_size -e $maxt_tc 2> /dev/null
         else
-            bin/create_results.sh -n $num_sim -t $max_time -g $grid_size 2> /dev/null
+            bin/create_results.sh -n $num_sim -t $max_time -g $grid_size -e $maxt_tc 2> /dev/null
         fi
     fi
 fi
