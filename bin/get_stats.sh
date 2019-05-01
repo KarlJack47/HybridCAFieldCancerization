@@ -37,8 +37,6 @@ for i in {0..1}; do
     else
         sim_nums=($(grep "${search_str[$i]}" $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
         sim_vals=($(grep "${search_str[$i]}" $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $pos_val))
-        echo ${sim_nums[@]}
-	echo ${sim_vals[@]}
         total=0
         for val in ${sim_vals[@]}; do
 	    total=$(($total+$val))
