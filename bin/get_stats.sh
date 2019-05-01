@@ -16,83 +16,110 @@ if echo "$out_file" | grep -q "_"; then
     done < $out_file > $out_file.t
 fi
 
+input=$out_file
+delim='/'
+pos_sim_num=2
+pos_val=8
 if echo "$out_file" | grep -q "_"; then
-    num_CSC="$(grep CSC $out_file.t | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
-    num_TC="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
-else
-    num_CSC="$(grep CSC $out_file | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
-    num_TC="$(grep 'TC was formed at time step' $out_file | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')"
+    input=$out_file.t
+    delim=' '
+    pos_sim_num=1
+    pos_val=9
 fi
 
-if [ "$num_CSC" == "" ]; then
-    echo 'No CSC were formed during the simulations.'
-fi
-if [ "$num_TC" == "" ]; then
-    echo 'No TC were formed during the simulations.'
-fi
+search_str=('CSC' 'TC was formed')
+cell_type=('CSC' 'TC')
+for i in {0..1}; do
+    num_sim_form=$(grep "${search_str[$i]}" $input | uniq | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')
 
-sim_nums_CSC=()
-sim_vals_CSC=()
-sim_nums_TC=()
-sim_vals_TC=()
-if [ ! "$num_CSC" == "" ]; then
-    if echo "$out_file" | grep -q "_"; then
-        sim_nums_s="$(grep CSC $out_file.t | uniq | grep -oP '.* A' | sed -e 's/[^0-9]//g')"
-        sim_vals_s="$(grep CSC $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9]//g')"
-        sim_nums_CSC=($sim_nums_s)
-        sim_vals_CSC=($sim_vals_s)
-        avg_CSC="$(grep CSC $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | awk '{ total += $_; count++ } END { print total/count }')"
-        min_CSC="$(grep CSC $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | sort -n | head -1)"
-        max_CSC="$(grep CSC $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | sort -n | tail -1)"
+    if [ "$num_sim_form" == "" ]; then
+        echo 'No' ${cell_type[$i]} 'were formed during the simulations.'
     else
-        sim_nums_s="$(grep CSC $out_file | sort -t / -k2n | uniq | grep -oP '.*(?=/)' | sed -e 's/[^0-9]//g')"
-        sim_vals_s="$(grep CSC $out_file | sort -t / -k2n | uniq | sed 's/^.*:/:/' | sed -e 's/[^0-9]//g')"
-        sim_nums_CSC=($sim_nums_s)
-        sim_vals_CSC=($sim_vals_s)
-        avg_CSC="$(grep CSC $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | awk '{ total += $_; count++ } END { print total/count }')"
-        min_CSC="$(grep CSC $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | sort -n | head -1)"
-        max_CSC="$(grep CSC $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | sort -n | tail -1)"
+        sim_nums=($(grep "${search_str[$i]}" $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
+        sim_vals=($(grep "${search_str[$i]}" $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $pos_val))
+        echo ${sim_nums[@]}
+	echo ${sim_vals[@]}
+        total=0
+        for val in ${sim_vals[@]}; do
+	    total=$(($total+$val))
+        done
+        avg=$(($total/$num_sim_form))
+        IFS=$'\n'
+        min=$(echo "${sim_vals[*]}" | sort -n | head -1)
+        max=$(echo "${sim_vals[*]}" | sort -n | tail -1)
+
+        for index in ${!sim_nums[@]}; do
+            echo 'The first' ${cell_type[$i]} 'formed at time step' ${sim_vals[$index]} 'for simulation' ${sim_nums[$index]}'.'
+        done
+        echo 'On average it took' $avg 'time steps for the first' ${cell_type[$i]} 'to form for the' $num_sim_form 'simulations.'
+        echo 'The minimum number of time steps for the first' ${cell_type[$i]} 'to form for the' $num_sim_form 'simulations was' $min'.'
+        echo 'The maximum number of time steps for the first' ${cell_type[$i]} 'to form for the' $num_sim_form 'simulations was' $max'.'
+        echo ''
+
+	if [ "${cell_type[$i]}" == "TC" ]; then
+	    total_vals=$(grep 'TC was reformed' $input | uniq | wc -l)
+	    if [ "$total_vals" == "" ]; then
+		continue
+	    fi
+	    sim_nums=($(grep 'TC was reformed' $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
+	    sim_vals=($(grep 'TC was reformed' $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $(($pos_val+1))))
+	    sim_num=${sim_nums[0]}
+	    num_excise=()
+	    count=0
+	    for val in ${sim_nums[@]}; do
+	        if [ "$sim_num" == "$val" ]; then
+		    count=$(($count+1))
+		else
+		    num_excise+=($count)
+		    count=1
+		    sim_num=$val
+		fi
+	    done
+            num_excise+=($count)
+	    start=0
+            for index in ${!num_excise[@]}; do
+                total=0
+		temp=()
+		limit=$(($start+${num_excise[$index]}))
+		sim_num=${sim_nums[$start]}
+		for idx in ${!sim_vals[@]}; do
+		    if [ "$idx" == "$limit" ]; then
+			start=$idx
+			break;
+		    fi
+		    if [[ $idx -ge $start ]]; then
+		        temp+=(${sim_vals[$idx]})
+		    fi
+		done
+		for val in ${temp[@]}; do
+		    total=$(($total+$val))
+		done
+		avg=$(($total/${num_excise[$index]}))
+		min=$(echo "${temp[*]}" | sort -n | head -1)
+        	max=$(echo "${temp[*]}" | sort -n | tail -1)
+		echo 'On average it took' $avg 'time steps for a TC to reform for simulation' $sim_num'.'
+		echo 'The minimum number of time steps for the first TC to reform for simulation' $sim_num 'was' $min'.'
+		echo 'The maximum number of time steps for the first TC to reform for simulation' $sim_num 'was' $max'.'
+            done
+            echo ''
+
+	    total=0
+	    for val in ${sim_vals[@]}; do
+	        total=$(($total+$val))
+	    done
+            avg=$(($total/$total_vals))
+	    min=$(echo "${sim_vals[*]}" | sort -n | head -1)
+	    max=$(echo "${sim_vals[*]}" | sort -n | tail -1)
+	    echo 'On average it took' $avg 'time steps for a TC to reform for the simulations.'
+	    echo 'The minimum number of time steps for a TC to reform for the simulations was' $min'.'
+	    echo 'The maximum number of time steps for a TC to reform for the simulations was' $max'.'
+	    echo ''
+	fi
     fi
-fi
+done
 
-if [ ! "$num_TC" == "" ]; then
-    if echo "$out_file" | grep -q "_"; then
-        sim_nums_s="$(grep 'TC was formed at time step' $out_file.t | uniq | grep -oP '.* A' | sed -e 's/[^0-9]//g')"
-        sim_vals_s="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9]//g')"
-        sim_nums_TC=($sim_nums_s)
-        sim_vals_TC=($sim_vals_s)
-        avg_TC="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | awk '{ total += $_; count++ } END { print total/count }')"
-        min_TC="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | sort -n | head -1)"
-        max_TC="$(grep 'TC was formed at time step' $out_file.t | uniq | sed 's/^. A*//' | sed -e 's/[^0-9 ]//g' | sort -n | tail -1)"
-        rm *.t
-    else
-        sim_nums_s="$(grep 'TC was formed at time step' $out_file | sort -t / -k2n | uniq | grep -oP '.*(?=/)' | sed -e 's/[^0-9]//g')"
-        sim_vals_s="$(grep 'TC was formed at time step' $out_file | sort -t / -k2n | uniq | sed 's/^.*://' | sed -e 's/[^0-9]//g')"
-        sim_nums_TC=($sim_nums_s)
-        sim_vals_TC=($sim_vals_s)
-        avg_TC="$(grep 'TC was formed at time step' $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | awk '{ total += $_; count++ } END { print total/count }')"
-        min_TC="$(grep 'TC was formed at time step' $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | sort -n | head -1)"
-        max_TC="$(grep 'TC was formed at time step' $out_file | uniq | sed 's/^.*://' | sed -e 's/[^0-9 ]//g' | sort -n | tail -1)"
-    fi
-fi
-
-if [ ! "$num_CSC" == "" ]; then
-    for index in ${!sim_nums_CSC[@]}; do
-        echo 'The first CSC formed at time step' ${sim_vals_CSC[$index]} 'for simulation' ${sim_nums_CSC[$index]}'.'
-    done
-    echo 'On average it took' $avg_CSC 'time steps for the first CSC to form for the' $num_CSC 'simulations.'
-    echo 'The minimum number of time steps for the first CSC to form for the' $num_CSC 'simulations was' $min_CSC'.'
-    echo 'The maximum number of time steps for the first CSC to form for the' $num_CSC 'simulations was' $max_CSC'.'
-    echo ''
-fi
-
-if [ ! "$num_TC" == "" ]; then
-    for index in ${!sim_nums_TC[@]}; do
-        echo 'The first TC formed at time step' ${sim_vals_TC[$index]} 'for simulation' ${sim_nums_TC[$index]}'.'
-    done
-    echo 'On average it took' $avg_TC 'time steps for the first TC to form for the' $num_TC 'simulations.'
-    echo 'The minimum number of time steps for the first TC to form for the' $num_TC 'simulations was' $min_TC'.'
-    echo 'The maximum number of time steps for the first TC to form for the' $num_TC 'simulations was' $max_TC'.'
+if echo "$out_file" | grep -q "_"; then
+    rm *.t
 fi
 
 exit 0
