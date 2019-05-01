@@ -71,7 +71,7 @@ if [ $save -eq 1 ]; then
     cd ..
     bin/get_stats.sh > output/stats.txt
 else
-    bin/get_stats.sh $out_file > output/stats.txt
+    bin/get_stats.sh $out_file > stats.txt
 fi
 
 exit 0
