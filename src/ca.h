@@ -212,9 +212,9 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 		optr[offset].w = 255;
 
 		if (abs(scale - height) == trunc(MUT_THRESHOLD*(double) scale)) {
-			optr[offset].x = 255;
-			optr[offset].y = 20;
-			optr[offset].z = 147;
+			optr[offset].x = 248;
+			optr[offset].y = 222;
+			optr[offset].z = 126;
 			optr[offset].w = 255;
 		}
 
@@ -231,9 +231,9 @@ __global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int di
 		int gene_expr_up = grid[cell_idx].gene_expressions[gene*2] * scale;
 		int gene_expr_down = grid[cell_idx].gene_expressions[gene*2+1] * scale;
 
-		optr[offset].x = 255;
-		optr[offset].y = 20;
-		optr[offset].z = 147;
+		optr[offset].x = 248;
+		optr[offset].y = 222;
+		optr[offset].z = 126;
 		optr[offset].w = 255;
 
 		if ((gene_expr_up < gene_expr_down && height < scale && (scale - height) <= gene_expr_down) ||
