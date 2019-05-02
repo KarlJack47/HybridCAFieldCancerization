@@ -71,7 +71,9 @@ if [ $save -eq 1 ]; then
     cd ..
     bin/get_stats.sh > output/stats.txt
 else
-    bin/get_stats.sh $out_file > stats.txt
+    bin/get_stats.sh $out_file > stats_$(date -d "today" +"%Y%m%d%H%M%S").txt
 fi
+
+rm output_*.txt
 
 exit 0
