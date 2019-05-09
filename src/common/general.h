@@ -19,7 +19,7 @@
 #define BIAS 0.001f
 #define ALPHA 100000
 #define CHANCE_MOVE 0.25f
-#define CHANCE_KILL 0.2f
+#define CHANCE_KILL 0.3f
 #define CHANCE_UPREG 0.5f
 #define CHANCE_PHENO_MUT 0.5f
 #define CSC_GENE_IDX 2
@@ -58,7 +58,7 @@ __managed__ double phenotype_init[7*4] = {0.05f, 0.9f, 0.01f, 0.0f,
 					  0.05f, 0.9f, 0.01f, 0.2f,
 					  0.1f, 0.9f, 0.005f, 0.25f,
 					  0.05f, 0.9f, 0.0025f, 0.2f,
-					  0.1f, 0.9f, 0.005f, 0.0f,
+					  0.25f, 0.9f, 0.005f, 0.0f,
 					  0.0f, 0.0f, 0.0f, 0.0f};
 __managed__ int state_mut_map[6*10] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 				       1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -79,8 +79,6 @@ __managed__ int diff_mut_map[6*11] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
 				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
-// If gene_type_map[i] = 0 then it is a tumour supressor gene else it is an oncogene
-__managed__ int gene_type_map[10] = { 0, 0, 0, 0, 0, 1, 1, 1, 1, 1 };
 #pragma omp threadprivate(carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
 
 void prefetch_params(int loc) {
