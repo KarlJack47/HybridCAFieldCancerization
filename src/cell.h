@@ -158,17 +158,22 @@ struct Cell {
 	}
 
 	__device__ int proliferate(Cell *c, int cell, curandState_t *states) {
-		int idx = (int) ceilf(curand_uniform_double(&states[cell]) * (double) NN->n_output) % NN->n_output;
 		int new_state = -1;
 
 		if ((state != 4 || state != 5) && c->state != 6) return -2;
 		if ((state == 4 || state == 5) && (c->state == 5 || c->state == 4)) return -2;
 
-		if ((state == 4 && fabs(NN->b_out[2] - BIAS) <= FLT_EPSILON && c->state == 6) ||
-		    (state == 4 && fabs(NN->b_out[2] - BIAS) <= FLT_EPSILON && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
+		int idx = (int) ceilf(curand_uniform_double(&states[cell]) * (double) NN->n_output) % NN->n_output;
+		double gene_expression = gene_expressions[idx*NN->n_output] - gene_expressions[idx*NN->n_output+1];
+		double csc_gene = gene_expressions[CSC_GENE_IDX*NN->n_output] - gene_expressions[CSC_GENE_IDX*NN->n_output+1];
+
+		if ((state == 4 && ((gene_type_map[CSC_GENE_IDX] == 0 && csc_gene < 0) || (gene_type_map[CSC_GENE_IDX] == 1
+		     && csc_gene > 0)) && c->state == 6) || (state == 4 && ((gene_type_map[CSC_GENE_IDX] == 0 && csc_gene < 0)
+		    || (gene_type_map[CSC_GENE_IDX] == 1 && csc_gene > 0) && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		    (state == 5 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		     state != 4) {
-			if (!(fabsf(NN->b_out[idx] - BIAS) <= FLT_EPSILON)) new_state = state;
+			if (fabsf(gene_expression) <= FLT_EPSILON || (gene_type_map[idx] == 0 && gene_expression > 0) || (gene_type_map[idx] == 1 && gene_expression < 0))
+				new_state = state;
 			else {
 				if (curand_uniform_double(&states[cell]) <= 0.5f) {
 					change_state(state_mut_map[state*NN->n_output+idx]);
@@ -187,15 +192,18 @@ struct Cell {
 	}
 
 	__device__ int differentiate(Cell *c, int cell, curandState_t *states) {
-		int idx = (int) ceilf(curand_uniform_double(&states[cell]) * (double) NN->n_output) % NN->n_output;
 		int new_state = -1;
 
 		if ((state != 4 || state != 5) && c->state != 6) return -2;
 		if ((state == 4 || state == 5) && (c->state == 5 || c->state == 4)) return -2;
 
+		int idx = (int) ceilf(curand_uniform_double(&states[cell]) * (double) NN->n_output) % NN->n_output;
+		double gene_expression = gene_expressions[idx*NN->n_output] - gene_expressions[idx*NN->n_output+1];
+
 		if (((state == 4 || state == 5) && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		    c->state == 6) {
-			if (!(fabsf(NN->b_out[idx] - BIAS) <= FLT_EPSILON)) new_state = diff_mut_map[state*(NN->n_output+1)];
+			if (fabsf(gene_expression) <= FLT_EPSILON || (gene_type_map[idx] == 0 && gene_expression > 0) || (gene_type_map[idx] == 1 && gene_expression < 0))
+				new_state = diff_mut_map[state*(NN->n_output+1)];
 			else {
 				if (curand_uniform_double(&states[cell]) <= 0.5f) {
 					change_state(state_mut_map[state*NN->n_output+idx]);

@@ -22,6 +22,7 @@
 #define CHANCE_KILL 0.2f
 #define CHANCE_UPREG 0.5f
 #define CHANCE_PHENO_MUT 0.5f
+#define CSC_GENE_IDX 2
 
 __managed__ unsigned int state_colors[7*3] = {0, 0, 0, // black (NC)
 					      87, 207, 0, // green (MNC)
@@ -77,7 +78,10 @@ __managed__ int diff_mut_map[6*11] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 				      1, 1, 1, 1, 1, 1, 1, 1, 4, 1, 4,
 				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
 				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
-#pragma omp threadprivate(carcinogen_mutation_map, index_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
+
+// If gene_type_map[i] = 0 then it is a tumour supressor gene else it is an oncogene
+__managed__ int gene_type_map[10] = { 0, 0, 0, 0, 0, 1, 1, 1, 1, 1 };
+#pragma omp threadprivate(carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
 
 void prefetch_params(int loc) {
 	int location = loc;
