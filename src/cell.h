@@ -169,7 +169,7 @@ struct Cell {
 
 		if ((state == 4 && ((gene_type_map[CSC_GENE_IDX] == 0 && csc_gene < 0) || (gene_type_map[CSC_GENE_IDX] == 1
 		     && csc_gene > 0)) && c->state == 6) || (state == 4 && ((gene_type_map[CSC_GENE_IDX] == 0 && csc_gene < 0)
-		    || (gene_type_map[CSC_GENE_IDX] == 1 && csc_gene > 0) && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
+		    || (gene_type_map[CSC_GENE_IDX] == 1 && csc_gene > 0)) && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		    (state == 5 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		     state != 4) {
 			if (fabsf(gene_expression) <= FLT_EPSILON || (gene_type_map[idx] == 0 && gene_expression > 0) || (gene_type_map[idx] == 1 && gene_expression < 0))
