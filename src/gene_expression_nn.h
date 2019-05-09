@@ -2,15 +2,15 @@
 #define __GENE_EXPRESSION_NN_H__
 
 __device__ void activation(int idx, double *input, double alpha, double *output) {
-	/*  Computes the value of the inverse square root unit: f(x) = x/sqrt(1 + alpha*x^2).
+	/*  Computes the value of the inverse square root unit: f(x) = abs(x/sqrt(1 + alpha*x^2)).
             Inputs:
             idx: current element being computed
 	    input: array, the input array
-	    alpha: parameter that controls range of output, that being (-1/sqrt(alpha), 1/(sqrt(alpha)
+	    alpha: parameter that controls range of output, that being (0, 1/(sqrt(alpha)
             output: array, the results of the computation are to be stored here
 	*/
 
-	output[idx] = input[idx] / sqrtf(1.0f + alpha*input[idx]*input[idx]);
+	output[idx] = fabsf(input[idx] / sqrtf(1.0f + alpha*input[idx]*input[idx]));
 }
 
 __device__ double* dot(int idx, double *m1, double *m2, double *output, int m1_rows , int m1_columns, int m2_columns) {
