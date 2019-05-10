@@ -32,11 +32,11 @@ cell_type=('CSC' 'TC')
 for i in {0..1}; do
     num_sim_form=$(grep "${search_str[$i]}" $input | uniq | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')
 
-    if [ "$num_sim_form" == "" ]; then
+    if [ "$num_sim_form" == "0" ]; then
         echo 'No' ${cell_type[$i]} 'were formed during the simulations.'
     else
-        sim_nums=($(grep "${search_str[$i]}" $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
-        sim_vals=($(grep "${search_str[$i]}" $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $pos_val))
+        sim_nums=($(grep "${search_str[$i]}" $input | uniq | sort -n | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
+        sim_vals=($(grep "${search_str[$i]}" $input | uniq | sort -n | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $pos_val))
         total=0
         for val in ${sim_vals[@]}; do
 	    total=$(($total+$val))
@@ -56,11 +56,11 @@ for i in {0..1}; do
 
 	if [ "${cell_type[$i]}" == "TC" ]; then
 	    total_vals=$(grep 'TC was reformed' $input | uniq | wc -l)
-	    if [ "$total_vals" == "" ]; then
+	    if [ "$total_vals" == "0" ]; then
 		continue
 	    fi
-	    sim_nums=($(grep 'TC was reformed' $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
-	    sim_vals=($(grep 'TC was reformed' $input | uniq | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $(($pos_val+1))))
+	    sim_nums=($(grep 'TC was reformed' $input | uniq | sort -n | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
+	    sim_vals=($(grep 'TC was reformed' $input | uniq | sort -n | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $(($pos_val+1))))
 	    sim_num=${sim_nums[0]}
 	    num_excise=()
 	    count=0

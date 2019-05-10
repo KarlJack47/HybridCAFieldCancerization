@@ -169,11 +169,7 @@ struct GPUAnimBitmap {
 			if (display == 1) glfwPollEvents();
 
 			char cell_name[18] = { '\0' };
-			strcat(cell_name, "Cell (");
-			sprintf(&cell_name[6], "%d", current_cell[0]);
-			strcat(cell_name, ", ");
-			sprintf(&cell_name[6+numDigits(current_cell[0])+2], "%d", current_cell[1]);
-			strcat(cell_name, ")");
+			sprintf(&cell_name[strlen(cell_name)], "Cell (%d, %d)", current_cell[0], current_cell[1]);
 			glfwSetWindowTitle(windows[1], cell_name);
 
 			glfwSetWindowTitle(windows[2], carcin_names[current_carcin]);
@@ -293,24 +289,12 @@ struct GPUAnimBitmap {
 				break;
 			case GLFW_KEY_S:
 				if (action == GLFW_PRESS && bitmap->paused) {
-					char fname[100] = {'c', 'e', 'l', 'l', '(', '\0'};
-					sprintf(&fname[5], "%d", bitmap->current_cell[0]);
-					int dig_cell_x = numDigits(bitmap->current_cell[0]);
-					fname[5+dig_cell_x] = ',';
-					fname[5+dig_cell_x+1] = ' ';
-					sprintf(&fname[7+dig_cell_x], "%d", bitmap->current_cell[1]);
-					int dig_cell_y = numDigits(bitmap->current_cell[1]);
-					fname[7+dig_cell_x+dig_cell_y] = ')';
-					fname[7+dig_cell_x+dig_cell_y+1] = '_';
+					char fname[100] = { '\0' };
+					sprintf(&fname[strlen(fname)], "cell(%d, %d)_", bitmap->current_cell[0], bitmap->current_cell[1]);
 					int dig_max = numDigits(bitmap->maxT);
 					int dig = numDigits(bitmap->ticks-1);
-					for (int i = 8+dig_cell_x+dig_cell_y; i < 8+dig_cell_x+dig_cell_y+dig_max-dig; i++)
-						fname[i] = '0';
-					sprintf(&fname[8+dig_cell_x+dig_cell_y+dig_max-dig], "%d", bitmap->ticks-1);
-					fname[8+dig_cell_x+dig_cell_y+dig_max] = '.';
-					fname[8+dig_cell_x+dig_cell_y+dig_max+1] = 'p';
-					fname[8+dig_cell_x+dig_cell_y+dig_max+2] = 'n';
-					fname[8+dig_cell_x+dig_cell_y+dig_max+3] = 'g';
+					for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
+					sprintf(&fname[strlen(fname)], "%d.png", bitmap->ticks-1);
 					unsigned char *frame;
 					CudaSafeCall(cudaMallocManaged((void**)&frame, bitmap->width*bitmap->height*4*sizeof(unsigned char)));
 					CudaSafeCall(cudaMemPrefetchAsync(frame, bitmap->width*bitmap->height*4*sizeof(unsigned char), 1, NULL));
