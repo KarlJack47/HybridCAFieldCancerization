@@ -24,7 +24,6 @@ struct DataBlock {
 #pragma omp threadprivate(d)
 
 __managed__ bool csc_formed;
-#define MAX_EXCISE 100
 __managed__ bool tc_formed[MAX_EXCISE+1];
 __managed__ int excise_count;
 __managed__ int time_tc_alive;

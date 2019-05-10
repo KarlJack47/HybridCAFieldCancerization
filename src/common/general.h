@@ -14,12 +14,13 @@
 
 #define NTHREADS 4
 #define BLOCK_SIZE 16
+#define MAX_EXCISE 100
 #define PHENOTYPE_INCR 0.001f
 #define MUT_THRESHOLD 0.1f
 #define BIAS 0.001f
 #define ALPHA 100000
 #define CHANCE_MOVE 0.25f
-#define CHANCE_KILL 0.3f
+#define CHANCE_KILL 0.35f
 #define CHANCE_UPREG 0.5f
 #define CHANCE_PHENO_MUT 0.5f
 #define CSC_GENE_IDX 2
