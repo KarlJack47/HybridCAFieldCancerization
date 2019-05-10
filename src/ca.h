@@ -358,15 +358,11 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 	}
 
 	if (d->save_frames == 1 && ticks <= d->maxT) {
-		char fname[14] = {' '};
+		char fname[14] = { '\0' };
 		int dig_max = numDigits(d->maxT);
 		int dig = numDigits(ticks);
 		for (int i = 0; i < dig_max-dig; i++) fname[i] = '0';
-		sprintf(&fname[dig_max-dig], "%d", ticks);
-		fname[dig_max] = '.';
-		fname[dig_max+1] = 'p';
-		fname[dig_max+2] = 'n';
-		fname[dig_max+3] = 'g';
+		sprintf(&fname[dig_max-dig], "%d.png", ticks);
 		unsigned char *frame;
 		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
 		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
@@ -383,12 +379,13 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 	}
 
 	if (ticks == d->maxT && d->save_frames == 1) {
-		if (numDigits(d->maxT) == 1)
-                    system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
-                else if (numDigits(d->maxT) == 2)
-                    system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %02d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
-                else if (numDigits(d->maxT) == 3)
-                    system("ffmpeg -y -v quiet -framerate 5 -start_number 0 -i %03d.png -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
+		int numDigMaxT = numDigits(d->maxT);
+		char command[107] = { '\0' };
+		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
+		if (numDigMaxT == 1) strcat(command, "%d.png");
+		else sprintf(&command[strlen(command)], "%%%d%dd.png", 0, numDigMaxT);
+		strcat(command, " -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
+		system(command);
 	}
 }
 
@@ -409,18 +406,11 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int tic
 	}
 
 	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
-		char fname[25] = {'c', 'a', 'r', 'c', 'i', 'n'};
-		sprintf(&fname[6], "%d", carcin_idx);
-		int dig_car = numDigits(carcin_idx);
-		fname[6+dig_car] = '_';
-		int dig_max = numDigits(d->maxT);
-		int dig = numDigits(ticks);
-		for (int i = 6+dig_car+1; i < 6+dig_car+1+dig_max-dig; i++) fname[i] = '0';
-		sprintf(&fname[6+dig_car+1+dig_max-dig], "%d", ticks);
-		fname[6+dig_car+1+dig_max] = '.';
-		fname[6+dig_car+1+dig_max+1] = 'p';
-		fname[6+dig_car+1+dig_max+2] = 'n';
-		fname[6+dig_car+1+dig_max+3] = 'g';
+		char fname[25] = { '\0' };
+		sprintf(&fname[strlen(fname)], "carcin%d_", carcin_idx);
+		int dig_max = numDigits(d->maxT); int dig = numDigits(ticks);
+		for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
+		sprintf(&fname[strlen(fname)], "%d.png", ticks);
 		unsigned char *frame;
 		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
 		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
@@ -438,19 +428,12 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int tic
 
 	if (!bitmap.paused && ticks == d->maxT && d->save_frames == 1) {
 		char command[250] = { '\0' };
-		char car_idx[5] = { '\0' };
-		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i carcin");
-		sprintf(car_idx, "%d", carcin_idx);
-		strcat(command, car_idx);
-		strcat(command, "_");
-		if (numDigits(d->maxT) == 1)
-			strcat(command, "%d.png -c:v libx264 -pix_fmt yuv420p out_carcin");
-		else if (numDigits(d->maxT) == 2)
-			strcat(command, "%02d.png -c:v libx264 -pix_fmt yuv420p out_carcin");
-		else if (numDigits(d->maxT) == 3)
-			strcat(command, "%03d.png -c:v libx264 -pix_fmt yuv420p out_carcin");
-		strcat(command, car_idx);
-		strcat(command, ".mp4");
+		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
+		int numDigMaxT = numDigits(d->maxT);
+		if (numDigMaxT == 1) sprintf(&command[strlen(command)], "carcin%d_%%d.png", carcin_idx);
+		else sprintf(&command[strlen(command)], "carcin%d_%%%d%dd.png", carcin_idx, 0, numDigMaxT);
+		strcat(command, " -c:v libx264 -pix_fmt yuv420p ");
+		sprintf(&command[strlen(command)], "out_carcin%d.mp4", carcin_idx);
 		system(command);
 	}
 }
