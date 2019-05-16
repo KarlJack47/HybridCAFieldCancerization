@@ -143,6 +143,27 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, curandS
 	}
 }
 
+__global__ void update_states(Cell *G, int g_size) {
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+	if (x < g_size && y < g_size) {
+		int offset = x + y * blockDim.x * gridDim.x;
+
+		if (G[offset].state != 4 && G[offset].state != 5 && G[offset].state != 6) {
+			int check = 1;
+			for (int i = 0; i < G[offset].NN->n_output; i++) {
+				if (G[offset].positively_mutated(i) == 0) {
+					check = 0;
+					break;
+				}
+			}
+			if (check == 1 && G[offset].state == 1) G[offset].change_state(0);
+			else if (check == 1 && G[offset].state == 3) G[offset].change_state(2);
+		}
+	}
+}
+
 __global__ void tumour_excision(Cell *G, int g_size) {
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -322,6 +343,10 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			else time_tc_dead++;
 
 			reset_rule_params<<< blocks, threads >>>(d->prevGrid, d->grid_size);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
+
+			update_states<<< blocks, threads >>>(d->newGrid, d->grid_size);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
