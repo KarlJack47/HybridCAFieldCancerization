@@ -157,6 +157,13 @@ struct Cell {
 		}
 	}
 
+	__device__ int positively_mutated(int M) {
+		if ((gene_type[M] == 0 && gene_expressions[M*2+1] >= MUT_THRESHOLD) || (gene_type[M] == 1 && gene_expressions[M*2] >= MUT_THRESHOLD))
+			return 0;
+		else
+			return 1;
+	}
+
 	__device__ int proliferate(Cell *c, int cell, curandState_t *states) {
 		int new_state = -1;
 
@@ -165,11 +172,11 @@ struct Cell {
 
 		int idx = (int) ceilf(curand_uniform_double(&states[cell]) * (double) NN->n_output) % NN->n_output;
 
-		if ((state == 4 && fabsf(NN->b_out[CSC_GENE_IDX] - BIAS) <= FLT_EPSILON && c->state == 6) ||
-		    (state == 4 && fabsf(NN->b_out[CSC_GENE_IDX] - BIAS) <= FLT_EPSILON && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
+		if ((state == 4 && positively_mutated(CSC_GENE_IDX) == 0 && c->state == 6) ||
+		    (state == 4 && positively_mutated(CSC_GENE_IDX) == 0 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		    (state == 5 && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		     state != 4) {
-			if (!(fabsf(NN->b_out[idx] - BIAS) <= FLT_EPSILON)) new_state = state;
+			if (positively_mutated(idx) == 1) new_state = state;
 			else {
 				if (curand_uniform_double(&states[cell]) <= 0.5f) {
 					change_state(state_mut_map[state*NN->n_output+idx]);
@@ -197,7 +204,7 @@ struct Cell {
 
 		if (((state == 4 || state == 5) && c->state != 6 && curand_uniform_double(&states[cell]) < CHANCE_KILL) ||
 		    c->state == 6) {
-			if (!(fabsf(NN->b_out[idx] - BIAS) <= FLT_EPSILON)) new_state = diff_mut_map[state*(NN->n_output+1)];
+			if (positively_mutated(idx) == 1) new_state = diff_mut_map[state*(NN->n_output+1)];
 			else {
 				if (curand_uniform_double(&states[cell]) <= 0.5f) {
 					change_state(state_mut_map[state*NN->n_output+idx]);

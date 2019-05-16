@@ -80,6 +80,9 @@ __managed__ int diff_mut_map[6*11] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
 				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
+// 0: tumour supressor, 1: oncogene
+__managed__ int gene_type[10] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
+
 #pragma omp threadprivate(carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
 
 void prefetch_params(int loc) {

@@ -128,9 +128,9 @@ struct GeneExpressionNN {
 
 	__device__ void mutate(double *gene_expressions) {
 		for (int i = 0; i < n_output; i++) {
-			if (b_out[i] <= FLT_EPSILON && !(fabsf(gene_expressions[i*2] - gene_expressions[i*2+1]) <= FLT_EPSILON) && (gene_expressions[i*2] >= MUT_THRESHOLD || gene_expressions[i*2+1] >= MUT_THRESHOLD))
+			if (b_out[i] <= FLT_EPSILON && ((gene_type[i] == 0 && gene_expressions[i*2+1] >= MUT_THRESHOLD) || (gene_type[i] == 1 && gene_expressions[i*2] >= MUT_THRESHOLD)))
 				b_out[i] = BIAS;
-			else if (fabsf(b_out[i] - BIAS) <= FLT_EPSILON && (fabsf(gene_expressions[i*2] - gene_expressions[i*2+1]) <= FLT_EPSILON || (gene_expressions[i*2] < MUT_THRESHOLD && gene_expressions[i*2+1] < MUT_THRESHOLD)))
+			else
 				b_out[i] = 0.0f;
 		}
 	}
