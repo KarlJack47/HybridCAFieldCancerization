@@ -5,44 +5,41 @@
 
 // globals needed by the update routines
 struct DataBlock {
-	int dev_id_1, dev_id_2;
+	unsigned int dev_id_1, dev_id_2;
 	Cell *prevGrid, *newGrid;
 	CarcinogenPDE *pdes;
 
-	int grid_size, cell_size;
-	const int dim = 1024;
-	int frame_rate;
-	int maxT;
-	int n_carcinogens;
-	int n_output;
-	int maxt_tc_alive;
+	unsigned int grid_size, cell_size;
+	const unsigned int dim = 1024;
+	unsigned int maxT;
+	unsigned int maxt_tc_alive;
 
 	clock_t start, end;
 	clock_t start_step, end_step;
-	int frames, save_frames;
+	unsigned int frame_rate, frames, save_frames;
 } d;
 #pragma omp threadprivate(d)
 
 __managed__ bool csc_formed;
 __managed__ bool tc_formed[MAX_EXCISE+1];
-__managed__ int excise_count;
-__managed__ int time_tc_alive;
-__managed__ int time_tc_dead;
+__managed__ unsigned int excise_count;
+__managed__ unsigned int time_tc_alive;
+__managed__ unsigned int time_tc_dead;
 
 GPUAnimBitmap bitmap(d.dim, d.dim, &d);
 
 __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, int g_size) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int idx = x + y * blockDim.x * gridDim.x;
-	int i;
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+	unsigned int idx = x + y * blockDim.x * gridDim.x;
+	unsigned int i;
 
 	if (x < g_size && y < g_size) {
 
 		dst[idx].state = src[idx].state;
         	dst[idx].age = src[idx].age;
 
-        	for (i = 0; i < 4; i++) dst[idx].phenotype[i] = src[idx].phenotype[i];
+        	for (i = 0; i < NUM_PHENO; i++) dst[idx].phenotype[i] = src[idx].phenotype[i];
         	for (i = 0; i < src[idx].NN->n_output; i++) {
 			dst[idx].gene_expressions[i*2] = src[idx].gene_expressions[i*2];
 			dst[idx].gene_expressions[i*2+1] = src[idx].gene_expressions[i*2+1];
@@ -51,46 +48,45 @@ __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, int g_size) {
         	dst[idx].NN->n_input = src[idx].NN->n_input;
         	dst[idx].NN->n_hidden = src[idx].NN->n_hidden;
         	dst[idx].NN->n_output = src[idx].NN->n_output;
-       		for (i = 0; i < src[idx].NN->n_input; i++) dst[idx].NN->input[i] = src[idx].NN->input[i];
-        	for (i = 0; i < src[idx].NN->n_hidden; i++) {
+       		for (i = 0; i < NUM_CARCIN+1; i++) dst[idx].NN->input[i] = src[idx].NN->input[i];
+        	for (i = 0; i < NUM_GENES; i++) {
                 	dst[idx].NN->hidden[i] = src[idx].NN->hidden[i];
                 	dst[idx].NN->output[i] = src[idx].NN->output[i];
                 	dst[idx].NN->b_out[i] = src[idx].NN->b_out[i];
         	}
-        	for (i = 0; i < src[idx].NN->n_input*src[idx].NN->n_hidden; i++) dst[idx].NN->W_in[i] = src[idx].NN->W_in[i];
-        	for (i = 0; i < src[idx].NN->n_hidden*src[idx].NN->n_output; i++)
+        	for (i = 0; i < (NUM_CARCIN+1)*NUM_GENES; i++) dst[idx].NN->W_in[i] = src[idx].NN->W_in[i];
+        	for (i = 0; i < NUM_GENES*NUM_GENES; i++)
                 	dst[idx].NN->W_out[i] = src[idx].NN->W_out[i];
 	}
 }
 
-__global__ void mutate_grid(Cell *prevG, int g_size, int t, CarcinogenPDE *pdes, curandState_t *states) {
+__global__ void mutate_grid(Cell *prevG, unsigned int g_size, unsigned int t, CarcinogenPDE *pdes, curandState_t *states) {
 	// map from threadIdx/blockIdx to pixel position
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int offset = x + y * blockDim.x * gridDim.x;
-	int i;
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+	unsigned int offset = x + y * blockDim.x * gridDim.x;
+	unsigned int i;
 
 	if (x < g_size && y < g_size) {
-		for (i = 0; i < prevG[offset].NN->n_input-1; i++)
-			prevG[offset].NN->input[i] = pdes[i].get(offset, t-1);
-		prevG[offset].NN->input[prevG[offset].NN->n_input-1] = prevG[offset].age;
+		for (i = 0; i < NUM_CARCIN; i++) prevG[offset].NN->input[i] = pdes[i].get(offset, t-1);
+		prevG[offset].NN->input[NUM_CARCIN] = prevG[offset].age;
 		prevG[offset].NN->evaluate();
 
 		prevG[offset].mutate(prevG[offset].NN->output, offset, states);
 	}
 }
 
-__global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, int g_size, int t) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
+__global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, unsigned int g_size, unsigned int t) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
 
 	if (x < g_size && y < g_size) {
-		int offset = x + y * blockDim.x * gridDim.x;
-		if (csc_formed == false && prevG[offset].state != 4 && newG[offset].state == 4) {
+		unsigned int offset = x + y * blockDim.x * gridDim.x;
+		if (csc_formed == false && prevG[offset].state != CSC && newG[offset].state == CSC) {
 			printf("A CSC was formed at time step %d.\n", t);
 			csc_formed = true;
 		}
-		if (tc_formed[excise_count] == false && prevG[offset].state != 5 && newG[offset].state == 5) {
+		if (tc_formed[excise_count] == false && prevG[offset].state != TC && newG[offset].state == TC) {
 			if (excise_count == 0) printf("A TC was formed at time step %d.\n", t);
 			else printf("A TC was reformed after excision %d and %d time steps at time step %d.\n", excise_count, time_tc_dead, t);
 			tc_formed[excise_count] = true;
@@ -98,43 +94,43 @@ __global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, int g_size, int 
 	}
 }
 
-__global__ void reset_rule_params(Cell *prevG, int g_size) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
+__global__ void reset_rule_params(Cell *prevG, unsigned int g_size) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
 
 	if (x < g_size && y < g_size) prevG[x + y * blockDim.x * gridDim.x].chosen_phenotype = -1;
 }
 
-__global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, curandState_t *states) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
+__global__ void rule(Cell *newG, Cell *prevG, unsigned int g_size, unsigned int phenotype, curandState_t *states) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
 
 	if (x < g_size && y < g_size) {
-		int offset = x + y * blockDim.x * gridDim.x;
+		unsigned int offset = x + y * blockDim.x * gridDim.x;
 
-		if (prevG[offset].state == 6) return;
+		if (prevG[offset].state == EMPTY) return;
 
 		if (prevG[offset].chosen_phenotype == -1)
 			prevG[offset].chosen_phenotype = prevG[offset].get_phenotype(offset, states);
 
-		if (phenotype == 2 && prevG[offset].chosen_phenotype == 2) {
+		if (phenotype == APOP && prevG[offset].chosen_phenotype == APOP) {
 			newG[offset].apoptosis();
 			return;
 		}
 
-		int state = -2; int i;
+		int state = -2; unsigned int i;
 
-		bool neigh[8] = { false, false, false, false, false, false, false, false };
-		while (neigh[0] == false && neigh[1] == false && neigh[2] == false && neigh[3] == false &&
-		       neigh[4] == false && neigh[5] == false && neigh[6] == false && neigh[7] == false) {
-			int idx = (int) ceilf(curand_uniform(&states[offset])*8) % 8;
-			int neigh_idx = prevG[offset].neighbourhood[idx];
+		bool neigh[NUM_NEIGH] = { false, false, false, false, false, false, false, false };
+		while (neigh[NORTH] == false && neigh[EAST] == false && neigh[SOUTH] == false && neigh[WEST] == false &&
+		       neigh[NORTH_EAST] == false && neigh[SOUTH_EAST] == false && neigh[SOUTH_WEST] == false && neigh[NORTH_WEST] == false) {
+			unsigned int idx = (unsigned int) ceilf(curand_uniform(&states[offset])*NUM_NEIGH) % NUM_NEIGH;
+			unsigned int neigh_idx = prevG[offset].neighbourhood[idx];
 			if (neigh[idx] == false) {
-				if (phenotype == 0 && prevG[offset].chosen_phenotype == 0)
+				if (phenotype == PROLIF && prevG[offset].chosen_phenotype == PROLIF)
 					state = newG[offset].proliferate(&newG[neigh_idx], offset, states);
-				else if (phenotype == 3 && prevG[offset].chosen_phenotype == 3)
+				else if (phenotype == DIFF && prevG[offset].chosen_phenotype == DIFF)
 					state = newG[offset].differentiate(&newG[neigh_idx], offset, states);
-				else if (phenotype == 1 && prevG[offset].chosen_phenotype == 1)
+				else if (phenotype == QUIES && prevG[offset].chosen_phenotype == QUIES)
 					state = newG[offset].move(&newG[neigh_idx], offset, states);
 				if (state != -2) break;
 				neigh[i] = true;
@@ -143,47 +139,47 @@ __global__ void rule(Cell *newG, Cell *prevG, int g_size, int phenotype, curandS
 	}
 }
 
-__global__ void update_states(Cell *G, int g_size) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
+__global__ void update_states(Cell *G, unsigned int g_size) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
 
 	if (x < g_size && y < g_size) {
-		int offset = x + y * blockDim.x * gridDim.x;
+		unsigned int offset = x + y * blockDim.x * gridDim.x;
 
-		if (G[offset].state != 4 && G[offset].state != 5 && G[offset].state != 6) {
+		if (G[offset].state != CSC && G[offset].state != TC && G[offset].state != EMPTY) {
 			int check = 1;
-			for (int i = 0; i < G[offset].NN->n_output; i++) {
+			for (int i = 0; i < NUM_GENES; i++) {
 				if (G[offset].positively_mutated(i) == 0) {
 					check = 0;
 					break;
 				}
 			}
-			if (check == 1 && G[offset].state == 1) G[offset].change_state(0);
-			else if (check == 1 && G[offset].state == 3) G[offset].change_state(2);
+			if (check == 1 && G[offset].state == MNC) G[offset].change_state(NC);
+			else if (check == 1 && G[offset].state == MSC) G[offset].change_state(SC);
 		}
 	}
 }
 
-__global__ void tumour_excision(Cell *G, int g_size) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
+__global__ void tumour_excision(Cell *G, unsigned int g_size) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
 
 	if (x < g_size && y < g_size) {
-		int offset = x + y * blockDim.x * gridDim.x;
+		unsigned int offset = x + y * blockDim.x * gridDim.x;
 
-		if (G[offset].state != 5) return;
+		if (G[offset].state != TC) return;
 
-		for (int i = 0; i < 8; i++) G[G[offset].neighbourhood[i]].apoptosis();
+		for (int i = 0; i < NUM_NEIGH; i++) G[G[offset].neighbourhood[i]].apoptosis();
 		G[offset].apoptosis();
 	}
 }
 
-__global__ void display_ca(uchar4 *optr, Cell *grid, int g_size, int cell_size, int dim) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int offset = x + y * blockDim.x * gridDim.x;
-	int offsetOptr = x * cell_size + y * cell_size * dim;
-	int i, j;
+__global__ void display_ca(uchar4 *optr, Cell *grid, unsigned int g_size, unsigned int cell_size, unsigned int dim) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+	unsigned int offset = x + y * blockDim.x * gridDim.x;
+	unsigned int offsetOptr = x * cell_size + y * cell_size * dim;
+	unsigned int i, j;
 
 	if (x < g_size && y < g_size) {
 		for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
@@ -197,12 +193,12 @@ __global__ void display_ca(uchar4 *optr, Cell *grid, int g_size, int cell_size, 
 	}
 }
 
-__global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, int g_size, int cell_size, int dim, int t) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int offset = x + y * blockDim.x * gridDim.x;
-	int offsetOptr = x * cell_size + y * cell_size * dim;
-	int i, j;
+__global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, unsigned int g_size, unsigned int cell_size, unsigned int dim, unsigned int t) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+	unsigned int offset = x + y * blockDim.x * gridDim.x;
+	unsigned int offsetOptr = x * cell_size + y * cell_size * dim;
+	unsigned int i, j;
 
 	if (x < g_size && y < g_size) {
 		for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
@@ -216,29 +212,29 @@ __global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, int g_size, int
 	}
 }
 
-__global__ void display_cell_data(uchar4 *optr, Cell *grid, int cell_idx, int dim) {
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
+__global__ void display_cell_data(uchar4 *optr, Cell *grid, unsigned int cell_idx, unsigned int dim) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
 
 	if (x < dim && y < dim) {
-		int offset = x + y * blockDim.x * gridDim.x;
-		int gene = x / (dim / (double) (2*grid[cell_idx].NN->n_output));
-		int scale = 100;
-		int height = y / (dim / (double) (2*scale+1));
+		unsigned int offset = x + y * blockDim.x * gridDim.x;
+		unsigned int gene = x / (dim / (double) (2*NUM_GENES));
+		unsigned int scale = 100;
+		unsigned int height = y / (dim / (double) (2*scale+1));
 
 		optr[offset].x = 255;
 		optr[offset].y = 255;
 		optr[offset].z = 255;
 		optr[offset].w = 255;
 
-		if (abs(scale - height) == trunc(MUT_THRESHOLD*(double) scale)) {
+		if (abs((int) scale - (int) height) == trunc(MUT_THRESHOLD*(double) scale)) {
 			optr[offset].x = 248;
 			optr[offset].y = 222;
 			optr[offset].z = 126;
 			optr[offset].w = 255;
 		}
 
-		if (abs(scale - height) == 0) {
+		if (abs((int) scale - (int) height) == 0) {
 			optr[offset].x = 0;
 			optr[offset].y = 0;
 			optr[offset].z = 0;
@@ -278,10 +274,10 @@ void prefetch_grids(int loc1, int loc2) {
 void prefetch_pdes(int loc) {
 	int location = loc;
 	if (loc == -1) location = cudaCpuDeviceId;
-	CudaSafeCall(cudaMemPrefetchAsync(d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(d.pdes, NUM_CARCIN*sizeof(CarcinogenPDE), location, NULL));
 }
 
-void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
+void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 	set_seed();
 
 	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
@@ -301,7 +297,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			for (int i = 0; i < d->n_carcinogens; i++)
+			for (int i = 0; i < NUM_CARCIN; i++)
 				CudaSafeCall(cudaMemPrefetchAsync(d->pdes[i].results, d->pdes[i].T*d->pdes[i].Nx*sizeof(double), d->dev_id_2, NULL));
 			prefetch_pdes(d->dev_id_2);
 
@@ -309,7 +305,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			for (int i = 0; i < d->n_carcinogens; i++)
+			for (int i = 0; i < NUM_CARCIN; i++)
 				CudaSafeCall(cudaMemPrefetchAsync(d->pdes[i].results, d->pdes[i].T*d->pdes[i].Nx*sizeof(double), cudaCpuDeviceId, NULL));
 			prefetch_pdes(-1);
 
@@ -317,15 +313,15 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			bool used_pheno[4] = { false, false, false, false };
-			while (used_pheno[0] == false && used_pheno[1] == false && used_pheno[2] == false && used_pheno[3] == false) {
-				int pheno = rand() % 4;
+			bool used_pheno[NUM_PHENO] = { false, false, false, false };
+			while (used_pheno[PROLIF] == false && used_pheno[QUIES] == false && used_pheno[APOP] == false && used_pheno[DIFF] == false) {
+				unsigned int pheno = rand() % NUM_PHENO;
 				if (used_pheno[pheno] == false) {
 					rule<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size, pheno, states);
 					CudaCheckError();
 					CudaSafeCall(cudaDeviceSynchronize());
 
-					if (pheno == 1) {
+					if (pheno == QUIES) {
 						cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
 						CudaCheckError();
 						CudaSafeCall(cudaDeviceSynchronize());
@@ -373,7 +369,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 				CudaSafeCall(cudaDeviceSynchronize());
 			}
 
-			for (int i = 0; i < d->n_carcinogens; i++) d->pdes[i].time_step(ticks, d->newGrid);
+			for (int i = 0; i < NUM_CARCIN; i++) d->pdes[i].time_step(ticks, d->newGrid);
 
 			CudaSafeCall(cudaFree(states));
 		}
@@ -413,7 +409,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, int ticks) {
 	}
 }
 
-void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int ticks) {
+void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx, unsigned int ticks) {
 	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
@@ -462,7 +458,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, int carcin_idx, int tic
 	}
 }
 
-void anim_gpu_cell(uchar4* outputBitmap, DataBlock *d, int cell_idx, int ticks) {
+void anim_gpu_cell(uchar4* outputBitmap, DataBlock *d, unsigned int cell_idx, unsigned int ticks) {
 	dim3 blocks(d->dim / BLOCK_SIZE, d->dim / BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
@@ -504,29 +500,26 @@ void anim_exit( DataBlock *d ) {
 	prefetch_grids(-1, -1);
 	CudaSafeCall(cudaFree(d->prevGrid));
 	CudaSafeCall(cudaFree(d->newGrid));
-	for (int i = 0; i < d->n_carcinogens; i++)
+	for (int i = 0; i < NUM_CARCIN; i++)
 		d->pdes[i].free_resources();
 	CudaSafeCall(cudaFree(d->pdes));
 }
 
 struct CA {
-	CA(int g_size, int T, int n_carcin, int n_out, int save_frames, int display, int maxt_tc, char **carcin_names) {
+	CA(unsigned int g_size, unsigned int T, int save_frames, int display, int maxt_tc, char **carcin_names) {
 		d.frames = 0;
 		d.grid_size = g_size;
 		d.cell_size = d.dim/d.grid_size;
 		d.maxT = T;
-		d.n_carcinogens = n_carcin;
-		d.n_output = n_out;
 		d.save_frames = save_frames;
 		d.maxt_tc_alive = maxt_tc;
 		bitmap.display = display;
-		bitmap.n_carcin = n_carcin;
 		bitmap.grid_size = g_size;
 		bitmap.maxT = T;
 		if (display == 0) bitmap.paused = false;
 
-		bitmap.carcin_names = (char**)malloc(n_carcin*sizeof(char*));
-		for (int i = 0; i < n_carcin; i++) {
+		bitmap.carcin_names = (char**)malloc(NUM_CARCIN*sizeof(char*));
+		for (int i = 0; i < NUM_CARCIN; i++) {
 			bitmap.carcin_names[i] = (char*)malloc((strlen(carcin_names[i])+1)*sizeof(char));
 			strcpy(bitmap.carcin_names[i], carcin_names[i]);
 		}
@@ -558,21 +551,21 @@ struct CA {
 		d.dev_id_1 = 0; d.dev_id_2 = 0;
 		if (num_devices == 2) d.dev_id_2 = 1;
 
-		CudaSafeCall(cudaMallocManaged((void**)&d.pdes, d.n_carcinogens*sizeof(CarcinogenPDE)));
+		CudaSafeCall(cudaMallocManaged((void**)&d.pdes, NUM_CARCIN*sizeof(CarcinogenPDE)));
 		CudaSafeCall(cudaMallocManaged((void**)&d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 		CudaSafeCall(cudaMallocManaged((void**)&d.newGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 	}
 
 	void init(double *diffusion, double *out, double *in, double *ic, double *bc, double *W_x, double *W_y, double *b_y) {
-		int i, j;
+		unsigned int i, j;
 
 		printf("Grid initialization progress:   0.00/100.00");
 		#pragma omp parallel for collapse(2) schedule(guided)
 			for (i = 0; i < d.grid_size; i++) {
 				for (j = 0; j < d.grid_size; j++) {
-					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_1, W_x, W_y, b_y);
+					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_1, W_x, W_y, b_y);
 					d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
-					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.n_carcinogens+1, d.n_output, d.dev_id_2, W_x, W_y, b_y);
+					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_2, W_x, W_y, b_y);
 					d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
 
 					char format[40] = { '\0' };
@@ -590,7 +583,7 @@ struct CA {
 
 		prefetch_grids(d.dev_id_1, d.dev_id_2);
 
-		for (int k = 0; k < d.n_carcinogens; k++) {
+		for (int k = 0; k < NUM_CARCIN; k++) {
 			d.pdes[k] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[k], out[k], in[k], ic[k], bc[k], k, d.dev_id_2);
 			d.pdes[k].init();
 		}

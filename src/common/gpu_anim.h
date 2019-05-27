@@ -27,7 +27,6 @@ struct GPUAnimBitmap {
 	void (*fAnimTimer)(void*,bool,int);
 	int dragStartX, dragStartY;
 	int display;
-	int n_carcin;
 	int grid_size;
 	int maxT;
 	int ticks;
@@ -37,12 +36,11 @@ struct GPUAnimBitmap {
 	bool paused;
 	bool excise;
 
-	GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int n_car=1, int g_size=512, int T=600, char **car_names=NULL) {
+	GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int g_size=512, int T=600, char **car_names=NULL) {
 		width = w;
 		height = h;
 		dataBlock = d;
 		display = show;
-		n_carcin = n_car;
 		grid_size = g_size;
 		paused = false;
 		if (display == 1) paused = true;
@@ -51,8 +49,8 @@ struct GPUAnimBitmap {
 		ticks = 0;
 
 		if (car_names != NULL) {
-			carcin_names = (char**)malloc(n_carcin*sizeof(char*));
-			for (int i = 0; i < n_carcin; i++) {
+			carcin_names = (char**)malloc(NUM_CARCIN*sizeof(char*));
+			for (int i = 0; i < NUM_CARCIN; i++) {
 				carcin_names[i] = (char*)malloc((strlen(car_names[i])+1)*sizeof(char));
 				strcpy(carcin_names[i], car_names[i]);
 			}
@@ -88,7 +86,7 @@ struct GPUAnimBitmap {
 
 	void free_resources(void) {
 		if (carcin_names != NULL) {
-			for (int i = 0; i < n_carcin; i++) free(carcin_names[i]);
+			for (int i = 0; i < NUM_CARCIN; i++) free(carcin_names[i]);
 			free(carcin_names);
 		}
 
@@ -179,7 +177,7 @@ struct GPUAnimBitmap {
 			if (!paused) update_window(0, ticks);
 			update_window(1, ticks, current_cell[0]*grid_size+current_cell[1], current_cell[0]*grid_size+current_cell[1]);
 			if (paused) glfwSwapBuffers(windows[1]);
-			for (int i = 0; i < n_carcin; i++)
+			for (int i = 0; i < NUM_CARCIN; i++)
 				if ((paused && i == current_carcin) || !paused)
 					update_window(2, ticks, i, current_carcin);
 
@@ -247,11 +245,11 @@ struct GPUAnimBitmap {
 				break;
 			case GLFW_KEY_RIGHT:
 				if (action == GLFW_PRESS)
-					change_current(window, &bitmap->current_carcin, bitmap->n_carcin);
+					change_current(window, &bitmap->current_carcin, NUM_CARCIN);
 				break;
 			case GLFW_KEY_LEFT:
 				if (action == GLFW_PRESS)
-					change_current(window, &bitmap->current_carcin, bitmap->n_carcin, false);
+					change_current(window, &bitmap->current_carcin, NUM_CARCIN, false);
 				break;
 		}
 	}

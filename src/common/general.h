@@ -15,6 +15,31 @@
 #define NTHREADS 4
 #define BLOCK_SIZE 16
 #define MAX_EXCISE 100
+#define NUM_GENES 10
+#define NUM_PHENO 4
+#define NUM_CARCIN 1
+#define NUM_STATES 7
+#define NC 0
+#define MNC 1
+#define SC 2
+#define MSC 3
+#define CSC 4
+#define TC 5
+#define EMPTY 6
+#define NUM_NEIGH 8
+#define PROLIF 0
+#define QUIES 1
+#define APOP 2
+#define DIFF 3
+#define NORTH 0
+#define EAST 1
+#define SOUTH 2
+#define WEST 3
+#define NORTH_EAST 4
+#define SOUTH_EAST 5
+#define SOUTH_WEST 6
+#define NORTH_WEST 7
+
 #define PHENOTYPE_INCR 0.001f
 #define MUT_THRESHOLD 0.1f
 #define BIAS 0.001f
@@ -25,82 +50,84 @@
 #define CHANCE_PHENO_MUT 0.5f
 #define CSC_GENE_IDX 2
 
-__managed__ unsigned int state_colors[7*3] = {0, 0, 0, // black (NC)
-					      87, 207, 0, // green (MNC)
-					      244, 131, 0, // orange (SC)
-					      0, 0, 255, // blue (MSC)
-					      89, 35, 112, // purple (CSC)
-					      255, 0, 0, // red (TC)
-					      255, 255, 255}; // white (empty)
+__managed__ unsigned int state_colors[NUM_STATES*3] = {0, 0, 0, // black (NC)
+					      	       87, 207, 0, // green (MNC)
+					      	       244, 131, 0, // orange (SC)
+					      	       0, 0, 255, // blue (MSC)
+					     	       89, 35, 112, // purple (CSC)
+					      	       255, 0, 0, // red (TC)
+					      	       255, 255, 255}; // white (empty)
 
-__managed__ double carcinogen_mutation_map[10] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-__managed__ double upreg_phenotype_map[10*4] = {-PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
-					        0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-					        -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, 0.0f,
-				    	        -PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR,
-					        -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-					        PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-					        0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-				    	        PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR,
-					        0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-					        PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR};
-__managed__ double downreg_phenotype_map[10*4] = {PHENOTYPE_INCR, -PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f,
-						  0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
-						  PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, 0.0f,
-				    		  PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR,
-						  PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-						  -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
-						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-				    		  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR,
-						  0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
-						  -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
-__managed__ double phenotype_init[7*4] = {0.05f, 0.9f, 0.01f, 0.0f,
-					  0.1f, 0.9f, 0.005f, 0.0f,
-					  0.05f, 0.9f, 0.01f, 0.2f,
-					  0.1f, 0.9f, 0.005f, 0.25f,
-					  0.05f, 0.9f, 0.0025f, 0.2f,
-					  0.25f, 0.9f, 0.005f, 0.0f,
-					  0.0f, 0.0f, 0.0f, 0.0f};
-__managed__ int state_mut_map[6*10] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-				       1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-				       3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
-				       3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
-				       4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-				       5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
-__managed__ int prolif_mut_map[6*10] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-					1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-					3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
-					3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
-				  	4, 4, 5, 4, 4, 4, 4, 4, 4, 4,
-					5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
-__managed__ int diff_mut_map[6*11] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				      -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-				      0, 1, 0, 0, 0, 0, 0, 0, 4, 0, 4,
-				      1, 1, 1, 1, 1, 1, 1, 1, 4, 1, 4,
-				      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
-				      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+__managed__ double carcinogen_mutation_map[NUM_GENES] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+__managed__ double upreg_phenotype_map[NUM_GENES*NUM_PHENO] = {-PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
+					        		0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+					        		-PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, 0.0f,
+				    	        		-PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR,
+					       			-PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+					        		PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+					        		0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+				    	        		PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR,
+					        		0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+					        		PHENOTYPE_INCR, 0.0f, -PHENOTYPE_INCR, PHENOTYPE_INCR};
+__managed__ double downreg_phenotype_map[NUM_GENES*NUM_PHENO] = {PHENOTYPE_INCR, -PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f,
+						  	 	 0.0f, 0.0f, -PHENOTYPE_INCR, 0.0f,
+						  	 	 PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, 0.0f,
+				    		  	 	 PHENOTYPE_INCR, -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR,
+						  	 	 PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+						  	 	 -PHENOTYPE_INCR, 0.0f, 0.0f, 0.0f,
+						  	 	 0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+				    		  	 	 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR,
+						  	 	 0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
+						  	 	 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
+__managed__ double phenotype_init[NUM_STATES*NUM_PHENO] = {0.05f, 0.9f, 0.01f, 0.0f,
+					  		   0.1f, 0.9f, 0.005f, 0.0f,
+					  		   0.05f, 0.9f, 0.01f, 0.2f,
+					  		   0.1f, 0.9f, 0.005f, 0.25f,
+					  		   0.05f, 0.9f, 0.0025f, 0.2f,
+					  		   0.25f, 0.9f, 0.005f, 0.0f,
+					  		   0.0f, 0.0f, 0.0f, 0.0f};
+__managed__ int state_mut_map[(NUM_STATES-1)*NUM_GENES] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+				      	      		   1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+				       	      		   3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
+				       	      		   3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
+				       	      		   4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+					      		   5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+__managed__ int prolif_mut_map[(NUM_STATES-1)*NUM_GENES] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+					       		    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+					       		    3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
+					       		    3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
+				  	       		    4, 4, 5, 4, 4, 4, 4, 4, 4, 4,
+					       		    5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+__managed__ int diff_mut_map[(NUM_STATES-1)*(NUM_GENES+1)] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				      		 	      -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+				      		 	      0, 1, 0, 0, 0, 0, 0, 0, 4, 0, 4,
+				      		 	      1, 1, 1, 1, 1, 1, 1, 1, 4, 1, 4,
+				      		 	      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
+				      		 	      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
 // 0: tumour supressor, 1: oncogene
-__managed__ int gene_type[10] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
+__managed__ unsigned int gene_type[NUM_GENES] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
 
 #pragma omp threadprivate(carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
 
 void prefetch_params(int loc) {
 	int location = loc;
 	if (loc == -1) location = cudaCpuDeviceId;
-	CudaSafeCall(cudaMemPrefetchAsync(carcinogen_mutation_map, 10*sizeof(double), location, NULL));
-	CudaSafeCall(cudaMemPrefetchAsync(upreg_phenotype_map, 10*4*sizeof(double), location, NULL));
-	CudaSafeCall(cudaMemPrefetchAsync(downreg_phenotype_map, 10*4*sizeof(double), location, NULL));
-	CudaSafeCall(cudaMemPrefetchAsync(phenotype_init, 7*4*sizeof(double), location, NULL));
-	CudaSafeCall(cudaMemPrefetchAsync(state_mut_map, 6*10*sizeof(int), location, NULL));
-	CudaSafeCall(cudaMemPrefetchAsync(prolif_mut_map, 6*10*sizeof(int), location, NULL));
-	CudaSafeCall(cudaMemPrefetchAsync(diff_mut_map, 6*10*sizeof(int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(state_colors, NUM_STATES*3*sizeof(unsigned int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(carcinogen_mutation_map, NUM_GENES*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(upreg_phenotype_map, NUM_GENES*NUM_PHENO*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(downreg_phenotype_map, NUM_GENES*NUM_PHENO*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(phenotype_init, NUM_STATES*NUM_PHENO*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(state_mut_map, (NUM_STATES-1)*NUM_GENES*sizeof(int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(prolif_mut_map, (NUM_STATES-1)*NUM_GENES*sizeof(int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(diff_mut_map, (NUM_STATES-1)*NUM_GENES*sizeof(int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(gene_type, NUM_GENES*sizeof(unsigned int), location, NULL));
 }
 
 /* Start Array Functions */
-__device__ int max_idx(double *L, int *location, int N) {
+__device__ int max_idx(double *L, unsigned int *location, unsigned int N) {
         double max = L[0];
-        int count = 0; int i;
+        unsigned int count = 0; unsigned int i;
 
         for (i = 1; i < N; i++) if (L[i] > max) max = L[i];
 
@@ -114,8 +141,8 @@ __device__ int max_idx(double *L, int *location, int N) {
         return count;
 }
 
-__device__ int get_indexes(double val, double *L, int *idx, int N) {
-        int count = 0; int i;
+__device__ unsigned int get_indexes(double val, double *L, unsigned int *idx, unsigned int N) {
+        unsigned int count = 0; unsigned int i;
 
         for (i = 0; i < N; i++) {
                 if (L[i] == val) {
@@ -129,23 +156,23 @@ __device__ int get_indexes(double val, double *L, int *idx, int N) {
 
 
 // Bitonic Sort Functions
-__device__ unsigned int greatestPowerOfTwoLessThan(int n) {
+__device__ unsigned int greatestPowerOfTwoLessThan(unsigned int n) {
 	int k = 1;
 	while (k > 0 && k < n) k <<= 1;
 	return (unsigned int) k >> 1;
 }
 
-__device__ void exchange(double *L, int i, int j) {
+__device__ void exchange(double *L, unsigned int i, unsigned int j) {
         double t = L[i];
         L[i] = L[j];
         L[j] = t;
 }
 
-__device__ void compare(double *L, int i, int j, bool dir) {
+__device__ void compare(double *L, unsigned int i, unsigned int j, bool dir) {
         if (dir==(L[i] > L[j])) exchange(L, i, j);
 }
 
-__device__ void bitonic_merge(double *L, int lo, int N, bool dir) {
+__device__ void bitonic_merge(double *L, int lo, unsigned int N, bool dir) {
 	int i;
         if (N > 1) {
                 int m =greatestPowerOfTwoLessThan(N);
@@ -155,9 +182,9 @@ __device__ void bitonic_merge(double *L, int lo, int N, bool dir) {
         }
 }
 
-__device__ void bitonic_sort(double *L, int lo, int N, bool dir ) {
+__device__ void bitonic_sort(double *L, int lo, unsigned int N, bool dir) {
         if (N > 1) {
-                int m = N/2;
+                unsigned int m = N/2;
                 bitonic_sort(L, lo, m, !dir);
                 bitonic_sort(L, lo+m, N-m, dir);
                 bitonic_merge(L, lo, N, dir);
@@ -175,7 +202,7 @@ void set_seed( void ) {
 
 // Set random seed for gpu
 __global__ void init_curand(unsigned int seed, curandState_t* states) {
-        int id = threadIdx.x + blockIdx.x * blockDim.x;
+        unsigned int id = threadIdx.x + blockIdx.x * blockDim.x;
         curand_init(seed, id, 0, &states[id]);
 }
 /* end functions around random number generation */
@@ -196,10 +223,10 @@ int numDigits(double x) {
 
 __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 	// map from threadIdx/BlockIdx to pixel position
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	int dim = gridDim.x*blockDim.x;
-	int idx = x + ((dim-1)-y)*dim;
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+	unsigned int dim = gridDim.x*blockDim.x;
+	unsigned int idx = x + ((dim-1)-y)*dim;
 
 	frame[4*dim*y+4*x] = optr[idx].x;
 	frame[4*dim*y+4*x+1] = optr[idx].y;

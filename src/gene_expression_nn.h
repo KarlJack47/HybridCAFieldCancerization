@@ -1,7 +1,7 @@
 #ifndef __GENE_EXPRESSION_NN_H__
 #define __GENE_EXPRESSION_NN_H__
 
-__device__ void hidden_layer_activation(int idx, double *input, double alpha, double *output) {
+__device__ void hidden_layer_activation(unsigned int idx, double *input, double alpha, double *output) {
 	/*  Computes the value of the inverse square root unit: f(x) = x/sqrt(1 + alpha*x^2).
             Inputs:
             idx: current element being computed
@@ -13,7 +13,7 @@ __device__ void hidden_layer_activation(int idx, double *input, double alpha, do
 	output[idx] = input[idx] / sqrtf(1.0f + alpha*input[idx]*input[idx]);
 }
 
-__device__ void output_layer_activation(int idx, double *input, double alpha, double *output) {
+__device__ void output_layer_activation(unsigned int idx, double *input, double alpha, double *output) {
 	/*  Computes the value of the inverse square root unit: f(x) = abs(x/sqrt(1 + alpha*x^2)).
             Inputs:
             idx: current element being computed
@@ -25,7 +25,7 @@ __device__ void output_layer_activation(int idx, double *input, double alpha, do
 	output[idx] = fabsf(input[idx] / sqrtf(1.0f + alpha*input[idx]*input[idx]));
 }
 
-__device__ double* dot(int idx, double *m1, double *m2, double *output, int m1_rows , int m1_columns, int m2_columns) {
+__device__ double* dot(unsigned int idx, double *m1, double *m2, double *output, unsigned int m1_rows , unsigned int m1_columns, unsigned int m2_columns) {
 	/*  Computes the product of two matrices: m1 x m2.
 	    Inputs:
 	    m1: array, left matrix of size m1_rows x m1_columns
@@ -37,7 +37,7 @@ __device__ double* dot(int idx, double *m1, double *m2, double *output, int m1_r
 	    m2_columns: int, number of columns in the right matrix m2
 	*/
 
-	int i, k;
+	unsigned int i, k;
 
 	for (i = idx; i < m1_rows*m2_columns; i += m2_columns*m1_rows) {
 		int r = i / m2_columns;
@@ -51,7 +51,7 @@ __device__ double* dot(int idx, double *m1, double *m2, double *output, int m1_r
 	return output;
 }
 
-__device__ double* matrixAddMatrix(int idx, double *m1, double *m2, double *output) {
+__device__ double* matrixAddMatrix(unsigned int idx, double *m1, double *m2, double *output) {
 	/* Computes the (elementwise) addition between two arrays
 	   Inputs:
 	   m1: array
@@ -67,7 +67,7 @@ __device__ double* matrixAddMatrix(int idx, double *m1, double *m2, double *outp
 __device__ void feedforward(double *input, double *W_in, double *hidden, double *W_out, double *b_out, double *output,
 			    int n_input, int n_hidden, int n_output) {
 
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < n_hidden; i++)
 		hidden_layer_activation(i, dot(i, W_in, input, hidden, n_hidden, n_input, 1), ALPHA, hidden);
@@ -85,11 +85,11 @@ struct GeneExpressionNN {
 	double *W_out;
 	double *b_out;
 
-	int n_input;
-	int n_hidden;
-	int n_output;
+	unsigned int n_input;
+	unsigned int n_hidden;
+	unsigned int n_output;
 
-	GeneExpressionNN(int n_in, int n_out) {
+	GeneExpressionNN(unsigned int n_in, unsigned int n_out) {
 		n_input = n_in;
 		n_hidden = n_out;
 		n_output = n_out;
@@ -139,7 +139,7 @@ struct GeneExpressionNN {
 	}
 
 	__device__ void mutate(double *gene_expressions) {
-		for (int i = 0; i < n_output; i++) {
+		for (unsigned int i = 0; i < NUM_GENES; i++) {
 			if (b_out[i] <= FLT_EPSILON && ((gene_type[i] == 0 && gene_expressions[i*2+1] >= MUT_THRESHOLD) || (gene_type[i] == 1 && gene_expressions[i*2] >= MUT_THRESHOLD)))
 				b_out[i] = BIAS;
 			else

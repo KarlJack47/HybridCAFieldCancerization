@@ -47,55 +47,52 @@ int main(int argc, char *argv[]) {
 	char **carcin_names = (char**)malloc(sizeof(char*));
 	carcin_names[0] = (char*)malloc(8*sizeof(char));
 	sprintf(carcin_names[0], "%s", "Alcohol");
-	unsigned int n_input = 2;
-	unsigned int n_hidden = 10;
-	unsigned int n_output = 10;
-	CA ca(grid_size, T, 1, n_output, save_frames, display, maxt_tc, carcin_names);
+	CA ca(grid_size, T, save_frames, display, maxt_tc, carcin_names);
 	free(carcin_names[0]); free(carcin_names);
 	ca.initialize_memory();
 	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 
-	double diffusion[1] = {1.266389e-5};
-	double out[1] = {9.722222e-8 / (double) (grid_size * grid_size)};
-	double in[1] = {2.37268e-6 / (double) (grid_size * grid_size)};
-	double ic[1] = {0.5f};
-	double bc[1] = {1.0f};
+	double diffusion[NUM_CARCIN] = {1.266389e-5};
+	double out[NUM_CARCIN] = {9.722222e-8 / (double) (grid_size * grid_size)};
+	double in[NUM_CARCIN] = {2.37268e-6 / (double) (grid_size * grid_size)};
+	double ic[NUM_CARCIN] = {0.5f};
+	double bc[NUM_CARCIN] = {1.0f};
 
-	double *W_x = (double*)malloc(n_hidden*n_input*sizeof(double));
-	double *W_y = (double*)malloc(n_hidden*n_output*sizeof(double));
-	double *b_y = (double*)malloc(n_output*sizeof(double));
+	double *W_x = (double*)malloc(NUM_GENES*(NUM_CARCIN+1)*sizeof(double));
+	double *W_y = (double*)malloc(NUM_GENES*NUM_GENES*sizeof(double));
+	double *b_y = (double*)malloc(NUM_GENES*sizeof(double));
 	
-	memset(W_x, 0.0f, n_hidden*n_input*sizeof(double));
+	memset(W_x, 0.0f, NUM_GENES*(NUM_CARCIN+1)*sizeof(double));
 
-	for (int i = 0; i < n_hidden; i++) {
-		for (int j = 0; j < n_input; j++) {
-			if (j != n_input-1)
-				W_x[i*n_input+j] = carcinogen_mutation_map[j*(n_input-1)+i];
-			else W_x[i*n_input+j] = 0.00001f;
+	for (int i = 0; i < NUM_GENES; i++) {
+		for (int j = 0; j < NUM_CARCIN+1; j++) {
+			if (j != NUM_CARCIN)
+				W_x[i*(NUM_CARCIN+1)+j] = carcinogen_mutation_map[j*NUM_CARCIN+i];
+			else W_x[i*(NUM_CARCIN+1)+j] = 0.00001f;
 		}
 	}
 
 	W_y[0] = 1.0f;
-	W_y[n_output+1] = 0.1f;
-	W_y[2*n_output+2] = 0.3f;
-	W_y[3*n_output+3] = 0.1f;
-	W_y[4*n_output+4] = 0.1f;
-	W_y[5*n_output+5] = 0.1f;
-	W_y[6*n_output+6] = 0.2f;
-	W_y[7*n_output+7] = 0.3f;
-	W_y[8*n_output+8] = 0.1f;
-	W_y[9*n_output+9] = 0.3f;
-	for (int i = 1; i < n_hidden; i++) W_y[i*n_output] = 0.01f;
-	W_y[2*n_output] = 0.01f;
-	W_y[n_output+2] = 0.01f;
-	W_y[6*n_output+2] = 0.01f;
-	W_y[3*n_output+6] = 0.01f;
-	W_y[3*n_output+7] = -0.01f;
-	W_y[9*n_output+7] = 0.01f;
-	W_y[6*n_output+9] = 0.01f;
-	W_y[7*n_output+9] = 0.01f;
+	W_y[NUM_GENES+1] = 0.1f;
+	W_y[2*NUM_GENES+2] = 0.3f;
+	W_y[3*NUM_GENES+3] = 0.1f;
+	W_y[4*NUM_GENES+4] = 0.1f;
+	W_y[5*NUM_GENES+5] = 0.1f;
+	W_y[6*NUM_GENES+6] = 0.2f;
+	W_y[7*NUM_GENES+7] = 0.3f;
+	W_y[8*NUM_GENES+8] = 0.1f;
+	W_y[9*NUM_GENES+9] = 0.3f;
+	for (int i = 1; i < NUM_GENES; i++) W_y[i*NUM_GENES] = 0.01f;
+	W_y[2*NUM_GENES] = 0.01f;
+	W_y[NUM_GENES+2] = 0.01f;
+	W_y[6*NUM_GENES+2] = 0.01f;
+	W_y[3*NUM_GENES+6] = 0.01f;
+	W_y[3*NUM_GENES+7] = -0.01f;
+	W_y[9*NUM_GENES+7] = 0.01f;
+	W_y[6*NUM_GENES+9] = 0.01f;
+	W_y[7*NUM_GENES+9] = 0.01f;
 
-	memset(b_y, 0.0f, n_output*sizeof(double));
+	memset(b_y, 0.0f, NUM_GENES*sizeof(double));
 
 	ca.init(diffusion, out, in, ic, bc, W_x, W_y, b_y);
 
