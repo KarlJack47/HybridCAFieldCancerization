@@ -1,12 +1,24 @@
 #ifndef __GENE_EXPRESSION_NN_H__
 #define __GENE_EXPRESSION_NN_H__
 
-__device__ void activation(int idx, double *input, double alpha, double *output) {
+__device__ void hidden_layer_activation(int idx, double *input, double alpha, double *output) {
+	/*  Computes the value of the inverse square root unit: f(x) = x/sqrt(1 + alpha*x^2).
+            Inputs:
+            idx: current element being computed
+	    input: array, the input array
+	    alpha: parameter that controls range of output, that being (-1/sqrt(alpha), 1/sqrt(alpha))
+            output: array, the results of the computation are to be stored here
+	*/
+
+	output[idx] = input[idx] / sqrtf(1.0f + alpha*input[idx]*input[idx]);
+}
+
+__device__ void output_layer_activation(int idx, double *input, double alpha, double *output) {
 	/*  Computes the value of the inverse square root unit: f(x) = abs(x/sqrt(1 + alpha*x^2)).
             Inputs:
             idx: current element being computed
 	    input: array, the input array
-	    alpha: parameter that controls range of output, that being (0, 1/(sqrt(alpha)
+	    alpha: parameter that controls range of output, that being (0, 1/sqrt(alpha))
             output: array, the results of the computation are to be stored here
 	*/
 
@@ -58,10 +70,10 @@ __device__ void feedforward(double *input, double *W_in, double *hidden, double 
 	int i;
 
 	for (i = 0; i < n_hidden; i++)
-		activation(i, dot(i, W_in, input, hidden, n_hidden, n_input, 1), ALPHA, hidden);
+		hidden_layer_activation(i, dot(i, W_in, input, hidden, n_hidden, n_input, 1), ALPHA, hidden);
 
 	for (i = 0; i < n_output; i++)
-		activation(i, matrixAddMatrix(i, dot(i, W_out, hidden, output, n_hidden, n_output, 1), b_out, output), ALPHA, output);
+		output_layer_activation(i, matrixAddMatrix(i, dot(i, W_out, hidden, output, n_hidden, n_output, 1), b_out, output), ALPHA, output);
 }
 
 struct GeneExpressionNN {
