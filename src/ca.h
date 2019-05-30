@@ -483,21 +483,37 @@ void anim_gpu_timer(DataBlock *d, bool start, int ticks) {
 	if (ticks == d->maxT && !start) {
 		d->end = clock();
 		printf("It took %f seconds to run the %d time steps.\n", (double) (d->end - d->start) / CLOCKS_PER_SEC, d->maxT);
-		exit(EXIT_SUCCESS);
 	}
+}
+
+void print_progress(int i, int j) {
+	char format[40] = { '\0' };
+	double progress = ((i*d.grid_size + j) / (double) (d.grid_size * d.grid_size)) * 100.0f;
+	int num_dig = numDigits(progress);
+	int limit = num_dig+10;
+	if (trunc(progress*1000.0f) >= 9995 && num_dig == 1) limit += 1;
+	else if (trunc(progress*1000.0f) >= 99995 && num_dig == 2) limit += 1;
+	for (int k = 0; k < limit; k++) strcat(format, "\b");
+	strcat(format, "%.2f/%.2f");
+	printf(format, progress, 100.0f);
 }
 
 void anim_exit( DataBlock *d ) {
 	CudaSafeCall(cudaDeviceSynchronize());
-	prefetch_params(-1);
-	#pragma omp parallel for schedule(guided)
-		for (int i = 0; i < d->grid_size*d->grid_size; i++) {
-			d->prevGrid[i].prefetch_cell_params(-1, d->grid_size);
-			d->prevGrid[i].free_resources();
-			d->prevGrid[i].prefetch_cell_params(-1, d->grid_size);
-			d->newGrid[i].free_resources();
-		}
-	prefetch_grids(-1, -1);
+	for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
+	printf("Freeing Grid Memory:   0.00/100.00");
+	clock_t start = clock();
+	#pragma omp parallel for collapse(2) schedule(guided)
+			for (int i = 0; i < d->grid_size; i++) {
+				for (int j = 0; j < d->grid_size; j++) {
+					d->prevGrid[i*d->grid_size+j].free_resources();
+					d->newGrid[i*d->grid_size+j].free_resources();
+
+					print_progress(i, j);
+				}
+			}
+	printf("\n");
+	printf("It took %f seconds to finish freeing the memory.\n", (double) (clock() - start) / CLOCKS_PER_SEC);
 	CudaSafeCall(cudaFree(d->prevGrid));
 	CudaSafeCall(cudaFree(d->newGrid));
 	for (int i = 0; i < NUM_CARCIN; i++)
@@ -524,9 +540,8 @@ struct CA {
 			strcpy(bitmap.carcin_names[i], carcin_names[i]);
 		}
 		bitmap.create_window(2, bitmap.width, bitmap.height, carcin_names[0], &bitmap.key_carcin);
-		if (bitmap.display == 0)
-			for (int i = 0; i < 3; i++)
-				bitmap.hide_window(bitmap.windows[i]);
+		if (bitmap.display == 0) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
+		else for (int i = 1; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 		csc_formed = false;
 		for (int i = 0; i < MAX_EXCISE+1; i++) tc_formed[i] = false;
 		time_tc_alive = 0;
@@ -568,15 +583,7 @@ struct CA {
 					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_2, W_x, W_y, b_y);
 					d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
 
-					char format[40] = { '\0' };
-					double progress = ((i*d.grid_size + j) / (double) (d.grid_size * d.grid_size)) * 100.0f;
-					int num_dig = numDigits(progress);
-					int limit = num_dig+10;
-					if (trunc(progress*1000.0f) >= 9995 && num_dig == 1) limit += 1;
-					else if (trunc(progress*1000.0f) >= 99995 && num_dig == 2) limit += 1;
-					for (int k = 0; k < limit; k++) strcat(format, "\b");
-					strcat(format, "%.2f/%.2f");
-					printf(format, progress, 100.0f);
+					print_progress(i, j);
 				}
 			}
 		printf("\n");
