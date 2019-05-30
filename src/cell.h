@@ -103,6 +103,7 @@ struct Cell {
 
 	void free_resources(void) {
 		CudaSafeCall(cudaDeviceSynchronize());
+		CudaSafeCall(cudaFree(phenotype));
 		CudaSafeCall(cudaFree(neighbourhood));
 		CudaSafeCall(cudaFree(gene_expressions));
 		NN->free_resources();
