@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
 
 	ca.init(diffusion, out, in, ic, bc, W_x, W_y, b_y);
 
-	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.show_window(bitmap.windows[i]);
+	if (bitmap.display == 1) for (int i = 0; i < 1; i++) bitmap.show_window(bitmap.windows[i]);
 
 	free(W_x);
 	free(W_y);
