@@ -69,11 +69,11 @@ struct GPUAnimBitmap {
 
 		char window_name[12] = { '\0' };
 		strcpy(window_name, "CA");
-		create_window(0, width, height, window_name, &key_ca);
+		create_window(0, width, height, window_name, &key_ca, &mouse_button_ca);
 		strcpy(window_name, "Cell (0, 0)");
-		create_window(1, width, height, window_name, &key_cell);
+		create_window(1, width, height, window_name, &key_cell, NULL);
 		if (car_names != NULL)
-			create_window(2, width, height, carcin_names[0], &key_carcin);
+			create_window(2, width, height, carcin_names[0], &key_carcin, NULL);
 	}
 
 	~GPUAnimBitmap(void) { free_resources(); }
@@ -105,7 +105,7 @@ struct GPUAnimBitmap {
 	long image_size(void) const { return width * height * sizeof(uchar4); }
 
 	void create_window(int window_idx, int w, int h, char *name,
-			   void(*key)(GLFWwindow *,int,int,int,int)) {
+			   void(*key)(GLFWwindow *,int,int,int,int), void(*mouse_button)(GLFWwindow *, int, int, int)) {
 		windows[window_idx] = glfwCreateWindow(w, h, name, NULL, NULL);
 		if (!windows[window_idx]) {
 			glfwTerminate();
@@ -115,6 +115,7 @@ struct GPUAnimBitmap {
 		glfwMakeContextCurrent(windows[window_idx]);
 
 		glfwSetKeyCallback(windows[window_idx], key);
+		glfwSetMouseButtonCallback(windows[window_idx], mouse_button);
 
 		if (window_idx == 0)
 			gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
@@ -385,6 +386,21 @@ struct GPUAnimBitmap {
 			case GLFW_KEY_X:
 				if (action == GLFW_PRESS) detach_window(bitmap->windows, 0, &bitmap->current_context, bitmap->detached);
 				break;
+		}
+	}
+
+	static void mouse_button_ca(GLFWwindow *window, int button, int action, int mods) {
+		GPUAnimBitmap *bitmap = *(get_bitmap_ptr());
+
+		if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+			double xpos, ypos;
+			glfwGetCursorPos(window, &xpos, &ypos);
+
+			int cell_x = (int) ((xpos/(double) bitmap->width)*(double) bitmap->grid_size);
+			int cell_y = (int) (((bitmap->height - ypos)/(double) bitmap->height)*(double) bitmap->grid_size);
+
+			bitmap->current_cell[0] = cell_x;
+			bitmap->current_cell[1] = cell_y;
 		}
 	}
 

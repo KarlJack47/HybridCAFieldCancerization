@@ -539,7 +539,7 @@ struct CA {
 			bitmap.carcin_names[i] = (char*)malloc((strlen(carcin_names[i])+1)*sizeof(char));
 			strcpy(bitmap.carcin_names[i], carcin_names[i]);
 		}
-		bitmap.create_window(2, bitmap.width, bitmap.height, carcin_names[0], &bitmap.key_carcin);
+		bitmap.create_window(2, bitmap.width, bitmap.height, carcin_names[0], &bitmap.key_carcin, NULL);
 		if (bitmap.display == 0) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 		else for (int i = 1; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 		csc_formed = false;
