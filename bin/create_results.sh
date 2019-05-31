@@ -36,6 +36,7 @@ fi
 
 out_file=output_$(date -d "today" +"%Y%m%d%H%M%S").txt
 for ((i=1; i <= num_sim; i++)); do
+    j=$i
     if [ $verbose -eq 1 ]; then
         echo "Running simulation $i"
     fi
@@ -49,6 +50,9 @@ for ((i=1; i <= num_sim; i++)); do
         else
             ../../main $display $save $max_time $grid_size $maxt_tc > $i.txt
         fi
+	if [ $(ls | grep ^[0-9]*.png | wc -l) -lt $(($max_time+1)) ]; then
+		i=$(($num_sim+1))
+	fi
         cd ..
     else
         echo $i >> $out_file
@@ -60,7 +64,7 @@ for ((i=1; i <= num_sim; i++)); do
     fi
 
     if [ $verbose -eq 1 ]; then
-        echo "Done simulation $i"
+        echo "Done simulation $j"
     fi
 done
 
