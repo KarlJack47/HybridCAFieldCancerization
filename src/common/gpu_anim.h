@@ -25,7 +25,6 @@ struct GPUAnimBitmap {
 	void (*fAnimCarcin)(uchar4*,void*,int,int);
 	void (*fAnimCell)(uchar4*,void*,int,int);
 	void (*fAnimTimer)(void*,bool,int);
-	int dragStartX, dragStartY;
 	int display;
 	int grid_size;
 	int maxT;
@@ -35,8 +34,9 @@ struct GPUAnimBitmap {
 	int current_context;
 	int current_cell[2];
 	bool detached[2];
-	bool paused;
 	bool excise;
+	bool paused;
+	bool windowsShouldClose;
 
 	GPUAnimBitmap(int w, int h, void *d=NULL, int show=1, int g_size=512, int T=600, char **car_names=NULL) {
 		width = w;
@@ -66,14 +66,19 @@ struct GPUAnimBitmap {
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-		char window_name[12] = { '\0' };
+		char window_name[20] = { '\0' };
 		strcpy(window_name, "CA");
 		create_window(0, width, height, window_name, &key_ca, &mouse_button_ca);
 		strcpy(window_name, "Cell (0, 0)");
 		create_window(1, width, height, window_name, &key_cell, NULL);
 		if (car_names != NULL)
 			create_window(2, width, height, carcin_names[0], &key_carcin, NULL);
+		else {
+			strcpy(window_name, "Carcinogens");
+			create_window(2, width, height, window_name, &key_carcin, NULL);
+		}
 	}
 
 	~GPUAnimBitmap(void) { free_resources(); }
@@ -159,7 +164,9 @@ struct GPUAnimBitmap {
 		detached[0] = false;
 		detached[1] = false;
 
-		bool windowsShouldClose = false;
+		if (display == 1) show_window(windows[0]);
+
+		windowsShouldClose = false;
 		while (!windowsShouldClose) {
 			if (glfwWindowShouldClose(windows[0]) || glfwWindowShouldClose(windows[1]) || glfwWindowShouldClose(windows[2])) {
 				int idx = 1;
@@ -167,7 +174,7 @@ struct GPUAnimBitmap {
 				if (detached[idx-1]) {
 					detach_window(windows, idx-1, &current_context, detached);
 					glfwSetWindowShouldClose(windows[idx], GLFW_FALSE);
-				} else if (!detached[idx-1] || glfwWindowShouldClose(windows[0])) { windowsShouldClose = true; continue; }
+				} else if (!detached[idx-1] || glfwWindowShouldClose(windows[0])) { windowsShouldClose = true; }
 			}
 
 			int xpos, ypos = 0;

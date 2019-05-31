@@ -50,7 +50,6 @@ int main(int argc, char *argv[]) {
 	CA ca(grid_size, T, save_frames, display, maxt_tc, carcin_names);
 	free(carcin_names[0]); free(carcin_names);
 	ca.initialize_memory();
-	if (bitmap.display == 1) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 
 	double diffusion[NUM_CARCIN] = {1.266389e-5};
 	double out[NUM_CARCIN] = {9.722222e-8 / (double) (grid_size * grid_size)};
@@ -95,8 +94,6 @@ int main(int argc, char *argv[]) {
 	memset(b_y, 0.0f, NUM_GENES*sizeof(double));
 
 	ca.init(diffusion, out, in, ic, bc, W_x, W_y, b_y);
-
-	if (bitmap.display == 1) for (int i = 0; i < 1; i++) bitmap.show_window(bitmap.windows[i]);
 
 	free(W_x);
 	free(W_y);

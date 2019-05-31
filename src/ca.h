@@ -398,7 +398,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	if (!bitmap.paused && ticks == d->maxT && d->save_frames == 1) {
+	if (!bitmap.paused && (bitmap.windowsShouldClose || ticks == d->maxT) && d->save_frames == 1) {
 		int numDigMaxT = numDigits(d->maxT);
 		char command[107] = { '\0' };
 		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
@@ -446,7 +446,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	if (!bitmap.paused && ticks == d->maxT && d->save_frames == 1) {
+	if (!bitmap.paused && (bitmap.windowsShouldClose || ticks == d->maxT) && d->save_frames == 1) {
 		char command[250] = { '\0' };
 		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
 		int numDigMaxT = numDigits(d->maxT);
@@ -539,9 +539,7 @@ struct CA {
 			bitmap.carcin_names[i] = (char*)malloc((strlen(carcin_names[i])+1)*sizeof(char));
 			strcpy(bitmap.carcin_names[i], carcin_names[i]);
 		}
-		bitmap.create_window(2, bitmap.width, bitmap.height, carcin_names[0], &bitmap.key_carcin, NULL);
-		if (bitmap.display == 0) for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
-		else for (int i = 1; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
+
 		csc_formed = false;
 		for (int i = 0; i < MAX_EXCISE+1; i++) tc_formed[i] = false;
 		time_tc_alive = 0;
