@@ -288,7 +288,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
-		} else {
+		} else if (!bitmap.paused) {
 			curandState_t *states;
 			CudaSafeCall(cudaMalloc((void**)&states, d->grid_size*d->grid_size*sizeof(curandState_t)));
 			timespec seed;
@@ -363,21 +363,21 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			if (ticks % d->frame_rate == 0) {
-				display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
-				CudaCheckError();
-				CudaSafeCall(cudaDeviceSynchronize());
-			}
-
 			for (int i = 0; i < NUM_CARCIN; i++) d->pdes[i].time_step(ticks, d->newGrid);
 
 			CudaSafeCall(cudaFree(states));
+
+			++d->frames;
 		}
 
-		++d->frames;
+		if (ticks % d->frame_rate == 0) {
+			display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
+		}
 	}
 
-	if (d->save_frames == 1 && ticks <= d->maxT) {
+	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
 		char fname[14] = { '\0' };
 		int dig_max = numDigits(d->maxT);
 		int dig = numDigits(ticks);
@@ -398,7 +398,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	if (ticks == d->maxT && d->save_frames == 1) {
+	if (!bitmap.paused && ticks == d->maxT && d->save_frames == 1) {
 		int numDigMaxT = numDigits(d->maxT);
 		char command[107] = { '\0' };
 		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");

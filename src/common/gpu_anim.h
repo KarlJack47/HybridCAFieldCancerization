@@ -188,14 +188,19 @@ struct GPUAnimBitmap {
 
 			if (!paused) fAnimTimer(dataBlock, true, ticks);
 
-			if (!paused) update_window(0, ticks);
+			update_window(0, ticks);
+			if (paused) glfwSwapBuffers(windows[0]);
 
 			update_window(1, ticks, current_cell[1]*grid_size+current_cell[0], current_cell[1]*grid_size+current_cell[0]);
 			if (paused) glfwSwapBuffers(windows[1]);
 
 			for (int i = 0; i < NUM_CARCIN; i++)
-				if ((paused && i == current_carcin) || !paused)
-					update_window(2, ticks, i, current_carcin);
+				if ((paused && i == current_carcin) || !paused) {
+					if (paused && ticks != 0) {
+						update_window(2, ticks-1, i, current_carcin);
+					} else update_window(2, ticks, i, current_carcin);
+					if (paused) glfwSwapBuffers(windows[2]);
+				}
 
 			if (!paused) fAnimTimer(dataBlock, false, ticks);
 
