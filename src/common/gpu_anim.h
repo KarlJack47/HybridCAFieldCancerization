@@ -190,7 +190,7 @@ struct GPUAnimBitmap {
 
 			if (!paused) update_window(0, ticks);
 
-			update_window(1, ticks, current_cell[0]*grid_size+current_cell[1], current_cell[0]*grid_size+current_cell[1]);
+			update_window(1, ticks, current_cell[1]*grid_size+current_cell[0], current_cell[1]*grid_size+current_cell[0]);
 			if (paused) glfwSwapBuffers(windows[1]);
 
 			for (int i = 0; i < NUM_CARCIN; i++)
