@@ -138,7 +138,7 @@ struct GPUAnimBitmap {
 
 		CudaSafeCall(cudaGraphicsUnmapResources(1, &resources[window_idx], NULL));
 
-		if (display == 1 && idx == current) draw(window_idx, width, height);
+		if (display == 1) draw(window_idx, width, height);
 	}
 
 	void anim(void(*fCA)(uchar4*,void*,int), void(*fCarcin)(uchar4*,void*,int,int),
