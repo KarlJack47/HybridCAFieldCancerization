@@ -174,7 +174,7 @@ struct GPUAnimBitmap {
 				if (detached[idx-1]) {
 					detach_window(windows, idx-1, &current_context, detached);
 					glfwSetWindowShouldClose(windows[idx], GLFW_FALSE);
-				} else if (!detached[idx-1] || glfwWindowShouldClose(windows[0])) { windowsShouldClose = true; }
+				} else if (!detached[idx-1] || glfwWindowShouldClose(windows[0])) { windowsShouldClose = true; paused = true; }
 			}
 
 			int xpos, ypos = 0;

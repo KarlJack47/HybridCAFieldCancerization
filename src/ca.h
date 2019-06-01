@@ -398,7 +398,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	if (!bitmap.paused && (bitmap.windowsShouldClose || ticks == d->maxT) && d->save_frames == 1) {
+	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
 		int numDigMaxT = numDigits(d->maxT);
 		char command[107] = { '\0' };
 		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
@@ -446,7 +446,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 		CudaSafeCall(cudaFree(frame));
 	}
 
-	if (!bitmap.paused && (bitmap.windowsShouldClose || ticks == d->maxT) && d->save_frames == 1) {
+	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
 		char command[250] = { '\0' };
 		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
 		int numDigMaxT = numDigits(d->maxT);
