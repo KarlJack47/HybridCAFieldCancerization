@@ -193,6 +193,46 @@ __global__ void display_ca(uchar4 *optr, Cell *grid, unsigned int g_size, unsign
 	}
 }
 
+
+__global__ void display_genes(uchar4 *optr, Cell *grid, unsigned int g_size, unsigned int cell_size, unsigned int dim) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+	unsigned int offset = x + y * blockDim.x * gridDim.x;
+	unsigned int offsetOptr = x * cell_size + y * cell_size * dim;
+	unsigned int i, j;
+
+	int max_gene = 0;
+	for (int i = 0; i < NUM_GENES; i++) {
+		if (grid[offset].positively_mutated(i) == 0) {
+			if (grid[offset].positively_mutated(max_gene) == 1) {
+				max_gene = i;
+				continue;
+			}
+			if (fabsf(grid[offset].gene_expressions[i*2] - grid[offset].gene_expressions[i*2+1]) >
+			    fabsf(grid[offset].gene_expressions[max_gene*2] - grid[offset].gene_expressions[max_gene*2+1]))
+				max_gene = i;
+		}
+	}
+
+	if (x < g_size && y < g_size) {
+		for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
+			for (j = i; j < i + cell_size * dim; j += dim) {
+				if (grid[offset].positively_mutated(max_gene) == 0) {
+					optr[j].x = gene_colors[max_gene*3];
+					optr[j].y = gene_colors[max_gene*3 + 1];
+					optr[j].z = gene_colors[max_gene*3 + 2];
+					optr[j].w = 255;
+				} else {
+					optr[j].x = 255;
+					optr[j].y = 255;
+					optr[j].z = 255;
+					optr[j].w = 255;
+				}
+			}
+		}
+	}
+}
+
 __global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, unsigned int g_size, unsigned int cell_size, unsigned int dim, unsigned int t) {
 	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -409,6 +449,50 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 	}
 }
 
+
+void anim_gpu_genes(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
+	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
+	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
+
+	if (ticks % d->frame_rate == 0) {
+		display_genes<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
+		CudaCheckError();
+		CudaSafeCall(cudaDeviceSynchronize());
+	}
+
+	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
+		char fname[25] = { '\0' };
+		strcat(fname, "genes_");
+		int dig_max = numDigits(d->maxT); int dig = numDigits(ticks);
+		for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
+		sprintf(&fname[strlen(fname)], "%d.png", ticks);
+		unsigned char *frame;
+		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
+		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
+		dim3 blocks1(d->dim/16, d->dim/16);
+		dim3 threads1(16, 16);
+		copy_frame<<< blocks1, threads1 >>>(outputBitmap, frame);
+		CudaCheckError();
+		CudaSafeCall(cudaDeviceSynchronize());
+
+		unsigned error = lodepng_encode32_file(fname, frame, d->dim, d->dim);
+		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+		CudaSafeCall(cudaFree(frame));
+	}
+
+	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
+		char command[250] = { '\0' };
+		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
+		int numDigMaxT = numDigits(d->maxT);
+		if (numDigMaxT == 1) strcat(command, "genes_%%d.png");
+		else sprintf(&command[strlen(command)], "genes_%%%d%dd.png", 0, numDigMaxT);
+		strcat(command, " -c:v libx264 -pix_fmt yuv420p ");
+		strcat(command, "out_genes.mp4");
+		system(command);
+	}
+}
+
 void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx, unsigned int ticks) {
 	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
@@ -598,7 +682,8 @@ struct CA {
 
 	void animate(int frame_rate) {
 		d.frame_rate = frame_rate;
-		bitmap.anim((void (*)(uchar4*, void*, int))anim_gpu_ca, (void (*)(uchar4*, void*, int, int))anim_gpu_carcin,
+		bitmap.anim((void (*)(uchar4*, void*, int))anim_gpu_ca, (void (*)(uchar4*, void*, int))anim_gpu_genes,
+			    (void (*)(uchar4*, void*, int, int))anim_gpu_carcin,
 			    (void (*)(uchar4*, void*, int, int))anim_gpu_cell, (void (*)(void*, bool, int))anim_gpu_timer);
 	}
 };

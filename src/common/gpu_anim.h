@@ -15,13 +15,14 @@ static void error_callback(int error, const char* description) {
 }
 
 struct GPUAnimBitmap {
-	GLFWwindow *windows[3];
-	GLuint bufferObjs[3];
-	cudaGraphicsResource *resources[3];
-	uchar4 *devPtrs[3]; size_t sizes[3];
+	GLFWwindow *windows[4];
+	GLuint bufferObjs[4];
+	cudaGraphicsResource *resources[4];
+	uchar4 *devPtrs[4]; size_t sizes[4];
 	int width, height;
 	void *dataBlock;
 	void (*fAnimCA)(uchar4*,void*,int);
+	void (*fAnimGenes)(uchar4*, void*, int);
 	void (*fAnimCarcin)(uchar4*,void*,int,int);
 	void (*fAnimCell)(uchar4*,void*,int,int);
 	void (*fAnimTimer)(void*,bool,int);
@@ -33,7 +34,7 @@ struct GPUAnimBitmap {
 	int current_carcin;
 	int current_context;
 	int current_cell[2];
-	bool detached[2];
+	bool detached[3];
 	bool excise;
 	bool paused;
 	bool windowsShouldClose;
@@ -71,13 +72,15 @@ struct GPUAnimBitmap {
 		char window_name[20] = { '\0' };
 		strcpy(window_name, "CA");
 		create_window(0, width, height, window_name, &key_ca, &mouse_button_ca);
+		strcpy(window_name, "Gene Families");
+		create_window(1, width, height, window_name, &key_genes, NULL);
 		strcpy(window_name, "Cell (0, 0)");
-		create_window(1, width, height, window_name, &key_cell, NULL);
+		create_window(2, width, height, window_name, &key_cell, NULL);
 		if (car_names != NULL)
-			create_window(2, width, height, carcin_names[0], &key_carcin, NULL);
+			create_window(3, width, height, carcin_names[0], &key_carcin, NULL);
 		else {
 			strcpy(window_name, "Carcinogens");
-			create_window(2, width, height, window_name, &key_carcin, NULL);
+			create_window(3, width, height, window_name, &key_carcin, NULL);
 		}
 	}
 
@@ -97,12 +100,12 @@ struct GPUAnimBitmap {
 			free(carcin_names);
 		}
 
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 4; i++) {
 			CudaSafeCall(cudaGraphicsUnregisterResource(resources[i]));
 			glfwMakeContextCurrent(windows[i]);
 			glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 		}
-		glDeleteBuffers(3, bufferObjs);
+		glDeleteBuffers(4, bufferObjs);
 
 		glfwTerminate();
     	}
@@ -138,21 +141,23 @@ struct GPUAnimBitmap {
 		CudaSafeCall(cudaGraphicsResourceGetMappedPointer((void**)&devPtrs[window_idx], &sizes[window_idx], resources[window_idx]));
 
 		if (window_idx == 0) fAnimCA(devPtrs[window_idx], dataBlock, ticks);
-		else if (window_idx == 1) fAnimCell(devPtrs[window_idx], dataBlock, idx, ticks);
-		else if (window_idx == 2) fAnimCarcin(devPtrs[window_idx], dataBlock, idx, ticks);
+		if (window_idx == 1) fAnimGenes(devPtrs[window_idx], dataBlock, ticks);
+		else if (window_idx == 2) fAnimCell(devPtrs[window_idx], dataBlock, idx, ticks);
+		else if (window_idx == 3) fAnimCarcin(devPtrs[window_idx], dataBlock, idx, ticks);
 
 		CudaSafeCall(cudaGraphicsUnmapResources(1, &resources[window_idx], NULL));
 
 		if (display == 1) draw(window_idx, width, height);
 	}
 
-	void anim(void(*fCA)(uchar4*,void*,int), void(*fCarcin)(uchar4*,void*,int,int),
+	void anim(void(*fCA)(uchar4*,void*,int), void(*fGenes)(uchar4*,void*,int), void(*fCarcin)(uchar4*,void*,int,int),
 		  void(*fCell)(uchar4*,void*,int,int), void(*fTime)(void*,bool,int)) {
 
 		GPUAnimBitmap **bitmap = get_bitmap_ptr();
 		*bitmap = this;
 
 		fAnimCA = fCA;
+		fAnimGenes = fGenes;
 		fAnimCarcin = fCarcin;
 		fAnimCell = fCell;
 		fAnimTimer = fTime;
@@ -163,14 +168,16 @@ struct GPUAnimBitmap {
 		current_context = 0;
 		detached[0] = false;
 		detached[1] = false;
+		detached[2] = false;
 
 		if (display == 1) show_window(windows[0]);
 
 		windowsShouldClose = false;
 		while (!windowsShouldClose) {
-			if (glfwWindowShouldClose(windows[0]) || glfwWindowShouldClose(windows[1]) || glfwWindowShouldClose(windows[2])) {
+			if (glfwWindowShouldClose(windows[0]) || glfwWindowShouldClose(windows[1]) || glfwWindowShouldClose(windows[2]) || glfwWindowShouldClose(windows[3])) {
 				int idx = 1;
 				if (glfwWindowShouldClose(windows[2])) idx = 2;
+				else if (glfwWindowShouldClose(windows[3])) idx = 3;
 				if (detached[idx-1]) {
 					detach_window(windows, idx-1, &current_context, detached);
 					glfwSetWindowShouldClose(windows[idx], GLFW_FALSE);
@@ -179,7 +186,7 @@ struct GPUAnimBitmap {
 
 			int xpos, ypos = 0;
 			glfwGetWindowPos(windows[current_context], &xpos, &ypos);
-			for (int i = 0; i < 3; i++)
+			for (int i = 0; i < 4; i++)
 				if (i != current_context) {
 					if (i != 0 && !detached[i-1]) glfwSetWindowPos(windows[i], xpos, ypos);
 					else if (i == 0) glfwSetWindowPos(windows[i], xpos, ypos);
@@ -189,24 +196,27 @@ struct GPUAnimBitmap {
 
 			char cell_name[18] = { '\0' };
 			sprintf(&cell_name[strlen(cell_name)], "Cell (%d, %d)", current_cell[0], current_cell[1]);
-			glfwSetWindowTitle(windows[1], cell_name);
+			glfwSetWindowTitle(windows[2], cell_name);
 
-			glfwSetWindowTitle(windows[2], carcin_names[current_carcin]);
+			glfwSetWindowTitle(windows[3], carcin_names[current_carcin]);
 
 			if (!paused) fAnimTimer(dataBlock, true, ticks);
 
 			update_window(0, ticks);
 			if (paused) glfwSwapBuffers(windows[0]);
 
-			update_window(1, ticks, current_cell[1]*grid_size+current_cell[0], current_cell[1]*grid_size+current_cell[0]);
+			update_window(1, ticks);
 			if (paused) glfwSwapBuffers(windows[1]);
+
+			update_window(2, ticks, current_cell[1]*grid_size+current_cell[0], current_cell[1]*grid_size+current_cell[0]);
+			if (paused) glfwSwapBuffers(windows[2]);
 
 			for (int i = 0; i < NUM_CARCIN; i++)
 				if ((paused && i == current_carcin) || !paused) {
 					if (paused && ticks != 0) {
-						update_window(2, ticks-1, i, current_carcin);
-					} else update_window(2, ticks, i, current_carcin);
-					if (paused) glfwSwapBuffers(windows[2]);
+						update_window(3, ticks-1, i, current_carcin);
+					} else update_window(3, ticks, i, current_carcin);
+					if (paused) glfwSwapBuffers(windows[3]);
 				}
 
 			if (!paused) fAnimTimer(dataBlock, false, ticks);
@@ -225,19 +235,19 @@ struct GPUAnimBitmap {
 	}
 
 	static void change_context(GLFWwindow **windows, int *current, bool *separated, bool incr=true) {
-		if (separated[0] && separated[1]) {
+		if (separated[0] && separated[1] && separated[2]) {
 			*current = 0;
 			glfwShowWindow(windows[0]);
 			return;
 		}
 
-		change_current(current, 3, incr);
+		change_current(current, 4, incr);
 		while (*current != 0 && separated[*current-1]) {
 			if (*current == 0) break;
-			change_current(current, 3, incr);
+			change_current(current, 4, incr);
 		}
 
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 4; i++) {
 			if (i == *current || (i != 0 && separated[i-1])) glfwShowWindow(windows[i]);
 			else glfwHideWindow(windows[i]);
 		}
@@ -300,6 +310,33 @@ struct GPUAnimBitmap {
 		}
 	}
 
+	static void key_genes(GLFWwindow *window, int key, int scancode, int action, int mods) {
+			GPUAnimBitmap *bitmap = *(get_bitmap_ptr());
+		switch (key) {
+			case GLFW_KEY_ESCAPE:
+				if (action == GLFW_PRESS) {
+					glfwSetWindowShouldClose(window, GLFW_TRUE);
+					exit(EXIT_SUCCESS);
+				}
+				break;
+			case GLFW_KEY_SPACE:
+				if (action == GLFW_PRESS) {
+					if (bitmap->paused) bitmap->paused = false;
+					else bitmap->paused = true;
+				}
+				break;
+			case GLFW_KEY_A:
+				if (!bitmap->detached[0] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached, false);
+				break;
+			case GLFW_KEY_D:
+				if (!bitmap->detached[0] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached);
+				break;
+			case GLFW_KEY_X:
+				if (action == GLFW_PRESS) detach_window(bitmap->windows, 0, &bitmap->current_context, bitmap->detached);
+				break;
+		}
+	}
+
 	static void key_carcin(GLFWwindow *window, int key, int scancode, int action, int mods) {
 		GPUAnimBitmap *bitmap = *(get_bitmap_ptr());
 		switch (key) {
@@ -324,13 +361,13 @@ struct GPUAnimBitmap {
 					change_current(&bitmap->current_carcin, NUM_CARCIN, false);
 				break;
 			case GLFW_KEY_A:
-				if (!bitmap->detached[1] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached, false);
+				if (!bitmap->detached[2] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached, false);
 				break;
 			case GLFW_KEY_D:
-				if (!bitmap->detached[1] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached);
+				if (!bitmap->detached[2] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached);
 				break;
 			case GLFW_KEY_X:
-				if (action == GLFW_PRESS) detach_window(bitmap->windows, 1, &bitmap->current_context, bitmap->detached);
+				if (action == GLFW_PRESS) detach_window(bitmap->windows, 2, &bitmap->current_context, bitmap->detached);
 				break;
 		}
 	}
@@ -390,13 +427,13 @@ struct GPUAnimBitmap {
 				}
 				break;
 			case GLFW_KEY_A:
-				if (!bitmap->detached[0] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached, false);
+				if (!bitmap->detached[1] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached, false);
 				break;
 			case GLFW_KEY_D:
-				if (!bitmap->detached[0] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached);
+				if (!bitmap->detached[1] && action == GLFW_PRESS) change_context(bitmap->windows, &bitmap->current_context, bitmap->detached);
 				break;
 			case GLFW_KEY_X:
-				if (action == GLFW_PRESS) detach_window(bitmap->windows, 0, &bitmap->current_context, bitmap->detached);
+				if (action == GLFW_PRESS) detach_window(bitmap->windows, 1, &bitmap->current_context, bitmap->detached);
 				break;
 		}
 	}

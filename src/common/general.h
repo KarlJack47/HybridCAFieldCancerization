@@ -57,6 +57,17 @@ __managed__ unsigned int state_colors[NUM_STATES*3] = {0, 0, 0, // black (NC)
 					     	       89, 35, 112, // purple (CSC)
 					      	       255, 0, 0, // red (TC)
 					      	       255, 255, 255}; // white (empty)
+__managed__ unsigned int gene_colors[NUM_GENES*3] = {84, 48, 5, // Dark brown (TP53)
+						     140, 81, 10, // Light brown
+						     191, 129, 45, // Brown orange
+						     223, 194, 125, // Pale brown
+						     246, 232, 195, // Pale
+						     199, 234, 229, // Baby blue
+						     128, 205, 193, // Blueish green
+						     53, 151, 143, // Tourquois
+						     1, 102, 94, // Dark green
+						     0, 60, 48}; // Forest green
+
 
 __managed__ double carcinogen_mutation_map[NUM_GENES] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 __managed__ double upreg_phenotype_map[NUM_GENES*NUM_PHENO] = {-PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
@@ -108,12 +119,13 @@ __managed__ int diff_mut_map[(NUM_STATES-1)*(NUM_GENES+1)] = {-1, -1, -1, -1, -1
 // 0: tumour supressor, 1: oncogene
 __managed__ unsigned int gene_type[NUM_GENES] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
 
-#pragma omp threadprivate(carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
+#pragma omp threadprivate(state_colors, gene_colors, carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
 
 void prefetch_params(int loc) {
 	int location = loc;
 	if (loc == -1) location = cudaCpuDeviceId;
 	CudaSafeCall(cudaMemPrefetchAsync(state_colors, NUM_STATES*3*sizeof(unsigned int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(gene_colors, NUM_GENES*3*sizeof(unsigned int), location, NULL));
 	CudaSafeCall(cudaMemPrefetchAsync(carcinogen_mutation_map, NUM_GENES*sizeof(double), location, NULL));
 	CudaSafeCall(cudaMemPrefetchAsync(upreg_phenotype_map, NUM_GENES*NUM_PHENO*sizeof(double), location, NULL));
 	CudaSafeCall(cudaMemPrefetchAsync(downreg_phenotype_map, NUM_GENES*NUM_PHENO*sizeof(double), location, NULL));
