@@ -217,7 +217,8 @@ __global__ void display_genes(uchar4 *optr, Cell *grid, unsigned int g_size, uns
 	if (x < g_size && y < g_size) {
 		for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 			for (j = i; j < i + cell_size * dim; j += dim) {
-				if (grid[offset].positively_mutated(max_gene) == 0) {
+				if (grid[offset].state != 0 && grid[offset].state != 2 && grid[offset].state != 6 &&
+				    grid[offset].positively_mutated(max_gene) == 0) {
 					optr[j].x = gene_colors[max_gene*3];
 					optr[j].y = gene_colors[max_gene*3 + 1];
 					optr[j].z = gene_colors[max_gene*3 + 2];
