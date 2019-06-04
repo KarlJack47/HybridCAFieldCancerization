@@ -213,9 +213,7 @@ struct GPUAnimBitmap {
 
 			for (int i = 0; i < NUM_CARCIN; i++)
 				if ((paused && i == current_carcin) || !paused) {
-					if (paused && ticks != 0) {
-						update_window(3, ticks-1, i, current_carcin);
-					} else update_window(3, ticks, i, current_carcin);
+					update_window(3, ticks, i, current_carcin);
 					if (paused) glfwSwapBuffers(windows[3]);
 				}
 

@@ -16,7 +16,7 @@ struct DataBlock {
 
 	clock_t start, end;
 	clock_t start_step, end_step;
-	unsigned int frame_rate, frames, save_frames;
+	unsigned int frame_rate, save_frames;
 } d;
 #pragma omp threadprivate(d)
 
@@ -68,7 +68,7 @@ __global__ void mutate_grid(Cell *prevG, unsigned int g_size, unsigned int t, Ca
 	unsigned int i;
 
 	if (x < g_size && y < g_size) {
-		for (i = 0; i < NUM_CARCIN; i++) prevG[offset].NN->input[i] = pdes[i].get(offset, t-1);
+		for (i = 0; i < NUM_CARCIN; i++) prevG[offset].NN->input[i] = pdes[i].results[offset];
 		prevG[offset].NN->input[NUM_CARCIN] = prevG[offset].age;
 		prevG[offset].NN->evaluate();
 
@@ -234,19 +234,21 @@ __global__ void display_genes(uchar4 *optr, Cell *grid, unsigned int g_size, uns
 	}
 }
 
-__global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, unsigned int g_size, unsigned int cell_size, unsigned int dim, unsigned int t) {
+__global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, unsigned int g_size, unsigned int cell_size, unsigned int dim) {
 	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned int offset = x + y * blockDim.x * gridDim.x;
 	unsigned int offsetOptr = x * cell_size + y * cell_size * dim;
 	unsigned int i, j;
 
+	double carcin_con = pde->results[offset];
+
 	if (x < g_size && y < g_size) {
 		for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 			for (j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = ceil(fmaxf(0.0f, 255.0f - 255.0f*pde->get(offset, t)));
-				optr[j].y = ceil(fmaxf(0.0f, 255.0f - 255.0f*pde->get(offset, t)));
-				optr[j].z = ceil(fmaxf(0.0f, 255.0f - 255.0f*pde->get(offset, t)));
+				optr[j].x = ceil(fmaxf(0.0f, 255.0f - 255.0f*carcin_con));
+				optr[j].y = ceil(fmaxf(0.0f, 255.0f - 255.0f*carcin_con));
+				optr[j].z = ceil(fmaxf(0.0f, 255.0f - 255.0f*carcin_con));
 				optr[j].w = 255;
 			}
 		}
@@ -339,7 +341,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			CudaSafeCall(cudaDeviceSynchronize());
 
 			for (int i = 0; i < NUM_CARCIN; i++)
-				CudaSafeCall(cudaMemPrefetchAsync(d->pdes[i].results, d->pdes[i].T*d->pdes[i].Nx*sizeof(double), d->dev_id_2, NULL));
+				CudaSafeCall(cudaMemPrefetchAsync(d->pdes[i].results, d->pdes[i].Nx*sizeof(double), d->dev_id_2, NULL));
 			prefetch_pdes(d->dev_id_2);
 
 			mutate_grid<<< blocks, threads >>>(d->prevGrid, d->grid_size, ticks, d->pdes, states);
@@ -347,7 +349,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			CudaSafeCall(cudaDeviceSynchronize());
 
 			for (int i = 0; i < NUM_CARCIN; i++)
-				CudaSafeCall(cudaMemPrefetchAsync(d->pdes[i].results, d->pdes[i].T*d->pdes[i].Nx*sizeof(double), cudaCpuDeviceId, NULL));
+				CudaSafeCall(cudaMemPrefetchAsync(d->pdes[i].results, d->pdes[i].Nx*sizeof(double), cudaCpuDeviceId, NULL));
 			prefetch_pdes(-1);
 
 			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->prevGrid, d->newGrid, d->grid_size);
@@ -407,8 +409,6 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			for (int i = 0; i < NUM_CARCIN; i++) d->pdes[i].time_step(ticks, d->newGrid);
 
 			CudaSafeCall(cudaFree(states));
-
-			++d->frames;
 		}
 
 		if (ticks % d->frame_rate == 0) {
@@ -499,14 +499,14 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
 	if (ticks % d->frame_rate == 0) {
-		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].T*d->pdes[carcin_idx].Nx*sizeof(double), d->dev_id_1, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].Nx*sizeof(double), d->dev_id_2, NULL));
 		prefetch_pdes(d->dev_id_2);
 
-		display_carcin<<< blocks, threads >>>(outputBitmap, &d->pdes[carcin_idx], d->grid_size, d->cell_size, d->dim, ticks);
+		display_carcin<<< blocks, threads >>>(outputBitmap, &d->pdes[carcin_idx], d->grid_size, d->cell_size, d->dim);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
 
-		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].T*d->pdes[carcin_idx].Nx*sizeof(double), cudaCpuDeviceId, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(d->pdes[carcin_idx].results, d->pdes[carcin_idx].Nx*sizeof(double), cudaCpuDeviceId, NULL));
 		prefetch_pdes(-1);
 	}
 
@@ -608,7 +608,6 @@ void anim_exit( DataBlock *d ) {
 
 struct CA {
 	CA(unsigned int g_size, unsigned int T, int save_frames, int display, int maxt_tc, char **carcin_names) {
-		d.frames = 0;
 		d.grid_size = g_size;
 		d.cell_size = d.dim/d.grid_size;
 		d.maxT = T;
