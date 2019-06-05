@@ -158,22 +158,6 @@ void prefetch_params(int loc) {
 }
 
 /* Start Array Functions */
-__device__ int max_idx(double *L, unsigned int *location, unsigned int N) {
-        double max = L[0];
-        unsigned int count = 0; unsigned int i;
-
-        for (i = 1; i < N; i++) if (L[i] > max) max = L[i];
-
-        for (i = 0; i < N; i++) {
-                if (L[i] == max) {
-                        location[count] = i;
-                        count++;
-                }
-        }
-
-        return count;
-}
-
 __device__ unsigned int get_indexes(double val, double *L, unsigned int *idx, unsigned int N) {
         unsigned int count = 0; unsigned int i;
 
@@ -222,6 +206,34 @@ __device__ void bitonic_sort(double *L, int lo, unsigned int N, bool dir) {
                 bitonic_sort(L, lo+m, N-m, dir);
                 bitonic_merge(L, lo, N, dir);
         }
+}
+
+__device__ unsigned int get_rand_idx(double *L, const unsigned int N, unsigned int curand_idx, curandState_t *states, unsigned int *idx=NULL) {
+	double *sorted = (double*)malloc(N*sizeof(double));
+	unsigned int *idx_t; unsigned int i;
+	if (idx==NULL) idx_t = (unsigned int*)malloc(N*sizeof(unsigned int));
+	for (i = 0; i < N; i++) sorted[i] = 1000000000.0f * L[i];
+	bitonic_sort(sorted, 0, N, false);
+	double sum = 0.0f;
+	for (i = 0; i < N; i++) sum += sorted[i];
+	double rnd = curand_uniform_double(&states[curand_idx]) * sum;
+	for (i = 0; i < N; i++) {
+		rnd -= sorted[i];
+		if (rnd < 0) {
+			if (idx==NULL) {
+				unsigned int count = get_indexes(sorted[i] / 1000000000.0f, L, idx_t, N);
+				unsigned int chosen = idx_t[(unsigned int) ceilf(curand_uniform_double(&states[curand_idx])*(double) count) % count];
+				free(sorted); free(idx_t);
+				return chosen;
+			} else {
+				int count = get_indexes(sorted[i] / 1000000000.0f, L, idx, N);
+				free(sorted);
+				return count;
+			}
+		}
+	}
+
+	return (unsigned int) ceilf(curand_uniform_double(&states[curand_idx])*(double) N) % N;
 }
 /* end array functions */
 
