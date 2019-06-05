@@ -61,6 +61,14 @@
 #define CHANCE_UPREG 0.5f
 #define CHANCE_PHENO_MUT 0.5f
 
+// Related to CSC and TC formation tracking.
+__managed__ bool csc_formed; // used to check when first CSC forms
+__managed__ bool tc_formed[MAX_EXCISE+1]; // Used to check when first TC forms
+// These are related to tracking tumor excisions
+__managed__ unsigned int excise_count; // Current excision number
+__managed__ unsigned int time_tc_alive; // Records the time step the TC was formed
+__managed__ unsigned int time_tc_dead; // Records the time step the TC died
+
 __managed__ unsigned int state_colors[NUM_STATES*3] = {0, 0, 0, // black (NC)
 					      	       87, 207, 0, // green (MNC)
 					      	       244, 131, 0, // orange (SC)
@@ -139,8 +147,8 @@ __managed__ int diff_mut_map[(NUM_STATES-1)*(NUM_GENES+1)] = {-1, -1, -1, -1, -1
 __managed__ unsigned int gene_type[NUM_GENES] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
 
 // Makes all the global lists above thread safe for omp
-#pragma omp threadprivate(state_colors, gene_colors, carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map,\
-			  phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map, gene_type)
+#pragma omp threadprivate(state_colors, gene_colors, carcinogen_mutation_map, upreg_phenotype_map,\
+			  downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map, gene_type)
 
 void prefetch_params(int loc) {
 	int location = loc;
@@ -243,12 +251,6 @@ void set_seed( void ) {
         clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &seed);
         srand(seed.tv_nsec);
 }
-
-// Set random seed for gpu
-__global__ void init_curand(unsigned int seed, curandState_t* states) {
-        unsigned int id = threadIdx.x + blockIdx.x * blockDim.x;
-        curand_init(seed, id, 0, &states[id]);
-}
 /* end functions around random number generation */
 
 int numDigits(double x) {
@@ -265,24 +267,68 @@ int numDigits(double x) {
                 10)))))))));
 }
 
-__global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
-	// map from threadIdx/BlockIdx to pixel position
-	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
-	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
-	unsigned int dim = gridDim.x*blockDim.x;
-	unsigned int idx = x + ((dim-1)-y)*dim;
-
-	frame[4*dim*y+4*x] = optr[idx].x;
-	frame[4*dim*y+4*x+1] = optr[idx].y;
-	frame[4*dim*y+4*x+2] = optr[idx].z;
-	frame[4*dim*y+4*x+3] = 255;
+void print_progress(int i, int j, int stride, int num_vals) {
+	char format[40] = { '\0' };
+	double progress = ((i*stride + j) / (double) num_vals) * 100.0f;
+	int num_dig = numDigits(progress);
+	int limit = num_dig+10;
+	if (trunc(progress*1000.0f) >= 9995 && num_dig == 1) limit += 1;
+	else if (trunc(progress*1000.0f) >= 99995 && num_dig == 2) limit += 1;
+	for (int k = 0; k < limit; k++) strcat(format, "\b");
+	strcat(format, "%.2f/%.2f");
+	printf(format, progress, 100.0f);
 }
 
 #include "../gene_expression_nn.h"
 #include "../cell.h"
+__global__ void initialize(double*, double, double, unsigned int, unsigned int);
+__global__ void space_step(double*, double*, unsigned int, double, double, double, double,
+			   double, double, Cell*);
 #include "../carcinogen_pde.h"
+
+struct DataBlock {
+	unsigned int dev_id_1, dev_id_2;
+	Cell *prevGrid, *newGrid;
+	CarcinogenPDE *pdes;
+
+	unsigned int grid_size, cell_size;
+	const unsigned int dim = 1024;
+	unsigned int maxT;
+	unsigned int maxt_tc_alive;
+
+	clock_t start, end;
+	clock_t start_step, end_step;
+	unsigned int frame_rate, save_frames;
+} d;
+
+#pragma omp threadprivate(d)
+
+void prefetch_grids(int loc1, int loc2) {
+	int location1 = loc1; int location2 = loc2;
+	if (loc1 == -1) location1 = cudaCpuDeviceId;
+	if (loc2 == -1) location2 = cudaCpuDeviceId;
+
+	CudaSafeCall(cudaMemPrefetchAsync(d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell), location1, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(d.newGrid, d.grid_size*d.grid_size*sizeof(Cell), location2, NULL));
+}
+
+void prefetch_pdes(int loc, int carcin_idx) {
+	int location = loc;
+	if (loc == -1) location = cudaCpuDeviceId;
+	int start = 0; int finish = NUM_CARCIN;
+	if (carcin_idx != -1) { start = carcin_idx; finish = carcin_idx+1; }
+	for (int i = start; i < finish; i++)
+		CudaSafeCall(cudaMemPrefetchAsync(d.pdes[i].results, d.pdes[i].Nx*sizeof(double), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(d.pdes, NUM_CARCIN*sizeof(CarcinogenPDE), location, NULL));
+}
+
+#include "cuda_kernels.h"
+
 #include "lodepng.h"
 #include "gpu_anim.h"
+GPUAnimBitmap bitmap(d.dim, d.dim, &d);
+
+#include "anim_functions.h"
 #include "../ca.h"
 
 #endif // __GENERAL_H__

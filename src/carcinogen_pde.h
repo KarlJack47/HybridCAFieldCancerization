@@ -3,40 +3,6 @@
 
 #include "common/general.h"
 
-__global__ void initialize(double *results, double ic, double bc, unsigned int Nx, unsigned int N) {
-	unsigned int col = threadIdx.x + blockIdx.x * blockDim.x;
-	unsigned int row = threadIdx.y + blockIdx.y * blockDim.y;
-	unsigned int idx = row + col * gridDim.x * blockDim.x;
-
-	if (row < N && col < N) {
-		if (row == 0 || row == N-1 || col == 0 || col == N-1)
-			results[idx] = bc;
-		else
-			results[idx] = ic;
-	}
-}
-
-__global__ void space_step(double *prev, double *next, unsigned int N, double bc, double T_scale, double dt, double s,
-			   double influx_per_cell, double outflux_per_cell, Cell *cells) {
-	unsigned int col = threadIdx.x + blockIdx.x * blockDim.x;
-	unsigned int row = threadIdx.y + blockIdx.y * blockDim.y;
-	unsigned int idx = row + col * gridDim.x * blockDim.x;
-
-	if (row < N && col < N) {
-		if (!(row == 0 || row == N-1 || col == 0 || col == N-1)) {
-			double in = 0.0f; double out = 0.0f;
-			in = influx_per_cell;
-			out = outflux_per_cell;
-			next[idx] = prev[idx] +
-				    s*(prev[cells[idx].neighbourhood[NORTH]] + prev[cells[idx].neighbourhood[EAST]] +
-		    	   	    prev[cells[idx].neighbourhood[SOUTH]] + prev[cells[idx].neighbourhood[WEST]] +
-		    	    	    prev[cells[idx].neighbourhood[NORTH_EAST]] + prev[cells[idx].neighbourhood[SOUTH_EAST]] +
-		    	    	    prev[cells[idx].neighbourhood[SOUTH_WEST]] + prev[cells[idx].neighbourhood[NORTH_WEST]] - 8.0f*prev[idx]) +
-		    	    	    T_scale * dt * (in - out);
-		} else next[idx] = bc;
-	}
-}
-
 struct CarcinogenPDE {
 	int device;
 	unsigned int N;
