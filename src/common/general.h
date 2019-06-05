@@ -139,7 +139,7 @@ __managed__ int diff_mut_map[(NUM_STATES-1)*(NUM_GENES+1)] = {-1, -1, -1, -1, -1
 __managed__ unsigned int gene_type[NUM_GENES] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
 
 // Makes all the global lists above thread safe for omp
-#pragma omp threadprivate(state_colors, gene_colors, carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map,
+#pragma omp threadprivate(state_colors, gene_colors, carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map,\
 			  phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map, gene_type)
 
 void prefetch_params(int loc) {
