@@ -171,7 +171,6 @@ __device__ unsigned int get_indexes(double val, double *L, unsigned int *idx, un
         return count;
 }
 
-
 // Bitonic Sort Functions
 __device__ unsigned int greatestPowerOfTwoLessThan(unsigned int n) {
 	int k = 1;
