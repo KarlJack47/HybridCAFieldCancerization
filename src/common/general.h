@@ -13,7 +13,7 @@
 #include "error_check.h"
 
 #define NTHREADS 4
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 32
 #define MAX_EXCISE 100
 #define NUM_GENES 10
 #define NUM_PHENO 4
