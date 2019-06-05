@@ -12,13 +12,18 @@
 #include <sys/time.h>
 #include "error_check.h"
 
-#define NTHREADS 4
+// block size for CUDA kernels
 #define BLOCK_SIZE 32
+
+// Definitions related to quantities with fixed sizes
 #define MAX_EXCISE 100
 #define NUM_GENES 10
 #define NUM_PHENO 4
 #define NUM_CARCIN 1
 #define NUM_STATES 7
+#define NUM_NEIGH 8
+
+// CA states
 #define NC 0
 #define MNC 1
 #define SC 2
@@ -26,11 +31,14 @@
 #define CSC 4
 #define TC 5
 #define EMPTY 6
-#define NUM_NEIGH 8
+
+// Phenotype states
 #define PROLIF 0
 #define QUIES 1
 #define APOP 2
 #define DIFF 3
+
+// Neighborhood directions
 #define NORTH 0
 #define EAST 1
 #define SOUTH 2
@@ -40,15 +48,18 @@
 #define SOUTH_WEST 6
 #define NORTH_WEST 7
 
+// Parameters for the gene expression NN
+#define ALPHA 100000
+#define BIAS 0.001f
+
+// Thresholds and parameters for the CA
 #define PHENOTYPE_INCR 0.001f
 #define MUT_THRESHOLD 0.1f
-#define BIAS 0.001f
-#define ALPHA 100000
+#define CSC_GENE_IDX 2
 #define CHANCE_MOVE 0.25f
 #define CHANCE_KILL 0.35f
 #define CHANCE_UPREG 0.5f
 #define CHANCE_PHENO_MUT 0.5f
-#define CSC_GENE_IDX 2
 
 __managed__ unsigned int state_colors[NUM_STATES*3] = {0, 0, 0, // black (NC)
 					      	       87, 207, 0, // green (MNC)
@@ -69,7 +80,9 @@ __managed__ unsigned int gene_colors[NUM_GENES*3] = {84, 48, 5, // Dark brown (T
 						     0, 60, 48}; // Forest green
 
 
-__managed__ double carcinogen_mutation_map[NUM_GENES] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+__managed__ double carcinogen_mutation_map[NUM_GENES] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}; // Used to initialize W_x
+
+// Upregulation and downregulation phenotype matrices
 __managed__ double upreg_phenotype_map[NUM_GENES*NUM_PHENO] = {-PHENOTYPE_INCR, PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f,
 					        		0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
 					        		-PHENOTYPE_INCR, PHENOTYPE_INCR, 0.0f, 0.0f,
@@ -90,6 +103,8 @@ __managed__ double downreg_phenotype_map[NUM_GENES*NUM_PHENO] = {PHENOTYPE_INCR,
 				    		  	 	 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR,
 						  	 	 0.0f, 0.0f, PHENOTYPE_INCR, 0.0f,
 						  	 	 -PHENOTYPE_INCR, 0.0f, PHENOTYPE_INCR, -PHENOTYPE_INCR};
+
+// Initial values for the phenotype vectors for each CA state
 __managed__ double phenotype_init[NUM_STATES*NUM_PHENO] = {0.05f, 0.9f, 0.01f, 0.0f,
 					  		   0.1f, 0.9f, 0.005f, 0.0f,
 					  		   0.05f, 0.9f, 0.01f, 0.2f,
@@ -97,18 +112,22 @@ __managed__ double phenotype_init[NUM_STATES*NUM_PHENO] = {0.05f, 0.9f, 0.01f, 0
 					  		   0.05f, 0.9f, 0.0025f, 0.2f,
 					  		   0.25f, 0.9f, 0.005f, 0.0f,
 					  		   0.0f, 0.0f, 0.0f, 0.0f};
+
+// Says what the new state of a cell is relative a mutation in each gene.
 __managed__ int state_mut_map[(NUM_STATES-1)*NUM_GENES] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 				      	      		   1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 				       	      		   3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
 				       	      		   3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
 				       	      		   4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
 					      		   5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+// Used to determine the state of the child cell produced by proliferation related to a mutation in each gene
 __managed__ int prolif_mut_map[(NUM_STATES-1)*NUM_GENES] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 					       		    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 					       		    3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
 					       		    3, 3, 3, 3, 3, 3, 3, 4, 3, 4,
 				  	       		    4, 4, 5, 4, 4, 4, 4, 4, 4, 4,
 					       		    5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+// Used to determine the state of the child cell produced by differentiation related to a mutation in each gene
 __managed__ int diff_mut_map[(NUM_STATES-1)*(NUM_GENES+1)] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 				      		 	      -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 				      		 	      0, 1, 0, 0, 0, 0, 0, 0, 4, 0, 4,
@@ -116,10 +135,12 @@ __managed__ int diff_mut_map[(NUM_STATES-1)*(NUM_GENES+1)] = {-1, -1, -1, -1, -1
 				      		 	      -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1,
 				      		 	      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
-// 0: tumour supressor, 1: oncogene
+// Labels each gene as a tumor supressor (0) or oncogene (1). Used to see if a gene is positively mutated towards cancer.
 __managed__ unsigned int gene_type[NUM_GENES] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
 
-#pragma omp threadprivate(state_colors, gene_colors, carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map)
+// Makes all the global lists above thread safe for omp
+#pragma omp threadprivate(state_colors, gene_colors, carcinogen_mutation_map, upreg_phenotype_map, downreg_phenotype_map,
+			  phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map, gene_type)
 
 void prefetch_params(int loc) {
 	int location = loc;
