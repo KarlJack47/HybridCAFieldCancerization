@@ -3,42 +3,6 @@
 
 #include "common/general.h"
 
-// "NC": 0
-// "MNC": 1
-// "SC": 2
-// "MSC": 3
-// "CSC": 4
-// "TC": 5
-// "Empty": 6
-
-__device__ unsigned int get_rand_idx(double *L, const unsigned int N, unsigned int cell, curandState_t *states, unsigned int *idx=NULL) {
-	double *sorted = (double*)malloc(N*sizeof(double));
-	unsigned int *idx_t; unsigned int i;
-	if (idx==NULL) idx_t = (unsigned int*)malloc(N*sizeof(unsigned int));
-	for (i = 0; i < N; i++) sorted[i] = 1000000000.0f * L[i];
-	bitonic_sort(sorted, 0, N, false);
-	double sum = 0.0f;
-	for (i = 0; i < N; i++) sum += sorted[i];
-	double rnd = curand_uniform_double(&states[cell]) * sum;
-	for (i = 0; i < N; i++) {
-		rnd -= sorted[i];
-		if (rnd < 0) {
-			if (idx==NULL) {
-				unsigned int count = get_indexes(sorted[i] / 1000000000.0f, L, idx_t, N);
-				unsigned int chosen = idx_t[(unsigned int) ceilf(curand_uniform_double(&states[cell])*(double) count) % count];
-				free(sorted); free(idx_t);
-				return chosen;
-			} else {
-				int count = get_indexes(sorted[i] / 1000000000.0f, L, idx, N);
-				free(sorted);
-				return count;
-			}
-		}
-	}
-
-	return (unsigned int) ceilf(curand_uniform_double(&states[cell])*(double) N) % N;
-}
-
 struct Cell {
 	int device;
 	unsigned int state;
