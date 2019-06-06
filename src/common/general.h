@@ -322,13 +322,13 @@ void prefetch_pdes(int loc, int carcin_idx) {
 	CudaSafeCall(cudaMemPrefetchAsync(d.pdes, NUM_CARCIN*sizeof(CarcinogenPDE), location, NULL));
 }
 
-#include "cuda_kernels.h"
+#include "../cuda_kernels.h"
 
 #include "lodepng.h"
-#include "gpu_anim.h"
+#include "../gpu_anim.h"
 GPUAnimBitmap bitmap(d.dim, d.dim, &d);
 
-#include "anim_functions.h"
+#include "../anim_functions.h"
 #include "../ca.h"
 
 #endif // __GENERAL_H__

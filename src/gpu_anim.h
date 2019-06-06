@@ -1,9 +1,9 @@
 #ifndef __GPU_ANIM_H__
 #define __GPU_ANIM_H__
 
-#include "general.h"
+#include "common/general.h"
 
-#include "glad/glad.h"
+#include "common/glad/glad.h"
 #include <GLFW/glfw3.h>
 
 #include <cuda_gl_interop.h>
