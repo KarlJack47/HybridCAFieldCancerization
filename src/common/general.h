@@ -13,7 +13,7 @@
 #include "error_check.h"
 
 // block size for CUDA kernels
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 32
 
 // Definitions related to quantities with fixed sizes
 #define MAX_EXCISE 100
