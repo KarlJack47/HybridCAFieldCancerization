@@ -104,8 +104,8 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 		unsigned char *frame;
 		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
 		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
-		dim3 blocks1(d->dim/16, d->dim/16);
-		dim3 threads1(16, 16);
+		dim3 blocks1(d->dim/BLOCK_SIZE, d->dim/BLOCK_SIZE);
+		dim3 threads1(BLOCK_SIZE, BLOCK_SIZE);
 		copy_frame<<< blocks1, threads1 >>>( outputBitmap, frame );
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
@@ -128,7 +128,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 }
 
 void anim_gpu_genes(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
-	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
+	dim3 blocks(d->grid_size/BLOCK_SIZE, d->grid_size/BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
 	if (ticks % d->frame_rate == 0) {
@@ -146,8 +146,8 @@ void anim_gpu_genes(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 		unsigned char *frame;
 		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
 		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
-		dim3 blocks1(d->dim/16, d->dim/16);
-		dim3 threads1(16, 16);
+		dim3 blocks1(d->dim/BLOCK_SIZE, d->dim/BLOCK_SIZE);
+		dim3 threads1(BLOCK_SIZE, BLOCK_SIZE);
 		copy_frame<<< blocks1, threads1 >>>(outputBitmap, frame);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
@@ -171,7 +171,7 @@ void anim_gpu_genes(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 }
 
 void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx, unsigned int ticks) {
-	dim3 blocks(d->grid_size / BLOCK_SIZE, d->grid_size / BLOCK_SIZE);
+	dim3 blocks(d->grid_size/BLOCK_SIZE, d->grid_size/BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
 	if (ticks % d->frame_rate == 0) {
@@ -193,8 +193,8 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 		unsigned char *frame;
 		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
 		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
-		dim3 blocks1(d->dim/16, d->dim/16);
-		dim3 threads1(16, 16);
+		dim3 blocks1(d->dim/BLOCK_SIZE, d->dim/BLOCK_SIZE);
+		dim3 threads1(BLOCK_SIZE, BLOCK_SIZE);
 		copy_frame<<< blocks1, threads1 >>>(outputBitmap, frame);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
@@ -218,7 +218,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 }
 
 void anim_gpu_cell(uchar4* outputBitmap, DataBlock *d, unsigned int cell_idx, unsigned int ticks) {
-	dim3 blocks(d->dim / BLOCK_SIZE, d->dim / BLOCK_SIZE);
+	dim3 blocks(d->dim/BLOCK_SIZE, d->dim/BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
 	if (ticks % d->frame_rate == 0) {
@@ -269,4 +269,3 @@ void anim_exit(DataBlock *d) {
 }
 
 #endif // __ANIM_FUNCTIONS_H__
-
