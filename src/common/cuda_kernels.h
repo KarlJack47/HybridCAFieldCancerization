@@ -17,7 +17,7 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 	frame[4*dim*y+4*x] = optr[idx].x;
 	frame[4*dim*y+4*x+1] = optr[idx].y;
 	frame[4*dim*y+4*x+2] = optr[idx].z;
-	frame[4*dim*y+4*x+3] = 255;
+	frame[4*dim*y+4*x+3] = optr[idx].w;
 }
 
 // Initalizes the carcinogen pde grid.
