@@ -264,18 +264,6 @@ int numDigits(double x) {
                 10)))))))));
 }
 
-void print_progress(int i, int j, int stride, int num_vals) {
-	char format[40] = { '\0' };
-	double progress = ((i*stride + j) / (double) num_vals) * 100.0f;
-	int num_dig = numDigits(progress);
-	int limit = num_dig+10;
-	if (trunc(progress*1000.0f) >= 9995 && num_dig == 1) limit += 1;
-	else if (trunc(progress*1000.0f) >= 99995 && num_dig == 2) limit += 1;
-	for (int k = 0; k < limit; k++) strcat(format, "\b");
-	strcat(format, "%.2f/%.2f");
-	printf(format, progress, 100.0f);
-}
-
 #include "../gene_expression_nn.h"
 #include "../cell.h"
 __global__ void initialize(double*, double, double, unsigned int, unsigned int);
