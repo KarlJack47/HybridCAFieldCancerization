@@ -95,35 +95,12 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 		}
 	}
 
-	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
-		char fname[14] = { '\0' };
-		int dig_max = numDigits(d->maxT);
-		int dig = numDigits(ticks);
-		for (int i = 0; i < dig_max-dig; i++) fname[i] = '0';
-		sprintf(&fname[dig_max-dig], "%d.png", ticks);
-		unsigned char *frame;
-		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
-		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
-		dim3 blocks1(d->dim/BLOCK_SIZE, d->dim/BLOCK_SIZE);
-		dim3 threads1(BLOCK_SIZE, BLOCK_SIZE);
-		copy_frame<<< blocks1, threads1 >>>( outputBitmap, frame );
-		CudaCheckError();
-		CudaSafeCall(cudaDeviceSynchronize());
-
-		unsigned error = lodepng_encode32_file(fname, frame, d->dim, d->dim);
-		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
-
-		CudaSafeCall(cudaFree(frame));
-	}
+	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) save_image(outputBitmap, d->dim, NULL, ticks, d->maxT);
 
 	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
-		int numDigMaxT = numDigits(d->maxT);
-		char command[107] = { '\0' };
-		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
-		if (numDigMaxT == 1) strcat(command, "%d.png");
-		else sprintf(&command[strlen(command)], "%%%d%dd.png", 0, numDigMaxT);
-		strcat(command, " -c:v libx264 -pix_fmt yuv420p out_ca.mp4");
-		system(command);
+		char out_name[25] = { '\0' };
+		strcat(out_name, "out_ca");
+		save_video(NULL, out_name, 5, d->maxT);
 	}
 }
 
@@ -138,35 +115,17 @@ void anim_gpu_genes(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 	}
 
 	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
-		char fname[25] = { '\0' };
-		strcat(fname, "genes_");
-		int dig_max = numDigits(d->maxT); int dig = numDigits(ticks);
-		for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
-		sprintf(&fname[strlen(fname)], "%d.png", ticks);
-		unsigned char *frame;
-		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
-		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
-		dim3 blocks1(d->dim/BLOCK_SIZE, d->dim/BLOCK_SIZE);
-		dim3 threads1(BLOCK_SIZE, BLOCK_SIZE);
-		copy_frame<<< blocks1, threads1 >>>(outputBitmap, frame);
-		CudaCheckError();
-		CudaSafeCall(cudaDeviceSynchronize());
-
-		unsigned error = lodepng_encode32_file(fname, frame, d->dim, d->dim);
-		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
-
-		CudaSafeCall(cudaFree(frame));
+		char prefix[25] = { '\0' };
+		strcat(prefix, "genes_");
+		save_image(outputBitmap, d->dim, prefix, ticks, d->maxT);
 	}
 
 	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
-		char command[250] = { '\0' };
-		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
-		int numDigMaxT = numDigits(d->maxT);
-		if (numDigMaxT == 1) strcat(command, "genes_%%d.png");
-		else sprintf(&command[strlen(command)], "genes_%%%d%dd.png", 0, numDigMaxT);
-		strcat(command, " -c:v libx264 -pix_fmt yuv420p ");
-		strcat(command, "out_genes.mp4");
-		system(command);
+		char prefix[25] = { '\0' };
+		strcat(prefix, "genes_");
+		char out_name[25] = { '\0' };
+		strcat(out_name, "out_genes");
+		save_video(prefix, out_name, 5, d->maxT);
 	}
 }
 
@@ -185,35 +144,17 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 	}
 
 	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
-		char fname[25] = { '\0' };
-		sprintf(&fname[strlen(fname)], "carcin%d_", carcin_idx);
-		int dig_max = numDigits(d->maxT); int dig = numDigits(ticks);
-		for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
-		sprintf(&fname[strlen(fname)], "%d.png", ticks);
-		unsigned char *frame;
-		CudaSafeCall(cudaMallocManaged((void**)&frame, d->dim*d->dim*4*sizeof(unsigned char)));
-		CudaSafeCall(cudaMemPrefetchAsync(frame, d->dim*d->dim*4*sizeof(unsigned char), 1, NULL));
-		dim3 blocks1(d->dim/BLOCK_SIZE, d->dim/BLOCK_SIZE);
-		dim3 threads1(BLOCK_SIZE, BLOCK_SIZE);
-		copy_frame<<< blocks1, threads1 >>>(outputBitmap, frame);
-		CudaCheckError();
-		CudaSafeCall(cudaDeviceSynchronize());
-
-		unsigned error = lodepng_encode32_file(fname, frame, d->dim, d->dim);
-		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
-
-		CudaSafeCall(cudaFree(frame));
+		char prefix[25] = { '\0' };
+		sprintf(prefix, "carcin%d_", carcin_idx);
+		save_image(outputBitmap, d->dim, prefix, ticks, d->maxT);
 	}
 
 	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
-		char command[250] = { '\0' };
-		strcat(command, "ffmpeg -y -v quiet -framerate 5 -start_number 0 -i ");
-		int numDigMaxT = numDigits(d->maxT);
-		if (numDigMaxT == 1) sprintf(&command[strlen(command)], "carcin%d_%%d.png", carcin_idx);
-		else sprintf(&command[strlen(command)], "carcin%d_%%%d%dd.png", carcin_idx, 0, numDigMaxT);
-		strcat(command, " -c:v libx264 -pix_fmt yuv420p ");
-		sprintf(&command[strlen(command)], "out_carcin%d.mp4", carcin_idx);
-		system(command);
+		char prefix[25] = { '\0' };
+		sprintf(prefix, "carcin%d_", carcin_idx);
+		char output_name[25] = { '\0' };
+		sprintf(output_name, "out_carcin%d", carcin_idx);
+		save_video(prefix, output_name, 5, d->maxT);
 	}
 }
 
@@ -248,18 +189,19 @@ void anim_gpu_timer(DataBlock *d, bool start, int ticks) {
 void anim_exit(DataBlock *d) {
 	CudaSafeCall(cudaDeviceSynchronize());
 	for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
-	printf("Freeing Grid Memory:   0.00/100.00");
+	printf("Freeing the grids.\n");
 	clock_t start = clock();
-	#pragma omp parallel for collapse(2) schedule(guided)
-			for (int i = 0; i < d->grid_size; i++) {
-				for (int j = 0; j < d->grid_size; j++) {
+	int nt = omp_get_num_procs();
+	#pragma omp parallel num_threads(nt)
+		{
+			int i, j;
+			#pragma omp for collapse(2) private(i, j) schedule(guided, (d->grid_size*d->grid_size)/nt)
+			for (i = 0; i < d->grid_size; i++)
+				for (j = 0; j < d->grid_size; j++) {
 					d->prevGrid[i*d->grid_size+j].free_resources();
 					d->newGrid[i*d->grid_size+j].free_resources();
-
-					print_progress(i, j, d->grid_size, d->grid_size*d->grid_size);
 				}
-			}
-	printf("\n");
+		}
 	printf("It took %f seconds to finish freeing the memory.\n", (double) (clock() - start) / CLOCKS_PER_SEC);
 	CudaSafeCall(cudaFree(d->prevGrid));
 	CudaSafeCall(cudaFree(d->newGrid));
