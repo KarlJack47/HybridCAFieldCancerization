@@ -11,6 +11,7 @@
 #include <float.h>
 #include <sys/time.h>
 #include "error_check.h"
+#include "lodepng.h"
 
 // block size for CUDA kernels
 #define BLOCK_SIZE 32
@@ -145,10 +146,6 @@ __managed__ int diff_mut_map[(NUM_STATES-1)*(NUM_GENES+1)] = {-1, -1, -1, -1, -1
 
 // Labels each gene as a tumor supressor (0) or oncogene (1). Used to see if a gene is positively mutated towards cancer.
 __managed__ unsigned int gene_type[NUM_GENES] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
-
-// Makes all the global lists above thread safe for omp
-#pragma omp threadprivate(state_colors, gene_colors, carcinogen_mutation_map, upreg_phenotype_map,\
-			  downreg_phenotype_map, phenotype_init, state_mut_map, prolif_mut_map, diff_mut_map, gene_type)
 
 void prefetch_params(int loc) {
 	int location = loc;
@@ -301,8 +298,6 @@ struct DataBlock {
 	unsigned int frame_rate, save_frames;
 } d;
 
-#pragma omp threadprivate(d)
-
 void prefetch_grids(int loc1, int loc2) {
 	int location1 = loc1; int location2 = loc2;
 	if (loc1 == -1) location1 = cudaCpuDeviceId;
@@ -322,12 +317,46 @@ void prefetch_pdes(int loc, int carcin_idx) {
 	CudaSafeCall(cudaMemPrefetchAsync(d.pdes, NUM_CARCIN*sizeof(CarcinogenPDE), location, NULL));
 }
 
-#include "../cuda_kernels.h"
+__global__ void copy_frame(uchar4*, unsigned char*);
 
-#include "lodepng.h"
+void save_image(uchar4 *outputBitmap, size_t size, char *prefix, unsigned int time, unsigned int maxT) {
+	char fname[150] = { '\0' };
+	if (prefix != NULL) strcat(fname, prefix);
+	int dig_max = numDigits(maxT); int dig = numDigits(time);
+	for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
+	sprintf(&fname[strlen(fname)], "%d.png", time);
+	unsigned char *frame;
+	CudaSafeCall(cudaMallocManaged((void**)&frame, size*size*4*sizeof(unsigned char)));
+	CudaSafeCall(cudaMemPrefetchAsync(frame, size*size*4*sizeof(unsigned char), 1, NULL));
+	dim3 blocks(size/BLOCK_SIZE, size/BLOCK_SIZE);
+	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
+	copy_frame<<< blocks, threads >>>(outputBitmap, frame);
+	CudaCheckError();
+	CudaSafeCall(cudaDeviceSynchronize());
+
+	unsigned error = lodepng_encode32_file(fname, frame, size, size);
+	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+	CudaSafeCall(cudaFree(frame));
+}
+
+void save_video(char *input_prefix, char *output_name, unsigned int frame_rate, unsigned int maxT) {
+	char command[250] = { '\0' };
+	sprintf(command, "ffmpeg -y -v quiet -framerate %d -start_number 0 -i ", frame_rate);
+	int numDigMaxT = numDigits(maxT);
+	if (input_prefix != NULL) strcat(command, input_prefix);
+	if (numDigMaxT == 1) strcat(command, "%%d.png");
+	else sprintf(&command[strlen(command)], "%%%d%dd.png", 0, numDigMaxT);
+	strcat(command, " -c:v libx264 -pix_fmt yuv420p ");
+	strcat(command, output_name);
+	strcat(command, ".mp4");
+	system(command);
+}
+
 #include "../gpu_anim.h"
 GPUAnimBitmap bitmap(d.dim, d.dim, &d);
 
+#include "../cuda_kernels.h"
 #include "../anim_functions.h"
 #include "../ca.h"
 
