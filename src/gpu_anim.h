@@ -403,25 +403,9 @@ struct GPUAnimBitmap {
 				break;
 			case GLFW_KEY_S:
 				if (action == GLFW_PRESS && bitmap->paused) {
-					char fname[100] = { '\0' };
-					sprintf(&fname[strlen(fname)], "cell(%d, %d)_", bitmap->current_cell[0], bitmap->current_cell[1]);
-					int dig_max = numDigits(bitmap->maxT);
-					int dig = numDigits(bitmap->ticks-1);
-					for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
-					sprintf(&fname[strlen(fname)], "%d.png", bitmap->ticks-1);
-					unsigned char *frame;
-					CudaSafeCall(cudaMallocManaged((void**)&frame, bitmap->width*bitmap->height*4*sizeof(unsigned char)));
-					CudaSafeCall(cudaMemPrefetchAsync(frame, bitmap->width*bitmap->height*4*sizeof(unsigned char), 1, NULL));
-					dim3 blocks(bitmap->width/BLOCK_SIZE, bitmap->height/BLOCK_SIZE);
-					dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
-					copy_frame<<< blocks, threads >>>(bitmap->devPtrs[1], frame);
-					CudaCheckError();
-					CudaSafeCall(cudaDeviceSynchronize());
-
-					unsigned error = lodepng_encode32_file(fname, frame, bitmap->width, bitmap->height);
-					if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
-
-					CudaSafeCall(cudaFree(frame));
+					char prefix[100] = { '\0' };
+					sprintf(prefix, "cell(%d, %d)_", bitmap->current_cell[0], bitmap->current_cell[1]);
+					save_image(bitmap->devPtrs[1], bitmap->width, prefix, bitmap->ticks-1, bitmap->maxT);
 				}
 				break;
 			case GLFW_KEY_A:
