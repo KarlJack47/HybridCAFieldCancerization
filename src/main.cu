@@ -1,5 +1,4 @@
 #include "common/general.h"
-#include "ca.h"
 
 int main(int argc, char *argv[]) {
 	int display, save_frames, T, grid_size, maxt_tc;
