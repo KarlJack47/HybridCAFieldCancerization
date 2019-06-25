@@ -51,20 +51,28 @@ struct CA {
 	}
 
 	void init(double *diffusion, double *out, double *in, double *ic, double *bc, double *W_x, double *W_y, double *b_y) {
-		printf("Initializing the grids.\n");
 		int nt = omp_get_num_procs();
-		#pragma omp parallel num_threads(nt)
-			{
-				int i, j;
-				#pragma omp for collapse(2) private(i, j) schedule(guided, (d.grid_size*d.grid_size)/nt)
-					for (i = 0; i < d.grid_size; i++)
-						for (j = 0; j < d.grid_size; j++) {
-							d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_1, W_x, W_y, b_y);
-							d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
-							d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_2, W_x, W_y, b_y);
-							d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
-						}
-			}
+		int i, j;
+		int counts[nt] = { 0 };
+		printf("Grid initialization progress:   0.00/100.00");
+		#pragma omp parallel for collapse(2) private(i, j) schedule(static, (d.grid_size*d.grid_size)/nt) num_threads(nt)
+			for (i = 0; i < d.grid_size; i++)
+				for (j = 0; j < d.grid_size; j++) {
+					counts[omp_get_thread_num()]++;
+
+					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_1, W_x, W_y, b_y);
+					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_2, W_x, W_y, b_y);
+					d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
+					d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
+
+					int num_finished = 0;
+					for (int k = 0; k < nt; k++) num_finished += counts[k];
+					print_progress(num_finished, d.grid_size*d.grid_size);
+				}
+		printf("\n");
+
+		for (i = 0; i < nt; i++) printf("%d:%d ", i, counts[i]);
+		printf("\n");
 
 		prefetch_grids(d.dev_id_1, d.dev_id_2);
 

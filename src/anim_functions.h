@@ -189,23 +189,28 @@ void anim_gpu_timer(DataBlock *d, bool start, int ticks) {
 void anim_exit(DataBlock *d) {
 	CudaSafeCall(cudaDeviceSynchronize());
 	for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
-	printf("Freeing the grids.\n");
 	clock_t start = clock();
 	int nt = omp_get_num_procs();
-	#pragma omp parallel num_threads(nt)
-		{
-			int i, j;
-			#pragma omp for collapse(2) private(i, j) schedule(guided, (d->grid_size*d->grid_size)/nt)
-			for (i = 0; i < d->grid_size; i++)
-				for (j = 0; j < d->grid_size; j++) {
-					d->prevGrid[i*d->grid_size+j].free_resources();
-					d->newGrid[i*d->grid_size+j].free_resources();
-				}
-		}
+	int i, j;
+	int counts[nt] = { 0 };
+	printf("Grid freeing progress:   0.00/100.00");
+	#pragma omp parallel for collapse(2) private(i, j) schedule(static, (d->grid_size*d->grid_size)/nt) num_threads(nt)
+		for (i = 0; i < d->grid_size; i++)
+			for (j = 0; j < d->grid_size; j++) {
+				counts[omp_get_thread_num()]++;
+
+				d->prevGrid[i*d->grid_size+j].free_resources();
+				d->newGrid[i*d->grid_size+j].free_resources();
+
+				int num_finished = 0;
+				for (int k = 0; k < nt; k++) num_finished += counts[k];
+				print_progress(num_finished, d->grid_size*d->grid_size);
+			}
+	printf("\n");
 	printf("It took %f seconds to finish freeing the memory.\n", (double) (clock() - start) / CLOCKS_PER_SEC);
 	CudaSafeCall(cudaFree(d->prevGrid));
 	CudaSafeCall(cudaFree(d->newGrid));
-	for (int i = 0; i < NUM_CARCIN; i++)
+	for (i = 0; i < NUM_CARCIN; i++)
 		d->pdes[i].free_resources();
 	CudaSafeCall(cudaFree(d->pdes));
 }
