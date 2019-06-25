@@ -40,6 +40,8 @@ int main(int argc, char *argv[]) {
 		maxt_tc = atoi(argv[5]);
 	}
 
+	printf("The simulation will run for %d timesteps on a grid of size %dx%d.\n", T, grid_size, grid_size);
+
 	clock_t start, end;
 	start = clock();
 
