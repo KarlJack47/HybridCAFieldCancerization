@@ -52,12 +52,11 @@ struct CA {
 
 	void init(double *diffusion, double *out, double *in, double *ic, double *bc, double *W_x, double *W_y, double *b_y) {
 		int nt = omp_get_num_procs();
-		int i, j;
 		int counts[nt] = { 0 };
 		printf("Grid initialization progress:   0.00/100.00");
-		#pragma omp parallel for collapse(2) private(i, j) schedule(static, (d.grid_size*d.grid_size)/nt) num_threads(nt)
-			for (i = 0; i < d.grid_size; i++)
-				for (j = 0; j < d.grid_size; j++) {
+		#pragma omp parallel for num_threads(nt) collapse(2) schedule(static, (d.grid_size*d.grid_size)/nt)
+			for (int i = 0; i < d.grid_size; i++)
+				for (int j = 0; j < d.grid_size; j++) {
 					counts[omp_get_thread_num()]++;
 
 					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_1, W_x, W_y, b_y);

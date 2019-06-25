@@ -191,12 +191,11 @@ void anim_exit(DataBlock *d) {
 	for (int i = 0; i < 3; i++) bitmap.hide_window(bitmap.windows[i]);
 	clock_t start = clock();
 	int nt = omp_get_num_procs();
-	int i, j;
 	int counts[nt] = { 0 };
 	printf("Grid freeing progress:   0.00/100.00");
-	#pragma omp parallel for collapse(2) private(i, j) schedule(static, (d->grid_size*d->grid_size)/nt) num_threads(nt)
-		for (i = 0; i < d->grid_size; i++)
-			for (j = 0; j < d->grid_size; j++) {
+	#pragma omp parallel for num_threads(nt) collapse(2) schedule(static, (d->grid_size*d->grid_size)/nt)
+		for (int i = 0; i < d->grid_size; i++)
+			for (int j = 0; j < d->grid_size; j++) {
 				counts[omp_get_thread_num()]++;
 
 				d->prevGrid[i*d->grid_size+j].free_resources();
@@ -210,7 +209,7 @@ void anim_exit(DataBlock *d) {
 	printf("It took %f seconds to finish freeing the memory.\n", (double) (clock() - start) / CLOCKS_PER_SEC);
 	CudaSafeCall(cudaFree(d->prevGrid));
 	CudaSafeCall(cudaFree(d->newGrid));
-	for (i = 0; i < NUM_CARCIN; i++)
+	for (int i = 0; i < NUM_CARCIN; i++)
 		d->pdes[i].free_resources();
 	CudaSafeCall(cudaFree(d->pdes));
 }
