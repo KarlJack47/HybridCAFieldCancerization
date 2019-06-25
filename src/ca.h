@@ -71,9 +71,6 @@ struct CA {
 				}
 		printf("\n");
 
-		for (i = 0; i < nt; i++) printf("%d:%d ", i, counts[i]);
-		printf("\n");
-
 		prefetch_grids(d.dev_id_1, d.dev_id_2);
 
 		for (int k = 0; k < NUM_CARCIN; k++) {
