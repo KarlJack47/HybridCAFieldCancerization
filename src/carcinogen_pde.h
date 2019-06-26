@@ -21,6 +21,7 @@ struct CarcinogenPDE {
 	bool liquid;
 	unsigned int carcin_idx;
 
+	double *prev;
 	double *results;
 
 	CarcinogenPDE(unsigned int space_size, unsigned int num_timesteps, double diff, double out, double in, double ic_in, double bc_in, unsigned int idx, int dev) {
@@ -41,49 +42,49 @@ struct CarcinogenPDE {
 		carcin_idx = idx;
 
 		CudaSafeCall(cudaMallocManaged((void**)&results, Nx*sizeof(double)));
+		CudaSafeCall(cudaMallocManaged((void**)&prev, Nx*sizeof(double)));
+
+		CudaSafeCall(cudaMemPrefetchAsync(results, Nx*sizeof(double), device, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(prev, Nx*sizeof(double), device, NULL));
 	}
 
 	void init(void) {
 		dim3 blocks(N / BLOCK_SIZE, N / BLOCK_SIZE);
 		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
-		CudaSafeCall(cudaMemPrefetchAsync(results, Nx*sizeof(double), device, NULL));
-		initialize<<< blocks, threads >>>(results, ic, bc, Nx, N);
+		init_pde<<< blocks, threads >>>(results, ic, bc, Nx, N);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
-		CudaSafeCall(cudaMemPrefetchAsync(results, Nx*sizeof(double), cudaCpuDeviceId, NULL));
+
+		CudaSafeCall(cudaMemcpy(prev, results, Nx*sizeof(double), cudaMemcpyDeviceToDevice));
 	}
 
 	void free_resources(void) {
 		CudaSafeCall(cudaDeviceSynchronize());
 		CudaSafeCall(cudaFree(results));
+		CudaSafeCall(cudaFree(prev));
 	}
 
 	void time_step(unsigned int step, Cell *cells) {
-		double *prev;
-		CudaSafeCall(cudaMallocManaged((void**)&prev, Nx*sizeof(double)));
-
-		memcpy(prev, results, Nx*sizeof(double));
-
 		dim3 blocks(N / BLOCK_SIZE, N / BLOCK_SIZE);
 		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
-		CudaSafeCall(cudaMemPrefetchAsync(prev, Nx*sizeof(double), device, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(results, Nx*sizeof(double), device, NULL));
-
 		double T_scl = T_scale / (double) maxT;
-		for (unsigned int n = 0; n < maxT-1; n++) {
-			space_step<<< blocks, threads >>>(prev, results, N, bc, T_scl, dt, s,
-							  influx_per_cell, outflux_per_cell, cells);
-			CudaCheckError();
-			CudaSafeCall(cudaDeviceSynchronize());
-
-			CudaSafeCall(cudaMemcpy(prev, results, Nx*sizeof(double), cudaMemcpyDeviceToDevice));
+		unsigned int n;
+		for (n = 0; n < maxT-1; n++) {
+			if (n % 2 == 0) {
+				pde_space_step<<< blocks, threads >>>(prev, results, N, bc, T_scl, dt, s,
+								  influx_per_cell, outflux_per_cell, cells);
+				CudaCheckError();
+				CudaSafeCall(cudaDeviceSynchronize());
+			} else {
+				pde_space_step<<< blocks, threads >>>(results, prev, N, bc, T_scl, dt, s,
+								  influx_per_cell, outflux_per_cell, cells);
+				CudaCheckError();
+				CudaSafeCall(cudaDeviceSynchronize());
+			}
 		}
 
-		CudaSafeCall(cudaMemPrefetchAsync(prev, Nx*sizeof(double), cudaCpuDeviceId, NULL));
-		CudaSafeCall(cudaMemPrefetchAsync(results, Nx*sizeof(double), cudaCpuDeviceId, NULL));
-
-		CudaSafeCall(cudaFree(prev));
+		if ((n-1) % 2 == 1) CudaSafeCall(cudaMemcpy(results, prev, Nx*sizeof(double), cudaMemcpyDeviceToDevice));
 	}
 };
 
