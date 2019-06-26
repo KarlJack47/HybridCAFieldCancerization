@@ -23,7 +23,7 @@ struct Cell {
 
 		CudaSafeCall(cudaMallocManaged((void**)&phenotype, NUM_PHENO*sizeof(double)));
 
-		CudaSafeCall(cudaMallocManaged((void**)&neighbourhood, NUM_NEIGH*sizeof(int)));
+		CudaSafeCall(cudaMallocManaged((void**)&neighbourhood, NUM_NEIGH*sizeof(unsigned int)));
 		neighbourhood[NORTH] = x + ((y+1) % grid_size) * grid_size;
 		neighbourhood[EAST] = ((x+1) % grid_size) + y * grid_size;
 		neighbourhood[SOUTH] = x + abs((int) (((int) y-1) % grid_size)) * grid_size;
