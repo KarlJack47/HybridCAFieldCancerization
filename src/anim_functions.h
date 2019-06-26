@@ -21,13 +21,9 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			prefetch_pdes(d->dev_id_2, -1);
-
 			mutate_grid<<< blocks, threads >>>(d->prevGrid, d->grid_size, ticks, d->pdes, states);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
-
-			prefetch_pdes(-1, -1);
 
 			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->prevGrid, d->newGrid, d->grid_size);
 			CudaCheckError();
@@ -134,13 +130,9 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
 	if (ticks % d->frame_rate == 0) {
-		prefetch_pdes(d->dev_id_2, carcin_idx);
-
 		display_carcin<<< blocks, threads >>>(outputBitmap, &d->pdes[carcin_idx], d->grid_size, d->cell_size, d->dim);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
-
-		prefetch_pdes(-1, carcin_idx);
 	}
 
 	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {

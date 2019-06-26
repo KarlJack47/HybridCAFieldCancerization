@@ -278,8 +278,8 @@ void print_progress(int curr_amount, int num_vals) {
 
 #include "../gene_expression_nn.h"
 #include "../cell.h"
-__global__ void initialize(double*, double, double, unsigned int, unsigned int);
-__global__ void space_step(double*, double*, unsigned int, double, double, double, double,
+__global__ void init_pde(double*, double, double, unsigned int, unsigned int);
+__global__ void pde_space_step(double*, double*, unsigned int, double, double, double, double,
 			   double, double, Cell*);
 #include "../carcinogen_pde.h"
 
@@ -297,25 +297,6 @@ struct DataBlock {
 	clock_t start_step, end_step;
 	unsigned int frame_rate, save_frames;
 } d;
-
-void prefetch_grids(int loc1, int loc2) {
-	int location1 = loc1; int location2 = loc2;
-	if (loc1 == -1) location1 = cudaCpuDeviceId;
-	if (loc2 == -1) location2 = cudaCpuDeviceId;
-
-	CudaSafeCall(cudaMemPrefetchAsync(d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell), location1, NULL));
-	CudaSafeCall(cudaMemPrefetchAsync(d.newGrid, d.grid_size*d.grid_size*sizeof(Cell), location2, NULL));
-}
-
-void prefetch_pdes(int loc, int carcin_idx) {
-	int location = loc;
-	if (loc == -1) location = cudaCpuDeviceId;
-	int start = 0; int finish = NUM_CARCIN;
-	if (carcin_idx != -1) { start = carcin_idx; finish = carcin_idx+1; }
-	for (int i = start; i < finish; i++)
-		CudaSafeCall(cudaMemPrefetchAsync(d.pdes[i].results, d.pdes[i].Nx*sizeof(double), location, NULL));
-	CudaSafeCall(cudaMemPrefetchAsync(d.pdes, NUM_CARCIN*sizeof(CarcinogenPDE), location, NULL));
-}
 
 __global__ void copy_frame(uchar4*, unsigned char*);
 

@@ -70,8 +70,6 @@ struct CA {
 				}
 		printf("\n");
 
-		prefetch_grids(d.dev_id_1, d.dev_id_2);
-
 		for (int k = 0; k < NUM_CARCIN; k++) {
 			d.pdes[k] = CarcinogenPDE(d.grid_size, d.maxT, diffusion[k], out[k], in[k], ic[k], bc[k], k, d.dev_id_2);
 			d.pdes[k].init();
