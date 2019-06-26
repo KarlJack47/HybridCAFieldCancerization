@@ -21,7 +21,7 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 }
 
 // Initalizes the carcinogen pde grid.
-__global__ void initialize(double *results, double ic, double bc, unsigned int Nx, unsigned int N) {
+__global__ void init_pde(double *results, double ic, double bc, unsigned int Nx, unsigned int N) {
 	unsigned int col = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned int row = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned int idx = row + col * gridDim.x * blockDim.x;
@@ -35,7 +35,7 @@ __global__ void initialize(double *results, double ic, double bc, unsigned int N
 }
 
 // Spacial step for the carcinogen pde.
-__global__ void space_step(double *prev, double *next, unsigned int N, double bc, double T_scale, double dt, double s,
+__global__ void pde_space_step(double *prev, double *next, unsigned int N, double bc, double T_scale, double dt, double s,
 			   double influx_per_cell, double outflux_per_cell, Cell *cells) {
 	unsigned int col = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned int row = threadIdx.y + blockIdx.y * blockDim.y;
