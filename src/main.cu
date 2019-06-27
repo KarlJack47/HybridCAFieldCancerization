@@ -42,8 +42,8 @@ int main(int argc, char *argv[]) {
 
 	printf("The simulation will run for %d timesteps on a grid of size %dx%d.\n", T, grid_size, grid_size);
 
-	clock_t start, end;
-	start = clock();
+	double start, end;
+	start = omp_get_wtime();
 
 	char **carcin_names = (char**)malloc(sizeof(char*));
 	carcin_names[0] = (char*)malloc(8*sizeof(char));
@@ -100,8 +100,8 @@ int main(int argc, char *argv[]) {
 	free(W_y);
 	free(b_y);
 
-	end = clock();
-	printf("It took %f seconds to initialize the memory.\n", (double) (end - start) / CLOCKS_PER_SEC); 
+	end = omp_get_wtime();
+	printf("It took %f seconds to initialize the memory.\n", end - start); 
 
 	ca.animate(1);
 

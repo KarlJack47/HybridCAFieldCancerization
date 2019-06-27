@@ -54,20 +54,35 @@ struct CA {
 		int nt = omp_get_num_procs();
 		int counts[nt] = { 0 };
 		printf("Grid initialization progress:   0.00/100.00");
-		#pragma omp parallel for num_threads(nt) collapse(2) schedule(static, (d.grid_size*d.grid_size)/nt)
-			for (int i = 0; i < d.grid_size; i++)
-				for (int j = 0; j < d.grid_size; j++) {
-					counts[omp_get_thread_num()]++;
+		for (int i = 0; i < d.grid_size; i++)
+			for (int j = 0; j < d.grid_size; j+=2) {
+				#pragma omp parallel sections num_threads(2)
+				{
+					#pragma omp section
+					{
+						d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_1, W_x, W_y, b_y);
+						d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
 
-					d.prevGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_1, W_x, W_y, b_y);
-					d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_2, W_x, W_y, b_y);
-					d.prevGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_1, d.grid_size);
-					d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
+						d.newGrid[i*d.grid_size + j] = Cell(j, i, d.grid_size, d.dev_id_2, W_x, W_y, b_y);
+						d.newGrid[i*d.grid_size + j].prefetch_cell_params(d.dev_id_2, d.grid_size);
+						counts[omp_get_thread_num()]++;
+					}
 
-					int num_finished = 0;
-					for (int k = 0; k < nt; k++) num_finished += counts[k];
-					print_progress(num_finished, d.grid_size*d.grid_size);
+					#pragma omp section
+					{
+						d.prevGrid[i*d.grid_size + (j+1)] = Cell(j+1, i, d.grid_size, d.dev_id_1, W_x, W_y, b_y);
+						d.prevGrid[i*d.grid_size + (j+1)].prefetch_cell_params(d.dev_id_1, d.grid_size);
+
+						d.newGrid[i*d.grid_size + (j+1)] = Cell(j+1, i, d.grid_size, d.dev_id_2, W_x, W_y, b_y);
+						d.newGrid[i*d.grid_size + (j+1)].prefetch_cell_params(d.dev_id_2, d.grid_size);
+						counts[omp_get_thread_num()]++;
+					}
 				}
+
+				int num_finished = 0;
+				for (int k = 0; k < nt; k++) num_finished += counts[k];
+				print_progress(num_finished, d.grid_size*d.grid_size);
+			}
 		printf("\n");
 
 		for (int k = 0; k < NUM_CARCIN; k++) {
