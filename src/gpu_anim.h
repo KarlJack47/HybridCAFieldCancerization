@@ -147,7 +147,8 @@ struct GPUAnimBitmap {
 
 		CudaSafeCall(cudaGraphicsUnmapResources(1, &resources[window_idx], NULL));
 
-		if (display == 1) draw(window_idx, width, height);
+		if (display == 1 && (current_context == window_idx || (window_idx != 0 && detached[window_idx-1])))
+			draw(window_idx, width, height);
 	}
 
 	void anim(void(*fCA)(uchar4*,void*,int), void(*fGenes)(uchar4*,void*,int), void(*fCarcin)(uchar4*,void*,int,int),
@@ -194,11 +195,14 @@ struct GPUAnimBitmap {
 
 			if (display == 1) glfwPollEvents();
 
-			char cell_name[18] = { '\0' };
-			sprintf(&cell_name[strlen(cell_name)], "Cell (%d, %d)", current_cell[0], current_cell[1]);
-			glfwSetWindowTitle(windows[2], cell_name);
+			if (display == 1 && (detached[1] || current_context == 2)) {
+				char cell_name[18] = { '\0' };
+				sprintf(&cell_name[strlen(cell_name)], "Cell (%d, %d)", current_cell[0], current_cell[1]);
+				glfwSetWindowTitle(windows[2], cell_name);
+			}
 
-			glfwSetWindowTitle(windows[3], carcin_names[current_carcin]);
+			if (display == 1 && (detached[2] || current_context == 3))
+				glfwSetWindowTitle(windows[3], carcin_names[current_carcin]);
 
 			if (!paused) fAnimTimer(dataBlock, true, ticks);
 

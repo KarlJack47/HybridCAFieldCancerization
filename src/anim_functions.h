@@ -8,7 +8,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
 	if (ticks <= d->maxT) {
-		if (ticks == 0) {
+		if (ticks == 0 && (bitmap.display == 1 || d->save_frames == 1)) {
 			display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
@@ -84,7 +84,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			CudaSafeCall(cudaFree(states));
 		}
 
-		if (ticks % d->frame_rate == 0) {
+		if ((bitmap.display == 1 || d->save_frames == 1) && ticks % d->frame_rate == 0) {
 			display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
@@ -104,7 +104,7 @@ void anim_gpu_genes(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 	dim3 blocks(d->grid_size/BLOCK_SIZE, d->grid_size/BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
-	if (ticks % d->frame_rate == 0) {
+	if ((bitmap.display == 1 || d->save_frames == 1) && ticks % d->frame_rate == 0) {
 		display_genes<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
@@ -129,7 +129,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 	dim3 blocks(d->grid_size/BLOCK_SIZE, d->grid_size/BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
-	if (ticks % d->frame_rate == 0) {
+	if ((bitmap.display == 1 || d->save_frames == 1) && ticks % d->frame_rate == 0) {
 		display_carcin<<< blocks, threads >>>(outputBitmap, &d->pdes[carcin_idx], d->grid_size, d->cell_size, d->dim);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
@@ -154,7 +154,7 @@ void anim_gpu_cell(uchar4* outputBitmap, DataBlock *d, unsigned int cell_idx, un
 	dim3 blocks(d->dim/BLOCK_SIZE, d->dim/BLOCK_SIZE);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
-	if (ticks % d->frame_rate == 0) {
+	if ((bitmap.display == 1 || d->save_frames == 1) && ticks % d->frame_rate == 0) {
 		display_cell_data<<< blocks, threads >>>(outputBitmap, d->newGrid, cell_idx, d->dim);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
