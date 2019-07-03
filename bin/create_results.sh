@@ -46,7 +46,7 @@ for ((i=1; i <= num_sim; i++)); do
         cd $i
         touch $i.txt
         if [ $verbose -eq 1 ]; then
-            ../../main $display $save $max_time $grid_size $maxt_tc | tee $i.txt
+            ../../main $display $save $max_time $grid_size $maxt_tc > >(tee $i.txt) 2>$i.log
         else
             ../../main $display $save $max_time $grid_size $maxt_tc > $i.txt
         fi
@@ -57,7 +57,7 @@ for ((i=1; i <= num_sim; i++)); do
     else
         echo $i >> $out_file
         if [ $verbose -eq 1 ]; then
-            ./main $display $save $max_time $grid_size $maxt_tc | tee -a $out_file
+            ./main $display $save $max_time $grid_size $maxt_tc > >(tee -a $out_file) 2>$i.log
         else
             ./main $display $save $max_time $grid_size $maxt_tc >> $out_file
         fi
