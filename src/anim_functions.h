@@ -79,7 +79,7 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
 
-			for (int i = 0; i < NUM_CARCIN; i++) d->pdes[i].time_step(ticks, d->newGrid);
+			for (int i = 0; i < NUM_CARCIN; i++) d->pdes[i].time_step(ticks);
 
 			CudaSafeCall(cudaFree(states));
 		}

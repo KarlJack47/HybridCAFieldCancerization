@@ -13,8 +13,11 @@
 #include "error_check.h"
 #include "lodepng.h"
 
+// Number of iterations for infinite sums
+#define MAX_ITER 100
+
 // block size for CUDA kernels
-#define BLOCK_SIZE 32
+#define BLOCK_SIZE 16
 
 // Definitions related to quantities with fixed sizes
 #define MAX_EXCISE 100
@@ -278,9 +281,9 @@ void print_progress(int curr_amount, int num_vals) {
 
 #include "../gene_expression_nn.h"
 #include "../cell.h"
-__global__ void init_pde(double*, double, double, unsigned int, unsigned int);
-__global__ void pde_space_step(double*, double*, unsigned int, double, double, double, double,
-			   double, double, Cell*);
+__global__ void init_pde(double*, double, double, unsigned int);
+__global__ void pde_space_step(double*, unsigned int, unsigned int,
+			       double, double, double, double, double);
 #include "../carcinogen_pde.h"
 
 struct DataBlock {

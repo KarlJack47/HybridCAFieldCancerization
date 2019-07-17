@@ -21,7 +21,7 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 }
 
 // Initalizes the carcinogen pde grid.
-__global__ void init_pde(double *results, double ic, double bc, unsigned int Nx, unsigned int N) {
+__global__ void init_pde(double *results, double ic, double bc, unsigned int N) {
 	unsigned int col = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned int row = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned int idx = row + col * gridDim.x * blockDim.x;
@@ -35,24 +35,28 @@ __global__ void init_pde(double *results, double ic, double bc, unsigned int Nx,
 }
 
 // Spacial step for the carcinogen pde.
-__global__ void pde_space_step(double *prev, double *next, unsigned int N, double bc, double T_scale, double dt, double s,
-			   double influx_per_cell, double outflux_per_cell, Cell *cells) {
+__global__ void pde_space_step(double *results, unsigned int t, unsigned int N, double bc, double ic,
+			       double D, double influx_per_cell, double outflux_per_cell) {
 	unsigned int col = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned int row = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned int idx = row + col * gridDim.x * blockDim.x;
 
 	if (row < N && col < N) {
 		if (!(row == 0 || row == N-1 || col == 0 || col == N-1)) {
-			double in = 0.0f; double out = 0.0f;
-			in = influx_per_cell;
-			out = outflux_per_cell;
-			next[idx] = prev[idx] +
-				    s*(prev[cells[idx].neighbourhood[NORTH]] + prev[cells[idx].neighbourhood[EAST]] +
-		    	   	    prev[cells[idx].neighbourhood[SOUTH]] + prev[cells[idx].neighbourhood[WEST]] +
-		    	    	    prev[cells[idx].neighbourhood[NORTH_EAST]] + prev[cells[idx].neighbourhood[SOUTH_EAST]] +
-		    	    	    prev[cells[idx].neighbourhood[SOUTH_WEST]] + prev[cells[idx].neighbourhood[NORTH_WEST]] - 8.0f*prev[idx]) +
-		    	    	    T_scale * dt * (in - out);
-		} else next[idx] = bc;
+			double sum = 0.0f;
+			double pi_div_N = M_PI / (double) N;
+			double pi_squared = M_PI*M_PI;
+			for (int n = 0; n < MAX_ITER; n++)
+				for (int m = 0; m < MAX_ITER; m++) {
+					double n_odd = 2.0f*n + 1.0f;
+					double m_odd = 2.0f*m + 1.0f;
+					double lambda = ((n_odd*n_odd + m_odd*m_odd)*pi_squared) / (double) (N*N);
+					double exp_result = exp(-lambda*D*t);
+					sum += (influx_per_cell - outflux_per_cell) * (1.0f - exp_result) / (lambda*D) + exp_result * (ic - bc) *
+					       sin(col*n_odd*pi_div_N) * sin(row*m_odd*pi_div_N) / (n_odd*m_odd);
+				}
+			results[idx] = (16.0f / pi_squared)*sum + bc;
+		} else results[idx] = bc;
 	}
 }
 
