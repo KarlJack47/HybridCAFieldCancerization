@@ -52,11 +52,11 @@ int main(int argc, char *argv[]) {
 	free(carcin_names[0]); free(carcin_names);
 	ca.initialize_memory();
 
-	double diffusion[NUM_CARCIN] = {1.266389e-5};
-	double out[NUM_CARCIN] = {9.722222e-8 / (double) (grid_size * grid_size)};
-	double in[NUM_CARCIN] = {2.37268e-6 / (double) (grid_size * grid_size)};
-	double ic[NUM_CARCIN] = {0.5f};
-	double bc[NUM_CARCIN] = {1.0f};
+	double diffusion[NUM_CARCIN] = {4.5590004e-2}; // cm^2/h
+	double out[NUM_CARCIN] = {1.5e-4}; // g/cm^3*h
+	double in[NUM_CARCIN] = {6.5267335e3}; // g/cm^3*h
+	double ic[NUM_CARCIN] = {0.0f};
+	double bc[NUM_CARCIN] = {0.0f};
 
 	double *W_x = (double*)malloc(NUM_GENES*(NUM_CARCIN+1)*sizeof(double));
 	double *W_y = (double*)malloc(NUM_GENES*NUM_GENES*sizeof(double));
