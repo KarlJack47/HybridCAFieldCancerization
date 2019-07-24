@@ -14,8 +14,8 @@
 #include "lodepng.h"
 
 // Biological numbers
-#define CELL_VOLUME 1.596e-9 // relative to cm
-#define CELL_CYCLE_LEN 16.0f // in hours
+#define CELL_VOLUME 1.596e-9 // relative to cm, epithelial cell
+#define CELL_CYCLE_LEN 10.0f // in hours, for tastebuds
 
 // Number of iterations for infinite sums
 #define MAX_ITER 100
@@ -62,12 +62,14 @@
 
 // Thresholds and parameters for the CA
 #define PHENOTYPE_INCR 0.001f
+#define EXPR_ADJ_MAX_INCR 1.0f/sqrtf(ALPHA)
 #define MUT_THRESHOLD 0.1f
 #define CSC_GENE_IDX 2
 #define CHANCE_MOVE 0.25f
 #define CHANCE_KILL 0.35f
 #define CHANCE_UPREG 0.5f
 #define CHANCE_PHENO_MUT 0.5f
+#define CHANCE_EXPR_ADJ 0.3f
 
 // Related to CSC and TC formation tracking.
 __managed__ bool csc_formed; // used to check when first CSC forms
@@ -153,6 +155,17 @@ __managed__ int diff_mut_map[(NUM_STATES-1)*(NUM_GENES+1)] = {-1, -1, -1, -1, -1
 
 // Labels each gene as a tumor supressor (0) or oncogene (1). Used to see if a gene is positively mutated towards cancer.
 __managed__ unsigned int gene_type[NUM_GENES] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
+// Gene relationships, 0: unrelated, 1: related
+__managed__ int gene_relations[NUM_GENES*NUM_GENES] = {0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+						       0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+						       1, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+						       0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+						       0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+						       0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+						       0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+						       0, 0, 0, 1, 0, 0, 0, 0, 0, 1,
+						       0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+						       0, 0, 0, 0, 0, 0, 1, 1, 0, 0};
 
 void prefetch_params(int loc) {
 	int location = loc;
@@ -167,6 +180,7 @@ void prefetch_params(int loc) {
 	CudaSafeCall(cudaMemPrefetchAsync(prolif_mut_map, (NUM_STATES-1)*NUM_GENES*sizeof(int), location, NULL));
 	CudaSafeCall(cudaMemPrefetchAsync(diff_mut_map, (NUM_STATES-1)*NUM_GENES*sizeof(int), location, NULL));
 	CudaSafeCall(cudaMemPrefetchAsync(gene_type, NUM_GENES*sizeof(unsigned int), location, NULL));
+	CudaSafeCall(cudaMemPrefetchAsync(gene_relations, NUM_GENES*NUM_GENES*sizeof(int), location, NULL));
 }
 
 /* Start Array Functions */
