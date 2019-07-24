@@ -123,7 +123,9 @@ struct Cell {
 	}
 
 	__device__ unsigned int positively_mutated(unsigned int M) {
-		if ((gene_type[M] == 0 && gene_expressions[M*2+1] >= MUT_THRESHOLD) || (gene_type[M] == 1 && gene_expressions[M*2] >= MUT_THRESHOLD))
+		if (!(fabsf(gene_expressions[M*2] - gene_expressions[M*2+1]) <= FLT_EPSILON) &&
+		    ((gene_type[M] == 0 && gene_expressions[M*2+1] >= MUT_THRESHOLD) ||
+		     (gene_type[M] == 1 && gene_expressions[M*2] >= MUT_THRESHOLD)))
 			return 0;
 		else
 			return 1;
@@ -221,9 +223,8 @@ struct Cell {
 
 	__device__ void phenotype_mutate(unsigned int M, unsigned int cell, curandState_t *states) {
 		unsigned int i;
-		if (!(fabsf(NN->b_out[M] - BIAS) <= FLT_EPSILON)) return;
 		if (!(curand_uniform_double(&states[cell]) <= CHANCE_PHENO_MUT)) return;
-		if (!(fabsf(gene_expressions[M*2] - gene_expressions[M*2+1]) <= FLT_EPSILON) && fmaxf(gene_expressions[M*2], gene_expressions[M*2+1]) >= MUT_THRESHOLD) {
+		if (fmaxf(gene_expressions[M*2], gene_expressions[M*2+1]) >= MUT_THRESHOLD) {
 			// down-regulation
 			if (gene_expressions[M*2] < gene_expressions[M*2+1]) {
 				for (i = 0; i < NUM_PHENO; i++) {
@@ -233,7 +234,7 @@ struct Cell {
 						phenotype[i] = fminf(phenotype[i] + downreg_phenotype_map[M*NUM_PHENO+i], 1.0f);
 				}
 			// up-regulation
-			} else {
+			} else if (gene_expressions[M*2] > gene_expressions[M*2+1]) {
 				for (i = 0; i < NUM_PHENO; i++) {
 					if (upreg_phenotype_map[M*NUM_PHENO+i] < 0.0f)
 						phenotype[i] = fmaxf(0.0f, phenotype[i] + upreg_phenotype_map[M*NUM_PHENO+i]);
@@ -244,19 +245,55 @@ struct Cell {
 		}
 	}
 
+	__device__ void gene_regulation_adj(unsigned int M, unsigned int cell, curandState_t *states) {
+		double incr = EXPR_ADJ_MAX_INCR;
+		unsigned int pos_mut = positively_mutated(M);
+
+		for (int m = 0; m < NUM_GENES; m++) {
+			if (curand_uniform_double(&states[cell]) > CHANCE_EXPR_ADJ) continue;
+			unsigned int pos_mut_m = positively_mutated(m);
+			if ((pos_mut == 0 && pos_mut_m == 0) || (pos_mut == 1 && pos_mut_m == 1)) continue;
+			incr *= curand_uniform_double(&states[cell]);
+			if (gene_relations[M*NUM_GENES+m] == 1) {
+				if (pos_mut == 0) {
+					if (gene_type[m] == 0) gene_expressions[m*2+1] += incr;
+					else gene_expressions[m*2] += incr;
+				} else {
+					if (gene_type[m] == 0)
+						gene_expressions[m*2+1] = fmaxf(0.0f, gene_expressions[m*2+1]-incr);
+					else
+						gene_expressions[m*2] = fmaxf(0.0f, gene_expressions[m*2]-incr);
+				}
+			}
+		}
+	}
+
 	__device__ void mutate(double *result, unsigned int cell, curandState_t *states) {
-		unsigned int i;
+		unsigned int m;
 
 		if (state != EMPTY) {
-			for (i = 0; i < NUM_GENES; i++) {
+			for (m = 0; m < NUM_GENES; m++) {
 				if (curand_uniform_double(&states[cell]) <= CHANCE_UPREG)
-					gene_expressions[i*2] += result[i];
+					gene_expressions[m*2] += result[m];
 				else
-					gene_expressions[i*2+1] += result[i];
+					gene_expressions[m*2+1] += result[m];
 			}
-			NN->mutate(gene_expressions);
 
-			for (i = 0; i < NUM_GENES; i++) phenotype_mutate(i, cell, states);
+			double rnd = curand_uniform_double(&states[cell]);
+
+			if (rnd <= 0.333333f) {
+				for (m = 0; m < NUM_GENES; m++) gene_regulation_adj(m, cell, states);
+				NN->mutate(gene_expressions);
+				for (m = 0; m < NUM_GENES; m++) phenotype_mutate(m, cell, states);
+			} else if (rnd > 0.333333f && rnd <= 0.666667f) {
+				NN->mutate(gene_expressions);
+				for (m = 0; m < NUM_GENES; m++) gene_regulation_adj(m, cell, states);
+				for (m = 0; m < NUM_GENES; m++) phenotype_mutate(m, cell, states);
+			} else {
+				NN->mutate(gene_expressions);
+				for (m = 0; m < NUM_GENES; m++) phenotype_mutate(m, cell, states);
+				for (m = 0; m < NUM_GENES; m++) gene_regulation_adj(m, cell, states);
+			}
 
 			age++;
 		}
