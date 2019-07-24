@@ -283,9 +283,9 @@ __global__ void display_carcin(uchar4 *optr, CarcinogenPDE *pde, unsigned int g_
 	if (x < g_size && y < g_size) {
 		for (i = offsetOptr; i < offsetOptr + cell_size; i++) {
 			for (j = i; j < i + cell_size * dim; j += dim) {
-				optr[j].x = ceil(fmaxf(0.0f, 255.0f - 255.0f*carcin_con));
-				optr[j].y = ceil(fmaxf(0.0f, 255.0f - 255.0f*carcin_con));
-				optr[j].z = ceil(fmaxf(0.0f, 255.0f - 255.0f*carcin_con));
+				optr[j].x = ceil(fminf(255.0f, 0.0f + 255.0f*carcin_con));
+				optr[j].y = ceil(fminf(255.0f, 0.0f + 255.0f*carcin_con));
+				optr[j].z = ceil(fminf(255.0f, 0.0f + 255.0f*carcin_con));
 				optr[j].w = 255;
 			}
 		}
