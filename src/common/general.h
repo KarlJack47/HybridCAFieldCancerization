@@ -13,11 +13,15 @@
 #include "error_check.h"
 #include "lodepng.h"
 
+// Biological numbers
+#define CELL_VOLUME 1.596e-9 // relative to cm
+#define CELL_CYCLE_LEN 16.0f // in hours
+
 // Number of iterations for infinite sums
 #define MAX_ITER 100
 
 // block size for CUDA kernels
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 32
 
 // Definitions related to quantities with fixed sizes
 #define MAX_EXCISE 100
