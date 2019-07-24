@@ -6,7 +6,6 @@
 struct CarcinogenPDE {
 	int device;
 	unsigned int N;
-	double T_scale;
 	double ic;
 	double bc;
 	double diffusion;
@@ -16,10 +15,10 @@ struct CarcinogenPDE {
 
 	double *results;
 
-	CarcinogenPDE(unsigned int space_size, double diff, double out, double in, double ic_in, double bc_in, unsigned int idx, int dev) {
+	CarcinogenPDE(unsigned int space_size, double diff, double out, double in,
+		      double ic_in, double bc_in, unsigned int idx, int dev) {
 		device = dev;
 		N = space_size;
-		T_scale = 16.0f*120.0f;
 		diffusion = diff;
 		outflux_per_cell = out;
 		influx_per_cell = in;
@@ -49,7 +48,7 @@ struct CarcinogenPDE {
 		dim3 blocks(N / BLOCK_SIZE, N / BLOCK_SIZE);
 		dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
 
-		pde_space_step<<< blocks, threads >>>(results, step*T_scale, N, bc, ic, diffusion,
+		pde_space_step<<< blocks, threads >>>(results, step*CELL_CYCLE_LEN, N, bc, ic, diffusion,
 						      influx_per_cell, outflux_per_cell);
 		CudaCheckError();
 		CudaSafeCall(cudaDeviceSynchronize());
