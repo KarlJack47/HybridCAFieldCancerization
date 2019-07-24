@@ -28,9 +28,9 @@ __global__ void init_pde(double *results, double ic, double bc, unsigned int N) 
 
 	if (row < N && col < N) {
 		if (row == 0 || row == N-1 || col == 0 || col == N-1)
-			results[idx] = bc;
+			results[idx] = CELL_VOLUME*bc;
 		else
-			results[idx] = ic;
+			results[idx] = CELL_VOLUME*ic;
 	}
 }
 
@@ -46,17 +46,22 @@ __global__ void pde_space_step(double *results, unsigned int t, unsigned int N, 
 			double sum = 0.0f;
 			double pi_div_N = M_PI / (double) N;
 			double pi_squared = M_PI*M_PI;
-			for (int n = 0; n < MAX_ITER; n++)
+			double source_term = influx_per_cell - outflux_per_cell;
+			double ic_minus_bc = ic - bc;
+			double N_squared = N*N;
+			double Dt = D*t;
+			for (int n = 0; n < MAX_ITER; n++) {
+				double n_odd = 2.0f*n + 1.0f;
 				for (int m = 0; m < MAX_ITER; m++) {
-					double n_odd = 2.0f*n + 1.0f;
 					double m_odd = 2.0f*m + 1.0f;
-					double lambda = ((n_odd*n_odd + m_odd*m_odd)*pi_squared) / (double) (N*N);
-					double exp_result = exp(-lambda*D*t);
-					sum += (influx_per_cell - outflux_per_cell) * (1.0f - exp_result) / (lambda*D) + exp_result * (ic - bc) *
-					       sin(col*n_odd*pi_div_N) * sin(row*m_odd*pi_div_N) / (n_odd*m_odd);
+					double lambda = ((n_odd*n_odd + m_odd*m_odd)*pi_squared) / N_squared;
+					double exp_result = exp(-lambda*Dt);
+					sum += ((source_term * (1.0f - exp_result) / (lambda*D) + exp_result * ic_minus_bc) *
+					       sin(col*n_odd*pi_div_N) * sin(row*m_odd*pi_div_N)) / (n_odd*m_odd);
 				}
-			results[idx] = (16.0f / pi_squared)*sum + bc;
-		} else results[idx] = bc;
+			}
+			results[idx] = CELL_VOLUME*((16.0f / pi_squared)*sum + bc);
+		} else results[idx] = CELL_VOLUME*bc;
 	}
 }
 
