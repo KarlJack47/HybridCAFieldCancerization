@@ -2,3 +2,4 @@ main
 output*/
 /output_*.txt
 /stats_*.txt
+/*.log
