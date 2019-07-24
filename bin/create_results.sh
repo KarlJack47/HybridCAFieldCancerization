@@ -57,7 +57,7 @@ for ((i=1; i <= num_sim; i++)); do
     else
         echo $i >> $out_file
         if [ $verbose -eq 1 ]; then
-            ./main $display $save $max_time $grid_size $maxt_tc > >(tee -a $out_file) 2>$i.log
+            ./main $display $save $max_time $grid_size $maxt_tc > >(tee -a $out_file) 2>$i_$(date -d "today" +"%Y%m%d%H%M%S").log
         else
             ./main $display $save $max_time $grid_size $maxt_tc >> $out_file
         fi
