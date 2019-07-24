@@ -50,7 +50,8 @@ struct CA {
 		CudaSafeCall(cudaMallocManaged((void**)&d.newGrid, d.grid_size*d.grid_size*sizeof(Cell)));
 	}
 
-	void init(double *diffusion, double *out, double *in, double *ic, double *bc, double *W_x, double *W_y, double *b_y) {
+	void init(double *diffusion, double *out, double *in, double *ic,
+		  double *bc, double *W_x, double *W_y, double *b_y) {
 		int nt = omp_get_num_procs();
 		int counts[nt] = { 0 };
 		printf("Grid initialization progress:   0.00/100.00");
@@ -86,7 +87,8 @@ struct CA {
 		printf("\n");
 
 		for (int k = 0; k < NUM_CARCIN; k++) {
-			d.pdes[k] = CarcinogenPDE(d.grid_size, diffusion[k], out[k], in[k], ic[k], bc[k], k, d.dev_id_2);
+			d.pdes[k] = CarcinogenPDE(d.grid_size, diffusion[k], out[k], in[k],
+						  ic[k], bc[k], k, d.dev_id_2);
 			d.pdes[k].init();
 		}
 
