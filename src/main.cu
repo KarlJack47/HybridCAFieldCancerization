@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
 
 	double diffusion[NUM_CARCIN] = {4.5590004e-2}; // cm^2/h
 	double out[NUM_CARCIN] = {1.5e-4}; // g/cm^3*h
-	double in[NUM_CARCIN] = {6.5267335e3}; // g/cm^3*h
+	double in[NUM_CARCIN] = {1.3053467001e4}; // g/cm^3*h
 	double ic[NUM_CARCIN] = {0.0f};
 	double bc[NUM_CARCIN] = {0.0f};
 

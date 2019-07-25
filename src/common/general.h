@@ -21,7 +21,7 @@
 #define MAX_ITER 100
 
 // block size for CUDA kernels
-#define BLOCK_SIZE 32
+#define BLOCK_SIZE 16
 
 // Definitions related to quantities with fixed sizes
 #define MAX_EXCISE 100
