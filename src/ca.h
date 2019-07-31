@@ -92,7 +92,12 @@ struct CA {
 			d.pdes[k].init();
 		}
 
+		CudaSafeCall(cudaMemPrefetchAsync(d.prevGrid, d.grid_size*d.grid_size*sizeof(Cell), d.dev_id_1, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(d.newGrid, d.grid_size*d.grid_size*sizeof(Cell), d.dev_id_2, NULL));
+		CudaSafeCall(cudaMemPrefetchAsync(d.pdes, NUM_CARCIN*sizeof(CarcinogenPDE), d.dev_id_2, NULL));
 		prefetch_params(d.dev_id_1);
+
+		CudaSafeCall(cudaDeviceSynchronize());
 	}
 
 	void animate(int frame_rate) {
