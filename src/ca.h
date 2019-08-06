@@ -20,12 +20,6 @@ struct CA {
 			bitmap.carcin_names[i] = (char*)malloc((strlen(carcin_names[i])+1)*sizeof(char));
 			strcpy(bitmap.carcin_names[i], carcin_names[i]);
 		}
-
-		csc_formed = false;
-		for (int i = 0; i < MAX_EXCISE+1; i++) tc_formed[i] = false;
-		time_tc_alive = 0;
-		time_tc_dead = 1;
-		excise_count = 0;
 	}
 
 	~CA(void) {

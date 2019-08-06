@@ -16,6 +16,7 @@
 // Biological numbers
 #define CELL_VOLUME 1.596e-9 // relative to cm, epithelial cell
 #define CELL_CYCLE_LEN 10.0f // in hours, for tastebuds
+#define CELL_LIFE_SPAN 250.0f // in hours, for tastebuds
 
 // Number of iterations for infinite sums
 #define MAX_ITER 100
@@ -72,12 +73,12 @@
 #define CHANCE_EXPR_ADJ 0.3f
 
 // Related to CSC and TC formation tracking.
-__managed__ bool csc_formed; // used to check when first CSC forms
-__managed__ bool tc_formed[MAX_EXCISE+1]; // Used to check when first TC forms
+__managed__ bool csc_formed = false; // used to check when first CSC forms
+__managed__ bool tc_formed[MAX_EXCISE+1] = { false }; // Used to check when first TC forms
 // These are related to tracking tumor excisions
-__managed__ unsigned int excise_count; // Current excision number
-__managed__ unsigned int time_tc_alive; // Records the time step the TC was formed
-__managed__ unsigned int time_tc_dead; // Records the time step the TC died
+__managed__ unsigned int excise_count = 0; // Current excision number
+__managed__ unsigned int time_tc_alive = 0; // Records the time step the TC was formed
+__managed__ unsigned int time_tc_dead = 1; // Records the time step the TC died
 
 __managed__ unsigned int state_colors[NUM_STATES*3] = {0, 0, 0, // black (NC)
 					      	       87, 207, 0, // green (MNC)
