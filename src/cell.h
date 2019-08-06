@@ -14,6 +14,7 @@ struct Cell {
 	GeneExpressionNN *NN;
 
 	int chosen_phenotype;
+	unsigned int cell_rebirth;
 
 	void initialize(unsigned int x, unsigned int y, unsigned int grid_size, double *W_x, double *W_y, double *b_y) {
 		CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(GeneExpressionNN)));
@@ -36,10 +37,8 @@ struct Cell {
 		CudaSafeCall(cudaMallocManaged((void**)&gene_expressions, 2*NUM_GENES*sizeof(double)));
 		memset(gene_expressions, 0.0f, 2*NUM_GENES*sizeof(double));
 
-		age = 0;
-
 		chosen_phenotype = -1;
-
+		cell_rebirth = 0;
 	}
 
 	Cell(unsigned int x, unsigned int y, unsigned int grid_size, unsigned int dev, double *W_x, double *W_y, double *b_y) {
@@ -63,6 +62,9 @@ struct Cell {
 		phenotype[1] = phenotype_init[state*NUM_PHENO+1];
 		phenotype[2] = phenotype_init[state*NUM_PHENO+2];
 		phenotype[3] = phenotype_init[state*NUM_PHENO+3];
+
+		if (state == 6) age = 0;
+		else age = rand() % (int) ceilf(CELL_LIFE_SPAN/CELL_CYCLE_LEN);
 	}
 
 	void free_resources(void) {
@@ -156,6 +158,8 @@ struct Cell {
 			if (c->state != EMPTY && (state == CSC || state == TC)) c->apoptosis();
 			c->change_state(new_state);
 			copy_mutations(c);
+
+			c->age = 0; age = 0;
 		}
 
 		return new_state;
@@ -185,6 +189,8 @@ struct Cell {
 			if (c->state != EMPTY && (state == CSC || state == TC)) c->apoptosis();
 			c->change_state(new_state);
 			copy_mutations(c);
+
+			c->age = 0; age = 0;
 		}
 
 		return new_state;
