@@ -5,8 +5,8 @@ verbose=0
 num_sim=100
 display=0
 save=0
-max_time=600
-grid_size=512
+max_time=5483
+grid_size=64
 maxt_tc=-1
 while getopts hvdsn:t:g:e: option; do
     case "${option}"
