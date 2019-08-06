@@ -54,10 +54,6 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			if (tc_formed[excise_count] == true) time_tc_alive++;
 			else time_tc_dead++;
 
-			reset_rule_params<<< blocks, threads >>>(d->prevGrid, d->grid_size);
-			CudaCheckError();
-			CudaSafeCall(cudaDeviceSynchronize());
-
 			update_states<<< blocks, threads >>>(d->newGrid, d->grid_size);
 			CudaCheckError();
 			CudaSafeCall(cudaDeviceSynchronize());
@@ -74,6 +70,14 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 					time_tc_dead = 1;
 				}
 			}
+
+			check_lifespan<<< blocks, threads >>>(d->prevGrid, d->newGrid, d->grid_size, states);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
+
+			reset_rule_params<<< blocks, threads >>>(d->prevGrid, d->grid_size);
+			CudaCheckError();
+			CudaSafeCall(cudaDeviceSynchronize());
 
 			cells_gpu_to_gpu_copy<<< blocks, threads >>>(d->newGrid, d->prevGrid, d->grid_size);
 			CudaCheckError();

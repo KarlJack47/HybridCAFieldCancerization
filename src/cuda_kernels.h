@@ -22,8 +22,8 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame) {
 
 // Initalizes the carcinogen pde grid.
 __global__ void init_pde(double *results, double ic, double bc, unsigned int N) {
-	unsigned int col = threadIdx.x + blockIdx.x * blockDim.x;
-	unsigned int row = threadIdx.y + blockIdx.y * blockDim.y;
+	unsigned int row = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int col = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned int idx = row + col * gridDim.x * blockDim.x;
 
 	if (row < N && col < N) {
@@ -37,8 +37,8 @@ __global__ void init_pde(double *results, double ic, double bc, unsigned int N) 
 // Spacial step for the carcinogen pde.
 __global__ void pde_space_step(double *results, unsigned int t, unsigned int N, double bc, double ic,
 			       double D, double influx_per_cell, double outflux_per_cell) {
-	unsigned int col = threadIdx.x + blockIdx.x * blockDim.x;
-	unsigned int row = threadIdx.y + blockIdx.y * blockDim.y;
+	unsigned int row = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int col = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned int idx = row + col * gridDim.x * blockDim.x;
 
 	if (row < N && col < N) {
@@ -57,7 +57,7 @@ __global__ void pde_space_step(double *results, unsigned int t, unsigned int N, 
 					double lambda = ((n_odd*n_odd + m_odd*m_odd)*pi_squared) / N_squared;
 					double exp_result = exp(-lambda*Dt);
 					sum += ((source_term * (1.0f - exp_result) / (lambda*D) + exp_result * ic_minus_bc) *
-					       sin(col*n_odd*pi_div_N) * sin(row*m_odd*pi_div_N)) / (n_odd*m_odd);
+					       sin(row*n_odd*pi_div_N) * sin(col*m_odd*pi_div_N)) / (n_odd*m_odd);
 				}
 			}
 			results[idx] = CELL_VOLUME*((16.0f / pi_squared)*sum + bc);
@@ -120,14 +120,20 @@ __global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, unsigned int g_s
 
 	if (x < g_size && y < g_size) {
 		unsigned int offset = x + y * blockDim.x * gridDim.x;
-		if (csc_formed == false && prevG[offset].state != CSC && newG[offset].state == CSC) {
-			printf("A CSC was formed at time step %d.\n", t);
-			csc_formed = true;
+		if (prevG[offset].state != CSC && newG[offset].state == CSC) {
+			if (csc_formed == false) {
+				printf("The first CSC was formed at time step %d and location (%d, %d).\n", t, x, y);
+				csc_formed = true;
+			} else printf("A CSC was formed at time step %d and location (%d, %d).\n", t, x, y);
 		}
 		if (tc_formed[excise_count] == false && prevG[offset].state != TC && newG[offset].state == TC) {
-			if (excise_count == 0) printf("A TC was formed at time step %d.\n", t);
-			else printf("A TC was reformed after excision %d and %d time steps at time step %d.\n", excise_count, time_tc_dead, t);
-			tc_formed[excise_count] = true;
+			if (tc_formed[excise_count] == false) {
+				if (excise_count == 0) printf("The first TC was formed at time step %d and location (%d, %d).\n", t, x, y);
+				else
+					printf("A TC was reformed after excision %d and %d time steps at time step %d and location (%d, %d).\n",
+						excise_count, time_tc_dead, t, x, y);
+				tc_formed[excise_count] = true;
+			} else printf("A TC was formed at time step %d and location (%d, %d).\n", t, x, y);
 		}
 	}
 }
@@ -136,7 +142,12 @@ __global__ void reset_rule_params(Cell *prevG, unsigned int g_size) {
 	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
 
-	if (x < g_size && y < g_size) prevG[x + y * blockDim.x * gridDim.x].chosen_phenotype = -1;
+	if (x < g_size && y < g_size) {
+		unsigned int offset = x + y * blockDim.x * gridDim.x;
+
+		prevG[offset].chosen_phenotype = -1;
+		prevG[offset].cell_rebirth = 0;
+	}
 }
 
 __global__ void rule(Cell *newG, Cell *prevG, unsigned int g_size, unsigned int phenotype, curandState_t *states) {
@@ -164,16 +175,31 @@ __global__ void rule(Cell *newG, Cell *prevG, unsigned int g_size, unsigned int 
 			unsigned int idx = (unsigned int) ceilf(curand_uniform(&states[offset])*NUM_NEIGH) % NUM_NEIGH;
 			unsigned int neigh_idx = prevG[offset].neighbourhood[idx];
 			if (neigh[idx] == false) {
-				if (phenotype == PROLIF && prevG[offset].chosen_phenotype == PROLIF)
+				if (phenotype == PROLIF && prevG[offset].chosen_phenotype == PROLIF) {
 					state = newG[offset].proliferate(&newG[neigh_idx], offset, states);
-				else if (phenotype == DIFF && prevG[offset].chosen_phenotype == DIFF)
+					if (state != -2) prevG[offset].cell_rebirth = 1;
+				} else if (phenotype == DIFF && prevG[offset].chosen_phenotype == DIFF) {
 					state = newG[offset].differentiate(&newG[neigh_idx], offset, states);
-				else if (phenotype == QUIES && prevG[offset].chosen_phenotype == QUIES)
+					if (state != -2) prevG[offset].cell_rebirth = 1;
+				} else if (phenotype == QUIES && prevG[offset].chosen_phenotype == QUIES)
 					state = newG[offset].move(&newG[neigh_idx], offset, states);
 				if (state != -2) break;
 				neigh[i] = true;
 			}
 		}
+	}
+}
+
+__global__ void check_lifespan(Cell *prevG, Cell *newG, unsigned int g_size, curandState_t *states) {
+	unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+	if (x < g_size && y < g_size) {
+		unsigned int offset = x + y * blockDim.x * gridDim.x;
+
+		if (prevG[offset].age >= (CELL_LIFE_SPAN/CELL_CYCLE_LEN) && prevG[offset].cell_rebirth == 0 &&
+		    curand_uniform_double(&states[offset]) <= prevG[offset].phenotype[prevG[offset].state*NUM_PHENO+2])
+			newG[offset].apoptosis();
 	}
 }
 
