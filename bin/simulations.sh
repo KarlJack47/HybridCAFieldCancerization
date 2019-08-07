@@ -1,10 +1,10 @@
 #!/bin/bash
 
 help=0
-verbose=0
+verbose=1
 num_sim=100
 display=0
-save=0
+save=1
 max_time=5483
 grid_size=64
 maxt_tc=-1
