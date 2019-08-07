@@ -11,7 +11,16 @@
 #include <float.h>
 #include <sys/time.h>
 #include "error_check.h"
-#include "lodepng.h"
+#include <errno.h>
+#include <turbojpeg.h>
+
+#define THROW(action, message) printf("ERROR in line %d while %s:\n%s\n", __LINE__, action, message)
+#define THROW_TJ(action) THROW(action, tjGetErrorStr())
+#define THROW_UNIX(action) THROW(action, strerror(errno))
+
+#define JPEG_SUBSAMP TJSAMP_444
+#define JPEG_QUAL 95
+#define JPEG_PIXEL_FMT TJPF_RGBA
 
 // Biological numbers
 #define CELL_VOLUME 1.596e-9 // relative to cm, epithelial cell
@@ -322,12 +331,12 @@ struct DataBlock {
 
 __global__ void copy_frame(uchar4*, unsigned char*);
 
-void save_image(uchar4 *outputBitmap, size_t size, char *prefix, unsigned int time, unsigned int maxT) {
+int save_image(uchar4 *outputBitmap, size_t size, char *prefix, unsigned int time, unsigned int maxT) {
 	char fname[150] = { '\0' };
 	if (prefix != NULL) strcat(fname, prefix);
 	int dig_max = numDigits(maxT); int dig = numDigits(time);
 	for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
-	sprintf(&fname[strlen(fname)], "%d.png", time);
+	sprintf(&fname[strlen(fname)], "%d.jpeg", time);
 	unsigned char *frame;
 	CudaSafeCall(cudaMallocManaged((void**)&frame, size*size*4*sizeof(unsigned char)));
 	CudaSafeCall(cudaMemPrefetchAsync(frame, size*size*4*sizeof(unsigned char), 1, NULL));
@@ -337,10 +346,36 @@ void save_image(uchar4 *outputBitmap, size_t size, char *prefix, unsigned int ti
 	CudaCheckError();
 	CudaSafeCall(cudaDeviceSynchronize());
 
-	unsigned error = lodepng_encode32_file(fname, frame, size, size);
-	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+	tjhandle tjInstance = NULL;
+	unsigned long jpegSize = 0;
+	unsigned char *jpegBuf = NULL;
+	FILE *jpegFile = NULL;
+
+	if ((tjInstance = tjInitCompress()) == NULL) {
+		THROW_TJ("initializing compressor");
+		return -1;
+	}
+	if (tjCompress2(tjInstance, frame, size, 0, size, JPEG_PIXEL_FMT, &jpegBuf, &jpegSize, JPEG_SUBSAMP, JPEG_QUAL, 0) < 0) {
+		THROW_TJ("compressing image");
+		return -1;
+	}
+	tjDestroy(tjInstance); tjInstance = NULL;
+
+	if ((jpegFile = fopen(fname, "wb")) == NULL) {
+		THROW_UNIX("opening output file");
+		return -1;
+	}
+	if (fwrite(jpegBuf, jpegSize, 1, jpegFile) < 1) {
+		THROW_UNIX("writing output file");
+		return -1;
+	}
+	tjDestroy(tjInstance); tjInstance = NULL;
+	fclose(jpegFile); jpegFile = NULL;
+	tjFree(jpegBuf); jpegBuf = NULL;
 
 	CudaSafeCall(cudaFree(frame));
+
+	return 0;
 }
 
 void save_video(char *input_prefix, char *output_name, unsigned int frame_rate, unsigned int maxT) {
@@ -348,8 +383,8 @@ void save_video(char *input_prefix, char *output_name, unsigned int frame_rate, 
 	sprintf(command, "ffmpeg -y -v quiet -framerate %d -start_number 0 -i ", frame_rate);
 	int numDigMaxT = numDigits(maxT);
 	if (input_prefix != NULL) strcat(command, input_prefix);
-	if (numDigMaxT == 1) strcat(command, "%%d.png");
-	else sprintf(&command[strlen(command)], "%%%d%dd.png", 0, numDigMaxT);
+	if (numDigMaxT == 1) strcat(command, "%%d.jpeg");
+	else sprintf(&command[strlen(command)], "%%%d%dd.jpeg", 0, numDigMaxT);
 	strcat(command, " -c:v libx264 -pix_fmt yuv420p ");
 	strcat(command, output_name);
 	strcat(command, ".mp4");
