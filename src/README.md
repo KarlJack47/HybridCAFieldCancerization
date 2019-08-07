@@ -18,6 +18,5 @@
    for the above header files and main.cu. It also defines some general
    functions used by the header files above.
 10. common/error_check.h: defines the inline functions used for cuda error
-   checking.
-11. common/lodepng.h, common/lodepng.cpp, common/lodepng.o: allows the creation of png files.  
-12. common/glad/glad.h, common/glad.c, common/glad.o: used by GLFW to acquire the addresses of the OpenGL functions.
+   checking.  
+11. common/glad/glad.h, common/glad.c, common/glad.o: used by GLFW to acquire the addresses of the OpenGL functions.
