@@ -50,7 +50,7 @@ for ((i=1; i <= num_sim; i++)); do
         else
             ../../main $display $save $max_time $grid_size $maxt_tc > $i.txt
         fi
-	if [ $(ls | grep ^[0-9]*.png | wc -l) -lt $(($max_time+1)) ]; then
+	if [ $(ls | grep ^[0-9]*.jpeg | wc -l) -lt $(($max_time+1)) ]; then
 		i=$(($num_sim+1))
 	fi
         cd ..
