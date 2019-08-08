@@ -15,10 +15,16 @@ struct CA {
 		bitmap.maxT = T;
 		if (display == 0) bitmap.paused = false;
 
+		strcat(prefixes[0], "genes_");
+		strcat(out_names[0], "out_ca.mp4");
+		strcat(out_names[1], "out_genes.mp4");
+
 		bitmap.carcin_names = (char**)malloc(NUM_CARCIN*sizeof(char*));
 		for (int i = 0; i < NUM_CARCIN; i++) {
 			bitmap.carcin_names[i] = (char*)malloc((strlen(carcin_names[i])+1)*sizeof(char));
 			strcpy(bitmap.carcin_names[i], carcin_names[i]);
+			sprintf(prefixes[i+1], "carcin%d_", i);
+			sprintf(out_names[i+2], "out_carcin%d.mp4", i);
 		}
 	}
 
@@ -98,7 +104,7 @@ struct CA {
 		d.frame_rate = frame_rate;
 		bitmap.anim((void (*)(uchar4*, void*, int))anim_gpu_ca, (void (*)(uchar4*, void*, int))anim_gpu_genes,
 			    (void (*)(uchar4*, void*, int, int))anim_gpu_carcin,
-			    (void (*)(uchar4*, void*, int, int))anim_gpu_cell, (void (*)(void*, bool, int))anim_gpu_timer);
+			    (void (*)(uchar4*, void*, int, int))anim_gpu_cell, (void (*)(void*, bool, int))anim_gpu_timer_and_saver);
 	}
 };
 

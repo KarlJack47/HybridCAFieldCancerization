@@ -18,9 +18,11 @@
 #define THROW_TJ(action) THROW(action, tjGetErrorStr())
 #define THROW_UNIX(action) THROW(action, strerror(errno))
 
-#define JPEG_SUBSAMP TJSAMP_444
+#define JPEG_SUBSAMP TJSAMP_420
 #define JPEG_QUAL 95
 #define JPEG_PIXEL_FMT TJPF_RGBA
+
+#define VIDEO_FRAMERATE 5
 
 // Biological numbers
 #define CELL_VOLUME 1.596e-9 // relative to cm, epithelial cell
@@ -80,6 +82,9 @@
 #define CHANCE_UPREG 0.5f
 #define CHANCE_PHENO_MUT 0.5f
 #define CHANCE_EXPR_ADJ 0.3f
+
+char prefixes[1+NUM_CARCIN][25] = { { '\0' } };
+char out_names[2+NUM_CARCIN][25] = { { '\0' } };
 
 // Related to CSC and TC formation tracking.
 __managed__ bool csc_formed = false; // used to check when first CSC forms
@@ -337,6 +342,7 @@ int save_image(uchar4 *outputBitmap, size_t size, char *prefix, unsigned int tim
 	int dig_max = numDigits(maxT); int dig = numDigits(time);
 	for (int i = 0; i < dig_max-dig; i++) strcat(fname, "0");
 	sprintf(&fname[strlen(fname)], "%d.jpeg", time);
+
 	unsigned char *frame;
 	CudaSafeCall(cudaMallocManaged((void**)&frame, size*size*4*sizeof(unsigned char)));
 	CudaSafeCall(cudaMemPrefetchAsync(frame, size*size*4*sizeof(unsigned char), 1, NULL));
@@ -359,7 +365,8 @@ int save_image(uchar4 *outputBitmap, size_t size, char *prefix, unsigned int tim
 		THROW_TJ("compressing image");
 		return -1;
 	}
-	tjDestroy(tjInstance); tjInstance = NULL;
+	tjDestroy(tjInstance);
+	CudaSafeCall(cudaFree(frame));
 
 	if ((jpegFile = fopen(fname, "wb")) == NULL) {
 		THROW_UNIX("opening output file");
@@ -369,11 +376,8 @@ int save_image(uchar4 *outputBitmap, size_t size, char *prefix, unsigned int tim
 		THROW_UNIX("writing output file");
 		return -1;
 	}
-	tjDestroy(tjInstance); tjInstance = NULL;
-	fclose(jpegFile); jpegFile = NULL;
-	tjFree(jpegBuf); jpegBuf = NULL;
-
-	CudaSafeCall(cudaFree(frame));
+	fclose(jpegFile);
+	tjFree(jpegBuf);
 
 	return 0;
 }
@@ -385,9 +389,7 @@ void save_video(char *input_prefix, char *output_name, unsigned int frame_rate, 
 	if (input_prefix != NULL) strcat(command, input_prefix);
 	if (numDigMaxT == 1) strcat(command, "%%d.jpeg");
 	else sprintf(&command[strlen(command)], "%%%d%dd.jpeg", 0, numDigMaxT);
-	strcat(command, " -c:v libx264 -pix_fmt yuv420p ");
-	strcat(command, output_name);
-	strcat(command, ".mp4");
+	sprintf(&command[strlen(command)], " -c:v libx264 -pix_fmt yuv420p %s", output_name);
 	system(command);
 }
 

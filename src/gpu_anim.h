@@ -25,7 +25,7 @@ struct GPUAnimBitmap {
 	void (*fAnimGenes)(uchar4*, void*, int);
 	void (*fAnimCarcin)(uchar4*,void*,int,int);
 	void (*fAnimCell)(uchar4*,void*,int,int);
-	void (*fAnimTimer)(void*,bool,int);
+	void (*fAnimTimerAndSaver)(void*,bool,int);
 	int display;
 	int grid_size;
 	int maxT;
@@ -152,7 +152,7 @@ struct GPUAnimBitmap {
 	}
 
 	void anim(void(*fCA)(uchar4*,void*,int), void(*fGenes)(uchar4*,void*,int), void(*fCarcin)(uchar4*,void*,int,int),
-		  void(*fCell)(uchar4*,void*,int,int), void(*fTime)(void*,bool,int)) {
+		  void(*fCell)(uchar4*,void*,int,int), void(*fTimeAndSave)(void*,bool,int)) {
 
 		GPUAnimBitmap **bitmap = get_bitmap_ptr();
 		*bitmap = this;
@@ -161,7 +161,7 @@ struct GPUAnimBitmap {
 		fAnimGenes = fGenes;
 		fAnimCarcin = fCarcin;
 		fAnimCell = fCell;
-		fAnimTimer = fTime;
+		fAnimTimerAndSaver = fTimeAndSave;
 
 		current_carcin = 0;
 		current_cell[0] = 0;
@@ -204,7 +204,7 @@ struct GPUAnimBitmap {
 			if (display == 1 && (detached[2] || current_context == 3))
 				glfwSetWindowTitle(windows[3], carcin_names[current_carcin]);
 
-			if (!paused) fAnimTimer(dataBlock, true, ticks);
+			if (!paused) fAnimTimerAndSaver(dataBlock, true, ticks);
 
 			update_window(0, ticks);
 			if (paused) glfwSwapBuffers(windows[0]);
@@ -221,7 +221,7 @@ struct GPUAnimBitmap {
 					if (paused) glfwSwapBuffers(windows[3]);
 				}
 
-			if (!paused) fAnimTimer(dataBlock, false, ticks);
+			if (!paused) fAnimTimerAndSaver(dataBlock, false, ticks);
 
 			if (!paused) ticks++;
 

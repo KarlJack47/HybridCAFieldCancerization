@@ -86,21 +86,16 @@ void anim_gpu_ca(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 			for (int i = 0; i < NUM_CARCIN; i++) d->pdes[i].time_step(ticks);
 
 			CudaSafeCall(cudaFree(states));
+
+			if ((bitmap.display == 1 || d->save_frames == 1) && ticks % d->frame_rate == 0) {
+				display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
+				CudaCheckError();
+				CudaSafeCall(cudaDeviceSynchronize());
+			}
 		}
 
-		if ((bitmap.display == 1 || d->save_frames == 1) && ticks % d->frame_rate == 0) {
-			display_ca<<< blocks, threads >>>(outputBitmap, d->newGrid, d->grid_size, d->cell_size, d->dim);
-			CudaCheckError();
-			CudaSafeCall(cudaDeviceSynchronize());
-		}
-	}
-
-	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) save_image(outputBitmap, d->dim, NULL, ticks, d->maxT);
-
-	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
-		char out_name[25] = { '\0' };
-		strcat(out_name, "out_ca");
-		save_video(NULL, out_name, 5, d->maxT);
+		if (d->save_frames == 1 && (!bitmap.paused || (bitmap.paused && bitmap.windowsShouldClose)))
+			save_image(outputBitmap, d->dim, NULL, ticks, d->maxT);
 	}
 }
 
@@ -114,19 +109,8 @@ void anim_gpu_genes(uchar4* outputBitmap, DataBlock *d, unsigned int ticks) {
 		CudaSafeCall(cudaDeviceSynchronize());
 	}
 
-	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
-		char prefix[25] = { '\0' };
-		strcat(prefix, "genes_");
-		save_image(outputBitmap, d->dim, prefix, ticks, d->maxT);
-	}
-
-	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
-		char prefix[25] = { '\0' };
-		strcat(prefix, "genes_");
-		char out_name[25] = { '\0' };
-		strcat(out_name, "out_genes");
-		save_video(prefix, out_name, 5, d->maxT);
-	}
+	if (d->save_frames == 1 && ((ticks <= d->maxT && !bitmap.paused) || (bitmap.paused && bitmap.windowsShouldClose)))
+		save_image(outputBitmap, d->dim, prefixes[0], ticks, d->maxT);
 }
 
 void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx, unsigned int ticks) {
@@ -139,19 +123,9 @@ void anim_gpu_carcin(uchar4* outputBitmap, DataBlock *d, unsigned int carcin_idx
 		CudaSafeCall(cudaDeviceSynchronize());
 	}
 
-	if (!bitmap.paused && d->save_frames == 1 && ticks <= d->maxT) {
-		char prefix[25] = { '\0' };
-		sprintf(prefix, "carcin%d_", carcin_idx);
-		save_image(outputBitmap, d->dim, prefix, ticks, d->maxT);
-	}
+	if (d->save_frames == 1 && ((ticks <= d->maxT && !bitmap.paused) || (bitmap.paused && bitmap.windowsShouldClose)))
+		save_image(outputBitmap, d->dim, prefixes[carcin_idx+1], ticks, d->maxT);
 
-	if (d->save_frames == 1 && ((!bitmap.paused && ticks == d->maxT) || (bitmap.paused && bitmap.windowsShouldClose))) {
-		char prefix[25] = { '\0' };
-		sprintf(prefix, "carcin%d_", carcin_idx);
-		char output_name[25] = { '\0' };
-		sprintf(output_name, "out_carcin%d", carcin_idx);
-		save_video(prefix, output_name, 5, d->maxT);
-	}
 }
 
 void anim_gpu_cell(uchar4* outputBitmap, DataBlock *d, unsigned int cell_idx, unsigned int ticks) {
@@ -165,7 +139,7 @@ void anim_gpu_cell(uchar4* outputBitmap, DataBlock *d, unsigned int cell_idx, un
 	}
 }
 
-void anim_gpu_timer(DataBlock *d, bool start, int ticks) {
+void anim_gpu_timer_and_saver(DataBlock *d, bool start, int ticks) {
 	if (start) {
 		d->start_step = clock();
 		printf("starting %d\n", ticks);
@@ -175,6 +149,33 @@ void anim_gpu_timer(DataBlock *d, bool start, int ticks) {
 		printf("The time step took %f seconds to complete.\n", (double) (d->end_step - d->start_step) / CLOCKS_PER_SEC);
 	}
 	if (ticks == 0) d->start = clock();
+
+	if (!start && d->save_frames == 1 && ((ticks == d->maxT && !bitmap.paused) || (bitmap.paused && bitmap.windowsShouldClose))) {
+		#pragma omp parallel sections num_threads(3)
+		{
+			#pragma omp section
+			{
+				printf("Saving video %s.\n", out_names[0]);
+				save_video(NULL, out_names[0], VIDEO_FRAMERATE, d->maxT);
+				printf("Finished video %s.\n", out_names[0]);
+			}
+			#pragma omp section
+			{
+				printf("Saving video %s.\n", out_names[1]);
+				save_video(prefixes[0], out_names[1], VIDEO_FRAMERATE, d->maxT);
+				printf("Finished video %s.\n", out_names[1]);
+			}
+			#pragma omp section
+			{
+				for (int carcin_idx = 0; carcin_idx < NUM_CARCIN; carcin_idx++) {
+					printf("Saving video %s.\n", out_names[carcin_idx+2]);
+					save_video(prefixes[carcin_idx+1], out_names[carcin_idx+2], VIDEO_FRAMERATE, d->maxT);
+					printf("Finished video %s.\n", out_names[carcin_idx+2]);
+				}
+			}
+		}
+
+	}
 
 	if (ticks == d->maxT && !start) {
 		d->end = clock();
