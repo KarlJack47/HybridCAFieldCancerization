@@ -1,0 +1,16 @@
+% A workaround to allow relative paths in included subfiles
+% that are to be compiled separately
+% See https://tex.stackexchange.com/questions/153312/subfiles-inside-a-subfile-using-relative-paths
+\providecommand{\main}{..}
+\documentclass[\main/thesis.tex]{subfiles}
+
+\begin{document}
+
+% environment for preface
+% If you want the preface to not be double-spaced, uncomment the corresponding 
+% setting above.
+\begin{preface}
+
+\end{preface}
+
+\end{document}
