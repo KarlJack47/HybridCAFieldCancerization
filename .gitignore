@@ -3,3 +3,16 @@ output*/
 /output_*.txt
 /stats_*.txt
 /*.log
+
+MSC_Thesis/*.aux
+MSC_Thesis/*.bbl
+MSC_Thesis/*.bcf
+MSC_Thesis/*.blg
+MSC_Thesis/*.lof
+MSC_Thesis/*.log
+MSC_Thesis/*.lot
+MSC_Thesis/*.out
+MSC_Thesis/*.pdf
+MSC_Thesis/*.run.xml
+MSC_Thesis/*.syntex.gz
+MSC_Thesis/*.toc
