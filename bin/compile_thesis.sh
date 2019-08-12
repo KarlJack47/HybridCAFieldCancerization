@@ -2,6 +2,7 @@
 
 cd MSC_Thesis
 
+pdflatex thesis.tex > /dev/null
 pdflatex thesis.tex
 
 rm *.aux\
