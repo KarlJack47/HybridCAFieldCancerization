@@ -3,6 +3,8 @@ output*/
 /output_*.txt
 /stats_*.txt
 /*.log
+/*.jpeg
+/*.mp4
 
 MSC_Thesis/*.aux
 MSC_Thesis/*.bbl
