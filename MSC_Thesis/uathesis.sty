@@ -18,36 +18,36 @@
 %        : Works with both LaTeX2e and LaTeX 2.09 versions.
 %        : Has a Completely modified/new interface.
 %
-% 	- Modified file to work with LaTeX2e and LaTeX 2.09
-% 	- commented \supervisor, \external, and \chair macros
-% 	  (FGSR changed their minds -- what else is new?)
-% 	- "(Examiner)" removed from signature line. 
-% 	- "(Signed)" removed from release page.
-% 	- minor typographical changes to prefatory pages
-% 	  (removing CAPITALIZATION, adding bold face in some
-% 	  cases where larger fonts used to be).
-% 	- Changes to the style to take care of the Department and
-% 	  the Field of specialization.
-% 	- Currently the spacing has to be managed manually. Code
-% 	  to automate this will be added later. Use the following
-% 	  command after \bodyoftext:
-%      		\singlespacing      % single spacing; \baselineskip is 1em
+%	- Modified file to work with LaTeX2e and LaTeX 2.09
+%   - commented \supervisor, \external, and \chair macros
+%     (FGSR changed their minds -- what else is new?)
+%   - "(Examiner)" removed from signature line. 
+%   - "(Signed)" removed from release page.
+%   - minor typographical changes to prefatory pages
+%     (removing CAPITALIZATION, adding bold face in some
+%     cases where larger fonts used to be).
+%   - Changes to the style to take care of the Department and
+%     the Field of specialization.
+%   - Currently the spacing has to be managed manually. Code
+%     to automate this will be added later. Use the following
+%     command after \bodyoftext:
+%       \singlespacing      % single spacing; \baselineskip is 1em
 %		\onehalfspacing     % One and a half spacing;
-%      		\doublespacing      % double spacing; \baselineskip is 1.75em
-%      		\truedoublespacing  % true double spacing; \baselineskip is 2em
+%       \doublespacing      % double spacing; \baselineskip is 1.75em
+%       \truedoublespacing  % true double spacing; \baselineskip is 2em
 %
 % Version 1.00 -- November 1999	for LaTeX2e and LaTeX version 2.09
-% 	Updated by: Diego Novillo
-% 	Corrected typo in library release form.
-% 	Made each prefatory page go on a separate page.
-% 	Modified margins and signature page to conform to FGSR
-% 	regulations as of November 1999.
-% 	Minor source formatting changes
+%   Updated by: Diego Novillo
+%   Corrected typo in library release form.
+%   Made each prefatory page go on a separate page.
+%   Modified margins and signature page to conform to FGSR
+%   regulations as of November 1999.
+%   Minor source formatting changes
 %
 % Version 1.10 -- January 2000
-% 	Updated by: Diego Novillo
-% 	Re-introduced \supervisor, \cosupervisor and \external
-% 	fields. FGSR wants these fields back.
+%   Updated by: Diego Novillo
+%   Re-introduced \supervisor, \cosupervisor and \external
+%   fields. FGSR wants these fields back.
 %
 %
 % Martha White, Chris Rayner, Mike Smit made some changes along the way.
@@ -88,7 +88,7 @@
 % To use with LaTeX 2.09, simply change your documentstyle command
 % to one of the following:
 %   \documentstyle[uathesis,twoside]{report}	% for double-sided printers
-%   \documentstyle[uathesis]{report}		% for single-sided printers
+%   \documentstyle[uathesis]{report}		    % for single-sided printers
 %   \documentstyle[10pt,uathesis]{report}		% for 10pt format
 %   \documentstyle[11pt,uathesis]{report}		% for 11pt format
 %   \documentstyle[12pt,uathesis]{report}		% for 12pt format
@@ -167,7 +167,6 @@
       \@starttoc{lof}\if@restonecol%
     \twocolumn\fi}
 
-
 \def\listoftables{\@restonecolfalse
   \if@twocolumn\@restonecoltrue\onecolumn\fi
   \chapter*{\pagestyle{plain}\thispagestyle{plain}%
@@ -210,17 +209,17 @@
     \vfill
     
     \begin{center}
-    		A thesis submitted in partial fulfillment of the requirements for the degree of 
-    		\vskip.3in plus.1in minus.1in
+      A thesis submitted in partial fulfillment of the requirements for the degree of 
+      \vskip.3in plus.1in minus.1in
 
-    		{\@degree}
-    		
-    		\iffield 
-    			\vskip.3in plus.1in minus.1in 
-    			in 
-    			\vskip.3in plus.1in minus.1in 
-    			{\@field} 
-    		\fi
+      {\@degree}
+
+      \iffield 
+         \vskip.3in plus.1in minus.1in 
+         in
+         \vskip.3in plus.1in minus.1in 
+         {\@field} 
+       \fi
     \end{center}
     \vfill
 	\vfill
@@ -231,7 +230,7 @@
 	\vfill
 	\vfill
     \begin{center}
-    	    \copyright ~ \@author, \@year\\
+      \copyright ~ \@author, \@year\\
     \end{center}
     \newpage
 }

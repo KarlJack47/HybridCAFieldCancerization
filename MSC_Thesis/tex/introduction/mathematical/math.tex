@@ -1,0 +1,171 @@
+\providecommand{\main}{../../..}
+\documentclass[\main/thesis.tex]{subfiles}
+
+\begin{document}
+
+\section{Mathematical Introduction}
+
+The only mathematical analysis on field cancerization that could be found at 
+the time of writing were spatial stochastic models in \textcite{Foo} and 
+\textcite{Ryser}. The publication by \textcite{Foo} is what brought about the 
+subject of field cancerization to my supervisor Thomas Hillen who then suggested 
+it as a possible topic for my thesis.
+
+\textcite{Foo} describe field cancerization as the the process of primary 
+tumours forming from genetically altered fields of premalignant cells that have 
+high chance of progression to malignancy. Also they state that the premalignant 
+fields can cause recurrent tumours if not excised with the primary tumour during 
+surgery. The main objectives of their study were to:
+\begin{enumerate}
+  \item develop a spatial evolutionary framework for field cancerization;
+  \item describe the size and geometry of the premalignant fields at the moment 
+        of tumour initiation;
+  \item determine the risk of multifocal lesions, recurrence timing, and clonal 
+        origin of recurrent tumours;
+  \item discover the effects of different characteristics of tissue and cancer 
+        type on 2 and 3.
+\end{enumerate}
+The domain of their model is a lattice of dimension ($d$) 1, 2, or 3 wherein 
+each latice point is occupied by one cell. The dimension is generally either 1 
+or 2 because although epithelial tissues are 3D it is sufficient to consider 
+just 1 or 2D approximations of the areas of interest. For example due to the 
+ratio of tube radius to length mammary ducts of the breast, renal tubules of the 
+kideny and bronchi tubes of the lung can be approximated with $d{=}1$. Also 
+cancer initation in the squamous epithelium of the cervix, bladder, and oral 
+cavity can be considerd a $d {=} 2$ process as it occurs in the basal layer 
+which is only 1-2 cells thick. Each cell reproduces by placing its 
+offspring randomly in one of the 2d neighbours at the rate equal to their 
+fitness, $s {\ge} 0$, at exponential waiting time. A cell having a fitness 
+advantage has increated reproductive rate or avoidance of apoptotic 
+signals. The cell type is determined by the fitness, $s$, which they also 
+describe as the number of genetic hits a cell has accumulated. A cell of type-0 
+have fitness normalized to 1, $s {=} 1$, and are considered to be wild-type or 
+normal. The type-0 cell can become a type-1 cell by aquiring the first type of 
+mutation at the rate $u_1$. In general a type-$i$ cell has a fitness advantage 
+of $1 + s_i$ relative to the type-(i-1) and is assumed to have acquired all the 
+mutations upto mutation $i$. If it acquires the $(i+1)-th$ mutation at rate 
+$u_{i{+}1}$ then it will become a type-(i+1) cell. The mutation rates are quite 
+small, $u_i << 1$ and so the domain has to be large so that their higher chance 
+a cell will acquire a mutation. The lattice is initialized with cells having 
+type-0. It is assumed that when a cell has developed $k$ mutations and so is of 
+type-$k$ that cancer has initalized and the simulation is stopped. The number of 
+mutations $k$ is set based upon the type of cancer because each cancer arises 
+from a mutational pathway to malignancy. It is important to note that the model 
+assumes all $k$-mutations positively influence cancer initialization and have 
+the effect of increased cell growth and/or reduction in apoptotic signalling. 
+Another assumption to notice is that all their mutations come from random 
+mutations which occur very rarely and are generally fixed by the bodies DNA 
+repair process before they have an effect. \textcite{Foo} ignore the genetic 
+hits that cause selective disadvantage because it causes the cell and its' 
+progeny to die fast. Cell death and reproduction dynamics are accomplished 
+similiarly to the biased voter process. The starting time is at the end of 
+tissue development and start of the tissue renewal phase. Since this time is 
+difficult to acquire it has challenging to find the time of cancer initation, 
+$\sigma_k$.
+
+To determine the probability of a mutant clone population of type-1 
+surviving as well as some size properties they considered a one mutation 
+model with cells of type-0 having fitness 1 and type-1 having fitness 1+s. The 
+lattice is initialized with all type-0 cells except the cell at $x{=}0$ so that 
+if the lattice isn't infinite then one obtains a Williams-Bjerknes Model and 
+otherwise a biased voter model. The number of type-1 cells as a jump process is 
+a discrete time random walk that moves one up with probability $\frac{s}{1{+}s}$ 
+or one down with probability $\frac{1}{1{+}s}$ due to the fact that the only 
+possible events are type-0 get replaced by type-1 (jump up) and type-1 gets 
+replaced by a type-0 (jump down). Thus the probability that a mutant clone 
+population of type-1 survives is $\frac{s}{1{+}s} \approx s$ (when $s << 1$). A 
+mutant clone population with fitness $s$ is successful if it reaches size
+$>> \frac{1}{s}$ as this results in a negligible chance of its extinction. 
+Unsuccessful type-1 mutant clone populations typically have a space-time volume 
+of order:
+$l(s) {=} \begin{cases}
+            s^{-2}, & d{=}1 \\
+            s^{-1}\ln(s^{-1}), & d{=}2 \\
+            s^{-1}, & d{=} 3 
+          \end{cases}$.
+The probability of a mutant clone population of type-1 surviving still holds for 
+spatial Moran models as long as $\frac{1}{u_1} >> l(s)^{\frac{d{+}2}{2}}$. 
+Also as a result of the previous condition if the number of type-1 cells is 
+significantly less than the the total number of cells, $N$, for all of time then 
+successful type-1 mutations arrive as a Poisson process at rate 
+$\frac{Nu_1s}{1{+}s}$. Upon considering a mesoscopic model they let type-1 
+mutations arrive as Poisson with rate $Nu_1$, distributed uniformly at random in 
+the domain. Each mutation event has two potential outcomes:
+\begin{itemize}
+  \item[(a)] With probability $\frac{s}{1{+}s}$ the mutation is successful and 
+             the clonal expansion is approximated with a ball whose radius grows 
+             deterministically with macroscopic growth rate $c_d(s)$.
+  \item[(b)] With probability $\frac{1}{1{+}s}$ the mutation is unsuccessful and 
+             the clone evolves vias full stochastic model dynamics conditioned 
+             on extinction.
+\end{itemize}
+
+Having acquired the basic probabilistic and size aspects of the model they moved 
+to a two mutation model so that it could be fit in the context of field 
+cancerization whereby type-0 cells have fitness 1, type-1 cells are premalignant 
+with fitness $1 {+} s_1$ relative to type-0, and type-2 are cancer cells with 
+fitness $1 {+} s_2$ relative to type-1. If $s_1{=}s_2{=}s > 0$ the timing of 
+cancer initiation is controlled by the limiting value of the meta-parameter: 
+$\Gamma {=} (Nu_1s)^{d{+}1}(c_d^d(s)u_2s)^-1$. Varying the meta-parameter 
+$\Gamma$ results in the following three regimes:
+\begin{itemize}
+  \item[(a)] Regime 1 (R1): When $\Gamma {<} 1$ the first successful type-2 
+             mutation occurs within the expanding clone of the first successful 
+             type-1 mutation. The time at cancer initiation, $\sigma_2$, is 
+             exponential and doesn't depend on the spatial dimension.
+  \item[(b)] Regime 2 (R2): For $\Gamma {\in} (10, 100)$ the first successful 
+             type-2 mutation occurs within one of the several successful type-1 
+             clones. The time at cancer initiation, $\sigma_2$, is not 
+             exponential and depends on the spatial dimension.
+  \item[(c)] Regime 3 (R3): When $\Gamma {>} 1000$ the first successful type-2 
+             mutation occurs after many successful type-1 mutations. It can 
+             arise from a successful or unsuccessful type-1 mutation. The time 
+             at cancer initiation, $\sigma_2$, is a mixture distribution of 
+             these events.
+\end{itemize}
+The borderline regimes $R1/R2$ and $R2/R3$ occur for $\Gamma {\in} [1, 10]$ 
+and $\Gamma {\in} [100, 1000]$, respectively. For all further analysis 
+\textcite{Foo} assumed that in $R3$ successful type-2 mutation arise only from 
+successful type-1. As the number of cells increases the time that the first 
+type-2 mutation arises, $\sigma_2$, decreases and thus cancer initiation occurs 
+earlier. When $\sigma_2$ is small there is a diffuse premalignant field and a 
+large number of independent lesions. However, when $\sigma_2$ is large there is a 
+single premalignant field that contains the initial tumour cell. If one assumes 
+that the time of diagnosis, $T_D$, is independent of $\sigma_2$ then the 
+premalignant field at time of diagnosis, $\sigma_2 {+} T_D$, can be 
+characterized by the field at $\sigma_2$ together with the distribution of 
+$T_D$. The size distribution of an initiating clone is the distribution of a 
+size-biased pick from the idfferent clones present at the time the initiated 
+mutation arises. They found that tumours appearing later have a higher recurrence 
+probability if only the malignant portion is removed during surgery. The model 
+is moves towards R2 and R3 as $u_1$ increases in which the premalignant field is 
+made of an increasing number of independent type-1 patches. As a result of the 
+number of type-1 patches increasing so does the chance of a type-2 cell being 
+formed and hence $\sigma_2$ decreases. As $u_2$ increases the model moves 
+towards R1 in which fewer type-1 clones are required to produce the first 
+successful type-2 cell, and the size of the type-1 field decreases. In R1 and R2 
+the total distant field size is of the same order of magnitude of the local 
+field size, whereas in R3 it is significantly larger. Thus, secondary tumour 
+recurrences for cancer types in R3 are more likely to come from the distant 
+field and as a result are clonally unrelated to the primary tumour. In R1 the 
+expected number of small clones peaks and then declines as larger clones begin 
+to dominate, whereas in R2 and R3 small and large clones coexist for a longer 
+period of time. A bigger premalignant field increases the chance of fast 
+recurrence. In R1 local recurrence is more likely, however when 
+$\sigma_2$ is large then it is slightly more likely to come back in the distant 
+fields. In R2 and R3 the overall probability of local and distant recurrences is 
+comparable, however when $\sigma_2$ is small recurrence is more likely to occur 
+in distant distant fields and when $\sigma_2$ is larger local recurrence is more 
+likely. \textcite{Foo} found the: distribution of the local field radius, 
+distribution of the area of the local field at $\sigma_2$, size-distribution of 
+the distant field clones at $\sigma_2$, number of field patches is distributed 
+as a mixture of a Poisson and a shifted Poisson random variable, probability of 
+a second field tumour having formed before some time, and the probability that 
+the distant field at the time of initiation gives rise to a second primary 
+tumour at some time. Some of the limitations of \textcite{Foo} are that they: 
+use a specific sequence of genetic alterations with specified $u_i$ and $s_i$, 
+assume the micro-environment is static and uniform, use circular growth for the 
+clones, assume essentially a two-hit mutation model, only consider proliferation 
+and apoptosis, ignore tissue structures, and include only normal somatic cells. 
+
+\end{document}

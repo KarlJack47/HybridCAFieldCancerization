@@ -2,9 +2,6 @@
 % By the Rogue's Gallery, Department of Computing Science
 % Last updated September 15, 2017
 
-% A workaround to allow relative paths in included subfiles
-% that are to be compiled separately
-% See https://tex.stackexchange.com/questions/153312/subfiles-inside-a-subfile-using-relative-paths
 \providecommand{\main}{.}
 \documentclass[12pt]{report}          % for default format
 
@@ -21,6 +18,7 @@
 \usepackage{tabulary} % Better text wrapping in tables. See https://en.wikibooks.org/wiki/LaTeX/Tables
 \usepackage{rotating} % For the 'sidewaystable' environment. See https://en.wikibooks.org/wiki/LaTeX/Rotations
 \usepackage{multirow} % For multirow/multicolumn cells in a table. See https://en.wikibooks.org/wiki/LaTeX/Tables#Columns_spanning_multiple_rows
+\usepackage{multicol}
 \usepackage{graphicx}
 \usepackage{enumitem}   % for more control over enumerate
 \usepackage{mdwlist}	% compact lists and the 'note' environment
@@ -28,6 +26,8 @@
 \usepackage{xcolor}
 \usepackage{csquotes} % Also used with biblatex
 \usepackage{xmpincl} % Seems to be needed when converting to PDF/A
+\usepackage{titlesec}
+\setcounter{secnumdepth}{4}
 
 \usepackage{\main/uathesis}
 
@@ -37,12 +37,21 @@
 % (Added by Bernard Llanos)
 % biblatex is intended to be the successor to BibTeX
 % (https://en.wikibooks.org/wiki/LaTeX/Bibliography_Management#biblatex)
-\usepackage[backend=biber,style=ieee,backref=true,sortcites=true,sorting=nyt]{biblatex}
+\usepackage[backend=biber,style=nature,backref=true,sortcites=true,sorting=nyt,doi=false,url=false,isbn=false,maxbibnames=3,mincitenames=1,maxcitenames=2]{biblatex}
 % `backref=true` adds back references - Links to the in-text citations from
 % the corresponding bibliography entries. Back references are not mentioned
 % in thesis guidelines, but are, in my opinion, helpful for reading and editing.
-
+\renewcommand*{\bibfont}{\normalfont\scriptsize}
 \usepackage[american]{babel}
+
+\defbibenvironment{bibliography}
+  {\trivlist}
+  {\endtrivlist}
+  {\item
+   \printtext[labelnumberwidth]{%
+   \printfield{labelprefix}%
+   \printfield{labelnumber}}%
+   \addspace}
 
 % The following macro will put back references on the right edge of the page
 % (https://tex.stackexchange.com/questions/149009/biblatex-pagebackref-reference-in-the-flush-right-margin)
@@ -52,7 +61,7 @@
      {\renewcommand{\finentrypunct}{\addspace}%
       \printtext{\addperiod\hfill\rlap{\hskip15pt\colorbox{blue!5}{\scriptsize\printlist[pageref][-\value{listtotal}]{pageref}}}}}}
 
-%\addbibresource{\main/refs.bib}
+\addbibresource{\main/refs.bib}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Shorthands               %
@@ -121,23 +130,13 @@
 % \singlespacing
 % \onehalfspacing
 
-\subfile{\main/tex/dedication.tex}
+%\subfile{\main/tex/dedication.tex}
 
 \subfile{\main/tex/acknowledgements.tex}
 
 \singlespacing % Flip to single spacing for table of contents settings
                
 \tableofcontents
-%\listoftables  % only if you have any
-%\listoffigures % only if you have any
-
-% minimal support for list of plates and symbols (Optional)
-%\begin{listofplates}
-%...            % you are responsible for formatting this page.
-%\end{listofplates}
-%\begin{listofsymbols}
-%...            % You are responsible for formatting this page
-%\end{listofsymbols}
                
 % The rest of the document has to be at least one-half-spaced.
 % Double-spacing is most common, but uncomment whichever you want, or 
@@ -150,18 +149,32 @@
 
 \setforbodyoftext % settings for the body including roman numeral numbering starting at 1
 
-%\subfile{\main/tex/introduction.tex}
-\subfile{\main/tex/model.tex}
+\subfile{\main/tex/introduction/biological/biological_overview.tex}
+\subfile{\main/tex/introduction/biological/carcinogenesis.tex}
+\subfile{\main/tex/introduction/biological/csc.tex}
+\subfile{\main/tex/introduction/biological/field_cancerization.tex}
+\subfile{\main/tex/introduction/mathematical/math.tex}
+\subfile{\main/tex/model/overview.tex}
+\subfile{\main/tex/model/carcinogen_pde.tex}
+\newpage
+\subfile{\main/tex/model/gene_expression_nn.tex}
+\newpage
+\subfile{\main/tex/model/ca.tex}
 %\subfile{\main/tex/conclusion.tex}
 
 % Renaming the bibliography: See http://tex.stackexchange.com/questions/12597/renaming-the-bibliography-page-using-bibtex
-%\renewcommand\bibname{References}
-%\clearpage\addcontentsline{toc}{chapter}{\bibname}
+\renewcommand\bibname{References}
+\clearpage\addcontentsline{toc}{chapter}{\bibname}
 
-%\singlespacing 
-%\printbibliography
+\singlespacing
+%\setlength{\columnsep}{0.2cm}
+%\begin{multicols*}{2}[\LARGE\center{\textbf{References}}]
+%\printbibliography[heading=none]
+%\end{multicols*}
+\printbibliography
 
-%\doublespacing
+\normalsize
+\doublespacing
 
 % Appendices are optional.
 %
