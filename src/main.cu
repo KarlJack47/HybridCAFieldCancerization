@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 
     *ca = CA(gridSize, T, nGenes, nCarcin, save, maxTTC, outSize);
     ca->initialize_memory();
-    
+
     upregPhenoMap = (effect*)malloc(nGenes*4*eff);
     memset(upregPhenoMap, NONE, nGenes*4*eff);
     upregPhenoMap[  TP53 * 4 + PROLIF] = NEG;
@@ -146,9 +146,9 @@ int main(int argc, char *argv[])
     geneRelations[  MYC * nGenes +    RAS] = YES;
     geneRelations[  RAS * nGenes +  CCDN1] = YES;
     geneRelations[  RAS * nGenes +    MYC] = YES;
-    
-    CudaSafeCall(cudaMallocManaged((void**)&params, sizeof(CellParams)));       
-    *params = CellParams(ca->nStates, nGenes, alpha, upregPhenoMap, 
+
+    CudaSafeCall(cudaMallocManaged((void**)&params, sizeof(CellParams)));
+    *params = CellParams(ca->nStates, nGenes, alpha, upregPhenoMap,
                          downregPhenoMap, stateMutMap, prolifMutMap,
                          diffMutMap, geneType, geneRelations);
     params->prefetch_memory(ca->devId2, ca->nStates, nGenes);
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
         bc = (double*)malloc(nCarcin*dbl);
         memset(bc, 0, nCarcin*dbl);
     }
-    
+
     geneColors = (dim3*)malloc(nGenes*sizeof(dim3));
     geneColors[  TP53] = dim3( 84,  48,   5); // Dark brown
     geneColors[  TP73] = dim3(140,  81,  10); // Light brown
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
     geneColors[   MYC] = dim3( 53, 151, 143); // Tourquois
     geneColors[PIK3CA] = dim3(  1, 102,  94); // Dark green
     geneColors[   RAS] = dim3(  0,  60,  48); // Forest green
-    
+
     double weightStates[7] = { 0.4, 0.2, 0.01, 0.03, 0.02, 0.04, 0.3 };
     if (initType != 1) {
         memset(weightStates, 0, 7*dbl);
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
                                          ca->NN, 100);
         CudaCheckError();
         CudaSafeCall(cudaDeviceSynchronize());
-        update_states<<< blocks, threads >>>(ca->prevGrid, ca->gridSize, 
+        update_states<<< blocks, threads >>>(ca->prevGrid, ca->gridSize,
                                              ca->nGenes);
         CudaCheckError();
         CudaSafeCall(cudaDeviceSynchronize());
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
             sprintf(carcinNames[1], "%s", "Tobacco");
         }
     }
-   
+
     *gui = GUI(outSize, outSize, ca, display,
                gridSize, T, nCarcin, carcinNames);
     if (nCarcin != 0) {
@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
     }
 
     end = omp_get_wtime();
-    printf("It took %f seconds to initialize the memory.\n", end - start); 
+    printf("It took %f seconds to initialize the memory.\n", end - start);
 
     ca->animate(1, gui);
 
