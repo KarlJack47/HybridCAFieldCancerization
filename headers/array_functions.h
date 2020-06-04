@@ -95,11 +95,9 @@ __device__ unsigned get_rand_idx(T *L, const unsigned N,
                 chosen = idxT[(unsigned) ceil(rnd * (double) count) % count];
                 free(idxT); idxT = NULL;
                 break;
-                return chosen;
             } else {
                 count = get_indexes(sorted[i] / 1000000000.0, L, idx, N);
                 break;
-                return count;
             }
         }
     }
