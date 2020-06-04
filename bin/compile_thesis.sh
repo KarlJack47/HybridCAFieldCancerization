@@ -3,13 +3,10 @@
 cd MSC_Thesis
 
 pdflatex thesis.tex > /dev/null
-pdflatex thesis.tex
+biber thesis > /dev/null
+pdflatex thesis.tex > /dev/null
+pdflatex thesis.tex > /dev/null
 
-rm *.aux\
-   *.bcf\
-   *.log\
-   *.out\
-   *.run.xml\
-   *.toc
+rm *.aux *.bcf *.log *.out *.run.xml *.toc *.bbl *.blg
 
 exit 0

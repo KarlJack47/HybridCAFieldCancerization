@@ -1,123 +1,93 @@
 #!/bin/bash
 
-out_file=output/*/*.txt
-if [ ! $# -eq 0 ]; then
-    out_file=$1
+if [ ! $# -eq 1 ]; then
+    exit 0
 fi
 
-if echo "$out_file" | grep -q "_"; then
-    sim_num=1
-    while IFS= read -r line; do
-        if [[ "$line" == [0-9]* ]]; then
-            sim_num=$line
-        else
-            echo "$sim_num" "$line"
-        fi
-    done < $out_file > $out_file.t
-fi
-
-input=$out_file
+input=$1/*/*.txt
 delim='/'
-pos_sim_num=2
-pos_val=9
-if echo "$out_file" | grep -q "_"; then
-    input=$out_file.t
-    delim=' '
-    pos_sim_num=1
-    pos_val=10
-fi
+posSimNum=2
+posVal=3
+exprStr=('first CSC' 'first TC' 'TC recurred')
+cellType=('CSC' 'TC')
+formStr=('form' 'form' 'reform')
+totalStr=('simulations' 'simulations' 'excisions')
 
-search_str=('first CSC' 'first TC')
-cell_type=('CSC' 'TC')
-for i in {0..1}; do
-    num_sim_form=$(grep "${search_str[$i]}" $input | cut -f 1 -d '(' | uniq | sed -e 's/[^0-9 ]//g' | awk '{ count++ } END { print count }')
+for i in {0..2}; do
+    totalVals=$(grep "${exprStr[$i]}" $input | cut -f 1 -d '(' | uniq | wc -l)
 
-    if [ "$num_sim_form" == "" ]; then
-        echo 'No' ${cell_type[$i]} 'were formed during the simulations.'
-    else
-        sim_nums=($(grep "${search_str[$i]}" $input | cut -f 1 -d '(' | uniq | sort -n -t "$delim" -k $pos_sim_num | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
-        sim_vals=($(grep "${search_str[$i]}" $input | cut -f 1 -d '(' | uniq | sort -n -t "$delim" -k $pos_sim_num | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $pos_val))
-        total=0
-        for val in ${sim_vals[@]}; do
-	    total=$(($total+$val))
-        done
-        avg=$(($total/$num_sim_form))
-        IFS=$'\n'
-        min=$(echo "${sim_vals[*]}" | sort -n | head -1)
-        max=$(echo "${sim_vals[*]}" | sort -n | tail -1)
-
-        for index in ${!sim_nums[@]}; do
-            echo 'The first' ${cell_type[$i]} 'formed at time step' ${sim_vals[$index]} 'for simulation' ${sim_nums[$index]}'.'
-        done
-        echo 'On average it took' $avg 'time steps for the first' ${cell_type[$i]} 'to form for the' $num_sim_form 'simulations.'
-        echo 'The minimum number of time steps for the first' ${cell_type[$i]} 'to form for the' $num_sim_form 'simulations was' $min'.'
-        echo 'The maximum number of time steps for the first' ${cell_type[$i]} 'to form for the' $num_sim_form 'simulations was' $max'.'
-        echo ''
-
-	if [ "${cell_type[$i]}" == "TC" ]; then
-	    total_vals=$(grep 'TC was reformed' $input | cut -f 1 -d '(' | uniq | wc -l)
-	    if [ "$total_vals" == "0" ]; then
-		continue
-	    fi
-	    sim_nums=($(grep 'TC was reformed' $input | cut -f 1 -d '(' | uniq | sort -n -t "$delim" -k $pos_sim_num | sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $pos_sim_num))
-	    sim_vals=($(grep 'TC was reformed' $input | cut -f 1 -d '(' | uniq | sort -n -t "$delim" -k $pos_sim_num | sed -e 's/[^0-9/ ]//g' | cut -d ' ' -f $(($pos_val+1))))
-	    sim_num=${sim_nums[0]}
-	    num_excise=()
-	    count=0
-	    for val in ${sim_nums[@]}; do
-	        if [ "$sim_num" == "$val" ]; then
-		    count=$(($count+1))
-		else
-		    num_excise+=($count)
-		    count=1
-		    sim_num=$val
-		fi
-	    done
-            num_excise+=($count)
-	    start=0
-            for index in ${!num_excise[@]}; do
-                total=0
-		temp=()
-		limit=$(($start+${num_excise[$index]}))
-		sim_num=${sim_nums[$start]}
-		for idx in ${!sim_vals[@]}; do
-		    if [ "$idx" == "$limit" ]; then
-			start=$idx
-			break;
-		    fi
-		    if [[ $idx -ge $start ]]; then
-		        temp+=(${sim_vals[$idx]})
-		    fi
-		done
-		for val in ${temp[@]}; do
-		    total=$(($total+$val))
-		done
-		avg=$(($total/${num_excise[$index]}))
-		min=$(echo "${temp[*]}" | sort -n | head -1)
-        	max=$(echo "${temp[*]}" | sort -n | tail -1)
-		echo 'On average it took' $avg 'time steps for a TC to reform for simulation' $sim_num'.'
-		echo 'The minimum number of time steps for the first TC to reform for simulation' $sim_num 'was' $min'.'
-		echo 'The maximum number of time steps for the first TC to reform for simulation' $sim_num 'was' $max'.'
-            done
-            echo ''
-
-	    total=0
-	    for val in ${sim_vals[@]}; do
-	        total=$(($total+$val))
-	    done
-            avg=$(($total/$total_vals))
-	    min=$(echo "${sim_vals[*]}" | sort -n | head -1)
-	    max=$(echo "${sim_vals[*]}" | sort -n | tail -1)
-	    echo 'On average it took' $avg 'time steps for a TC to reform for the simulations.'
-	    echo 'The minimum number of time steps for a TC to reform for the simulations was' $min'.'
-	    echo 'The maximum number of time steps for a TC to reform for the simulations was' $max'.'
-	    echo ''
-	fi
+    if [ $totalVals -eq 0 ]; then
+        if [ ! $i -eq 2 ]; then
+            echo 'No' ${cellType[$i]} 'were formed during the simulations.'
+        else
+            echo 'No TC reformed due to likely no excisions.'
+        fi
+        continue;
     fi
-done
 
-if echo "$out_file" | grep -q "_"; then
-    rm *.t
-fi
+    simInfo=($(grep "${exprStr[$i]}" $input | cut -f 1 -d '(' | uniq |\
+             sort -n -t "$delim" -k $posSimNum |\
+             sed -e 's/[^0-9/ ]//g' | cut -d "$delim" -f $posVal))
+
+    if [ $totalVals -eq 1 ]; then
+        echo 'The first' ${cellType[$i]} 'formed at time step'\
+             ${simInfo[0]} 'for the simulation.'
+        continue;
+    fi
+    simNum=${simInfo[0]}
+    count=0
+    total=0
+    min=${simInfo[1]}
+    max=${simInfo[1]}
+    for idx in ${!simInfo[@]}; do
+        if [ $(($idx % 2)) -eq 0 ]; then
+            if [ ! $i -eq 2 ]; then
+                simNum=${simInfo[$idx]}
+                continue;
+            fi
+            if [ ! $simNum -eq ${simInfo[$idx]} ]; then
+                avg=$total/$count
+                echo 'On average it took' $avg 'time steps for a TC to'\
+                     'reform for simulation' $simNum 'after' $count 'excisions.'
+                echo 'The minimum number of time steps for a TC to reform for'\
+                     'simulation' $simNum 'after' $count 'excisions was' $min'.'
+                echo 'The maximum number of time steps for a TC to reform for'\
+                     'simulation' $simNum 'after' $count 'excisions was' $max'.'
+
+                simNum=${simInfo[$idx]}
+                count=0
+                total=0
+                min=${simInfo[$(($idx+1))]}
+                max=${simInfo[$(($idx+1))]}
+            fi
+            continue;
+        fi
+
+        if [ ! $i -eq 2 ]; then
+            echo 'The first' ${cellType[$i]} 'formed at time step'\
+                 ${simInfo[$idx]} 'for simulation' $simNum'.'
+        fi
+
+        total=$(($total+${simInfo[$idx]}))
+        if [ ${simInfo[$idx]} -lt $min ]; then
+            min=${simInfo[$idx]}
+        fi
+        if [ ${simInfo[$idx]} -gt $max ]; then
+            max=${simInfo[$idx]}
+        fi
+        if [ $i -eq 2 ]; then
+            count=$(($count+1))
+        fi
+    done
+    avg=$(($total/$totalVals))
+
+    echo 'On average it took' $avg 'time steps for the first' ${cellType[$i]}\
+         'to' ${formStr[$i]} 'for the' $totalVals ${totalStr[$i]}'.'
+    echo 'The minimum number of time steps for the first' ${cellType[$i]}\
+         'to' ${formStr[$i]} 'for the' $totalVals ${totalStr[$i]} 'was' $min'.'
+    echo 'The maximum number of time steps for the first' ${cellType[$i]}\
+         'to' ${formStr[$i]} 'for the' $totalVals ${totalStr[$i]} 'was' $max'.'
+    echo ''
+done
 
 exit 0
