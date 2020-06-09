@@ -9,9 +9,9 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
     dim3 blocks(NBLOCKS(ca->gridSize, ca->blockSize),
                 NBLOCKS(ca->gridSize, ca->blockSize));
     dim3 threads(ca->blockSize, ca->blockSize);
-    cudaStream_t streams[3+ca->nCarcin];
+    cudaStream_t streams[2+ca->nCarcin];
 
-    for (i = 0; i < ca->nCarcin+3; i++)
+    for (i = 0; i < ca->nCarcin+2; i++)
         CudaSafeCall(cudaStreamCreate(&streams[i]));
 
     if (ticks <= ca->maxT) {
@@ -31,7 +31,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             for (i = 0; i < ca->nCarcin; i++)
                 ca->pdes[i].time_step(ca->cellCycleLen * ticks,
                                       ca->cellVolume, ca->blockSize,
-                                      streams[i+3]);
+                                      streams[i+2]);
 
             cells_gpu_to_gpu_copy<<< blocks, threads, 0, streams[0] >>>(
                 ca->prevGrid, ca->newGrid, ca->gridSize, ca->nGenes
@@ -64,10 +64,6 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             CudaCheckError();
 
             CudaSafeCall(cudaStreamSynchronize(streams[0]));
-            reset_rule_params<<< blocks, threads, 0, streams[2] >>>(
-                ca->prevGrid, ca->newGrid, ca->gridSize
-            );
-            CudaCheckError();
             CudaSafeCall(cudaStreamSynchronize(streams[1]));
 
             if (ca->tcFormed[ca->exciseCount]) ca->timeTCAlive++;
@@ -94,6 +90,11 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 }
             }
 
+            reset_rule_params<<< blocks, threads, 0, streams[0] >>>(
+                ca->prevGrid, ca->newGrid, ca->gridSize
+            );
+            CudaCheckError();
+
             cells_gpu_to_gpu_copy<<< blocks, threads, 0, streams[0] >>>(
                 ca->newGrid, ca->prevGrid, ca->gridSize, ca->nGenes
             );
@@ -107,7 +108,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 CudaCheckError();
             }
 
-            for (i = 0; i < ca->nCarcin+3; i++)
+            for (i = 0; i < ca->nCarcin+2; i++)
                 CudaSafeCall(cudaStreamSynchronize(streams[i]));
 
             printf("Empty: %d, Prolif: %d, Quies: %d, Apop: %d, Diff: %d, ",
@@ -126,7 +127,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                        ca->maxT, ca->devId2);
     }
 
-    for (i = 0; i < ca->nCarcin+3; i++)
+    for (i = 0; i < ca->nCarcin+2; i++)
         CudaSafeCall(cudaStreamDestroy(streams[i]));
 }
 
