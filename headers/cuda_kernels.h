@@ -149,8 +149,8 @@ __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
 }
 
 __global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, unsigned gSize,
-                                       unsigned t, bool *cscFormed,
-                                       bool *tcFormed, unsigned exciseCount,
+                                       unsigned t, unsigned *cscFormed,
+                                       unsigned *tcFormed, unsigned exciseCount,
                                        unsigned timeTCDead)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -160,32 +160,38 @@ __global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, unsigned gSize,
     if (!(x < gSize && y < gSize)) return;
 
     if (prevG[idx].state != CSC && newG[idx].state == CSC && !newG[idx].moved) {
-        if (*cscFormed) {
-            printf("A CSC formed at %d, (%d, %d).\n", t, x, y);
+        if (*cscFormed == 1) {
+            printf("A CSC formed at %d, (%d, %d).\n", t, y, x);
             return;
         }
 
-        printf("The first CSC formed at %d, (%d, %d).\n", t, x, y);
-        atomicCAS((unsigned*) cscFormed, 0, 1);
+        if (atomicCAS(cscFormed, 0, 1) == 1) {
+            printf("A CSC formed at %d, (%d, %d).\n", t, y, x);
+            return;
+        }
+
+        printf("The first CSC formed at %d, (%d, %d).\n", t, y, x);
 
         return;
     }
-    if (prevG[idx].state != TC && newG[idx].state == TC && !newG[idx].moved) {
-        if (tcFormed[exciseCount]) {
+    if (prevG[idx].state != TC && newG[idx].state == TC & !newG[idx].moved) {
+        if (tcFormed[exciseCount] == 1) {
+            printf("A TC was formed at %d, (%d, %d).\n", t, y, x);
+            return;
+        }
+
+        if (atomicCAS(&tcFormed[exciseCount], 0, 1) == 1) {
             printf("A TC was formed at %d, (%d, %d).\n", t, x, y);
             return;
         }
 
-        printf("%d, %d\n", exciseCount, idx);
-        atomicCAS((unsigned*) &tcFormed[exciseCount], 0, 1);
-
         if (exciseCount == 0) {
-            printf("The first TC formed at %d, (%d, %d).\n", t, x, y);
+            printf("The first TC formed at %d, (%d, %d).\n", t, y, x);
             return;
         }
 
-        printf("A TC recurred after excision %d in %d steps at %d, (%d, %d).\n",
-               exciseCount, timeTCDead, t, x, y);
+        printf("A TC recurred in %d steps after excision %d at %d, (%d, %d).\n",
+               exciseCount, timeTCDead, t, y, x);
     }
 }
 
@@ -202,6 +208,7 @@ __global__ void reset_rule_params(Cell *prevG, Cell *newG, unsigned gSize)
     prevG[idx].age++;
     prevG[idx].cellRebirth = false;
     newG[idx].moved = false;
+    *newG[idx].inUse = 0;
     *prevG[idx].inUse = 0;
     *prevG[idx].actionApplied = 0;
     *prevG[idx].actionDone = 0;
@@ -415,20 +422,29 @@ __global__ void update_states(Cell *G, unsigned gSize, unsigned nGenes)
         G[idx].change_state(MSC);
 }
 
-__global__ void tumour_excision(Cell *G, unsigned gSize, unsigned nGenes)
+__global__ void tumour_excision(Cell *newG, unsigned gSize, unsigned nGenes)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
     unsigned idx = x + y * blockDim.x * gridDim.x;
-    unsigned i;
+    unsigned i, neighIdx;
 
     if (!(x < gSize && y < gSize)) return;
 
-    if (G[idx].state != TC) return;
+    if (newG[idx].state != TC) return;
 
-    for (i = 0; i < G[idx].params->nNeigh; i++)
-        G[G[idx].neigh[i]].apoptosis(nGenes);
-    G[idx].apoptosis(nGenes);
+    for (i = 0; i < newG[idx].params->nNeigh; i++) {
+        neighIdx = newG[idx].neigh[i];
+
+        if (newG[neighIdx].state == TC) continue;
+
+        if (atomicCAS(newG[neighIdx].inUse, 0, 1) == 1)
+            continue;
+
+        newG[neighIdx].apoptosis(nGenes);
+    }
+
+    newG[idx].apoptosis(nGenes);
 }
 
 __global__ void display_ca(uchar4 *optr, Cell *grid, unsigned gSize,

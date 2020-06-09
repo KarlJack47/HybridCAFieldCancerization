@@ -21,8 +21,8 @@ struct CA {
     double cellCycleLen;
     double cellLifeSpan;
 
-    bool *tcFormed;
-    bool *cscFormed;
+    unsigned *tcFormed;
+    unsigned *cscFormed;
     unsigned exciseCount;
     unsigned timeTCAlive;
     unsigned timeTCDead;
@@ -193,11 +193,11 @@ struct CA {
         CudaSafeCall(cudaMallocManaged((void**)&newGrid,
                                        gridSize*gridSize*sizeof(Cell)));
 
-        CudaSafeCall(cudaMallocManaged((void**)&cscFormed, sizeof(bool)));
+        CudaSafeCall(cudaMallocManaged((void**)&cscFormed, sizeof(unsigned)));
         *cscFormed = false;
         CudaSafeCall(cudaMallocManaged((void**)&tcFormed,
-                                       (maxExcise+1)*sizeof(bool)));
-        memset(tcFormed, false, (maxExcise+1)*sizeof(bool));
+                                       (maxExcise+1)*sizeof(unsigned)));
+        memset(tcFormed, 0, (maxExcise+1)*sizeof(unsigned));
         CudaSafeCall(cudaMallocManaged((void**)&stateColors, nStates*sizeof(dim3)));
         CudaSafeCall(cudaMallocManaged((void**)&geneColors, nGenes*sizeof(dim3)));
 	}
@@ -312,11 +312,11 @@ struct CA {
                                           sizeof(GeneExprNN),
                                           devId2, NULL));
         CudaSafeCall(cudaMemPrefetchAsync(cscFormed,
-                                          sizeof(bool),
-                                          devId2, NULL));
+                                          sizeof(unsigned),
+                                          devId1, NULL));
         CudaSafeCall(cudaMemPrefetchAsync(tcFormed,
-                                          (maxExcise+1)*sizeof(bool),
-                                          devId2, NULL));
+                                          (maxExcise+1)*sizeof(unsigned),
+                                          devId1, NULL));
         CudaSafeCall(cudaMemPrefetchAsync(stateColors,
                                           7*sizeof(dim3),
                                           devId1, NULL));
