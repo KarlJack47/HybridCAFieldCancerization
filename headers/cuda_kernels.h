@@ -16,33 +16,34 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame)
 }
 
 // Initalizes the carcinogen pde grid.
-__global__ void init_pde(double *soln, double ic, double bc, unsigned N,
-                         double cellVolume)
+__global__ void init_pde(double *soln, double ic, double bc, unsigned N)
 {
 	unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-	unsigned idx = x + y * gridDim.x * blockDim.x;
+	unsigned idx = x * N + y;
 
     if (!(x < N && y < N)) return;
 
     if (x == 0 || x == N-1 || y == 0 || y == N-1)
-        soln[idx] = cellVolume * bc;
+        soln[idx] = bc;
     else
-        soln[idx] = cellVolume * ic;
+        soln[idx] = ic;
 }
 
 // Spacial step for the carcinogen pde.
-__global__ void pde_space_step(double *soln, unsigned t, unsigned N,
-                               unsigned maxIter, double bc, double ic, double D,
-                               double influx, double outflux, double cellVolume)
+__global__ void pde_space_step(double *soln, double *maxVal, unsigned t,
+                               unsigned N, unsigned maxIter, double bc,
+                               double ic, double D, double influx,
+                               double outflux, double deltaxy, double deltat)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * gridDim.x * blockDim.x;
+    unsigned idx = x * N + y;
     unsigned n, m;
     double piDivN = M_PI / (double) N, piSquared = M_PI * M_PI,
            srcTerm = influx - outflux,
-           icMinBc = ic - bc, NSquared = N * N, Dt = D * t;
+           icMinBc = ic - bc, NSquared = deltaxy * deltaxy * N * N,
+           Dt = D * t * deltat;
     double sum, nOdd, mOdd, lambda, expResult;
 
     if (!(x < N && y < N)) return;
@@ -60,8 +61,11 @@ __global__ void pde_space_step(double *soln, unsigned t, unsigned N,
                         * sin(y * mOdd * piDivN)) / (nOdd * mOdd);
             }
         }
-        soln[idx] = cellVolume * ((16.0 / piSquared) * sum + bc);
-    } else soln[idx] = cellVolume * bc;
+        soln[idx] = (16.0 / piSquared) * sum + bc;
+        if (soln[idx] < 0.0) soln[idx] = 0.0;
+    } else soln[idx] = bc;
+
+    atomicMax(maxVal, soln[idx]);
 }
 
 // CA related kernels
@@ -69,9 +73,9 @@ __global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, unsigned gSize,
                                       unsigned nGenes)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
-	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-	unsigned idx = x + y * blockDim.x * gridDim.x;
-	unsigned i;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    unsigned i;
 
     if (!(x < gSize && y < gSize)) return;
 
@@ -92,7 +96,7 @@ __global__ void init_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * blockDim.x * gridDim.x;
+    unsigned idx = x * gSize + y;
     unsigned i, j;
     curandState_t rndState;
     double rnd, *out = NULL;
@@ -121,24 +125,129 @@ __global__ void init_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
     }
 }
 
+__global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
+                               unsigned gSize, unsigned maxT,
+                               double cellLifeSpan, double cellCycleLen,
+                               unsigned nGenes, size_t bytesPerCell)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    unsigned i, dataIdx = idx * bytesPerCell;
+    unsigned numDigGSize = num_digits(gSize),
+             numDigAge = num_digits(maxT + cellLifeSpan / cellCycleLen);
+    size_t numChar;
+
+    if (!(x < gSize && y < gSize)) return;
+
+    num_to_string_with_padding(x, numDigGSize, cellData, &dataIdx);
+    cellData[dataIdx++] = '\t';
+    num_to_string_with_padding(y, numDigGSize, cellData, &dataIdx);
+    cellData[dataIdx++] = '\t';
+
+    num_to_string(newG[idx].state, &numChar, cellData, &dataIdx);
+    cellData[dataIdx++] = '\t';
+
+    num_to_string_with_padding(newG[idx].age, numDigAge, cellData, &dataIdx);
+    cellData[dataIdx++] = '\t';
+
+    num_to_string_with_padding(newG[idx].phenotype[PROLIF],
+                               13, cellData, &dataIdx, true);
+    cellData[dataIdx++] = '\t';
+    num_to_string_with_padding(newG[idx].phenotype[QUIES],
+                               13, cellData, &dataIdx, true);
+    cellData[dataIdx++] = '\t';
+    num_to_string_with_padding(newG[idx].phenotype[APOP],
+                               13, cellData, &dataIdx, true);
+    cellData[dataIdx++] = '\t';
+    num_to_string_with_padding(newG[idx].phenotype[DIFF],
+                               13, cellData, &dataIdx, true);
+    cellData[dataIdx++] = '\t';
+
+    cellData[dataIdx++] = '[';
+    for (i = 0; i < nGenes; i++) {
+        num_to_string_with_padding(newG[idx].geneExprs[i*2], 13,
+                                   cellData, &dataIdx, true);
+        cellData[dataIdx++] = '\t';
+        num_to_string_with_padding(newG[idx].geneExprs[i*2+1], 13,
+                                   cellData, &dataIdx, true);
+        if (i != nGenes-1) cellData[dataIdx++] = '\t';
+    }
+    cellData[dataIdx++] = ']';
+    cellData[dataIdx++] = '\t';
+
+    cellData[dataIdx++] = '[';
+    for (i = 0; i < nGenes; i++) {
+        num_to_string_with_padding(newG[idx].bOut[i], 13,
+                                   cellData, &dataIdx, true);
+        if (i != nGenes-1) cellData[dataIdx++] = '\t';
+    }
+    cellData[dataIdx++] = ']';
+    cellData[dataIdx++] = '\t';
+
+    num_to_string_with_padding(prevG[idx].chosenPheno, 2, cellData, &dataIdx);
+    cellData[dataIdx++] = '\t';
+
+    num_to_string_with_padding(prevG[idx].chosenCell, num_digits(gSize*gSize)+1,
+                               cellData, &dataIdx);
+    cellData[dataIdx++] = '\t';
+
+    num_to_string(*prevG[idx].actionDone, &numChar, cellData, &dataIdx);
+    cellData[dataIdx++] = '\t';
+
+    num_to_string(newG[idx].excised, &numChar, cellData, &dataIdx);
+
+    cellData[dataIdx] = '\n';
+}
+
+__global__ void collect_data(Cell *G, unsigned *counts,
+                             unsigned gSize, unsigned nGenes)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.x + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    unsigned i;
+
+    if (!(x < gSize && y < gSize)) return;
+
+    if      (G[idx].state ==    NC) atomicAdd(&counts[   NC], 1);
+    else if (G[idx].state ==   MNC) atomicAdd(&counts[  MNC], 1);
+    else if (G[idx].state ==    SC) atomicAdd(&counts[   SC], 1);
+    else if (G[idx].state ==   MSC) atomicAdd(&counts[  MSC], 1);
+    else if (G[idx].state ==   CSC) atomicAdd(&counts[  CSC], 1);
+    else if (G[idx].state ==    TC) atomicAdd(&counts[   TC], 1);
+    else if (G[idx].state == EMPTY) atomicAdd(&counts[EMPTY], 1);
+
+    if (G[idx].state == EMPTY) return;
+
+    for (i = 0; i < nGenes; i++)
+        if (G[idx].positively_mutated((gene) i)) {
+            atomicAdd(&counts[i+7], 1);
+            atomicAdd(&counts[G[idx].state*nGenes+nGenes+7+i], 1);
+        }
+}
+
 __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
                             CarcinPDE *pdes, unsigned t)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * blockDim.x * gridDim.x;
+    unsigned idx = x * gSize + y;
     unsigned i;
     curandState_t rndState;
     double *in = NULL, *out = NULL;
 
     if (!(x < gSize && y < gSize)) return;
 
+    if (prevG[idx].state == EMPTY) return;
+
     in = (double*)malloc(NN->nIn*sizeof(double));
     out = (double*)malloc(NN->nOut*sizeof(double));
     memset(in, 0, NN->nIn*sizeof(double));
     memset(out, 0, NN->nOut*sizeof(double));
-    for (i = 0; i < NN->nIn-1; i++)
+    for (i = 0; i < NN->nIn-1; i++) {
         in[i] = pdes[i].soln[idx];
+    }
     in[NN->nIn-1] = prevG[idx].age;
     NN->evaluate(in, out, prevG[idx].bOut);
     free(in); in = NULL;
@@ -148,70 +257,24 @@ __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
     free(out); out = NULL;
 }
 
-__global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, unsigned gSize,
-                                       unsigned t, unsigned *cscFormed,
-                                       unsigned *tcFormed, unsigned exciseCount,
-                                       unsigned timeTCDead)
-{
-    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
-    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * blockDim.x * gridDim.x;
-
-    if (!(x < gSize && y < gSize)) return;
-
-    if (prevG[idx].state != CSC && newG[idx].state == CSC && !newG[idx].moved) {
-        if (*cscFormed == 1) {
-            printf("A CSC formed at %d, (%d, %d).\n", t, y, x);
-            return;
-        }
-
-        if (atomicCAS(cscFormed, 0, 1) == 1) {
-            printf("A CSC formed at %d, (%d, %d).\n", t, y, x);
-            return;
-        }
-
-        printf("The first CSC formed at %d, (%d, %d).\n", t, y, x);
-
-        return;
-    }
-    if (prevG[idx].state != TC && newG[idx].state == TC & !newG[idx].moved) {
-        if (tcFormed[exciseCount] == 1) {
-            printf("A TC was formed at %d, (%d, %d).\n", t, y, x);
-            return;
-        }
-
-        if (atomicCAS(&tcFormed[exciseCount], 0, 1) == 1) {
-            printf("A TC was formed at %d, (%d, %d).\n", t, x, y);
-            return;
-        }
-
-        if (exciseCount == 0) {
-            printf("The first TC formed at %d, (%d, %d).\n", t, y, x);
-            return;
-        }
-
-        printf("A TC recurred in %d steps after excision %d at %d, (%d, %d).\n",
-               exciseCount, timeTCDead, t, y, x);
-    }
-}
-
 __global__ void reset_rule_params(Cell *prevG, Cell *newG, unsigned gSize)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * blockDim.x * gridDim.x;
+    unsigned idx = x * gSize + y;
 
     if (!(x < gSize && y < gSize)) return;
 
     prevG[idx].chosenPheno = -1;
     prevG[idx].chosenCell = -1;
-    prevG[idx].age++;
+    if (newG[idx].state != EMPTY) newG[idx].age++;
     prevG[idx].cellRebirth = false;
     newG[idx].moved = false;
     *newG[idx].inUse = 0;
     *prevG[idx].inUse = 0;
     *prevG[idx].actionApplied = 0;
     *prevG[idx].actionDone = 0;
+    newG[idx].excised = 0;
 }
 
 __global__ void rule(Cell *newG, Cell *prevG, unsigned gSize,
@@ -219,9 +282,9 @@ __global__ void rule(Cell *newG, Cell *prevG, unsigned gSize,
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * blockDim.x * gridDim.x;
+    unsigned idx = x * gSize + y;
     unsigned i, j;
-    unsigned numEmpty, rnd, neighIdx, *rndIdx = NULL;
+    unsigned numEmpty = 0, numTCOrCSC = 0, rnd, neighIdx, *rndIdx = NULL;
     int state = -2;
     curandState_t rndState;
 
@@ -230,78 +293,40 @@ __global__ void rule(Cell *newG, Cell *prevG, unsigned gSize,
     if (kill && prevG[idx].state != TC && prevG[idx].state != CSC)
         return;
 
-    if (kill && prevG[idx].chosenPheno == -1) return; // new cell
-
     if (*prevG[idx].actionDone == 1)
         return;
 
-    if (prevG[idx].state == EMPTY) {
-        if (!kill) atomicAdd(&count[0], 1);
+    if (prevG[idx].state == EMPTY)
         return;
-    }
-
-    if (prevG[idx].state == TC) {
-        if (!kill) atomicAdd(&count[7], 1);
-    }
 
     curand_init((unsigned long long) clock(), idx+t, 0, &rndState);
 
-    if (prevG[idx].chosenPheno == -1) {
+    if (prevG[idx].chosenPheno == -1)
         prevG[idx].chosenPheno = prevG[idx].get_phenotype(&rndState);
-        /*if (prevG[idx].state == TC
-         && prevG[idx].params->phenoInit[TC*4+1] != prevG[idx].phenotype[1])
-            printf("%d, %d, Prolif: %g, Quies: %g, Apop: %g, Diff: %g\n",
-                   idx, prevG[idx].chosenPheno,
-                   prevG[idx].phenotype[0], prevG[idx].phenotype[1],
-                   prevG[idx].phenotype[2], prevG[idx].phenotype[3]);*/
-        /*if (prevG[idx].state == SC && prevG[idx].geneExprs[0] != 0.0)
-            printf("%d, (%.3g, %.3g), (%.3g, %.3g), (%.3g, %.3g), (%.3g, %.3g), (%.3g, %.3g), (%.3g, %.3g), (%.3g, %.3g), (%.3g, %.3g), (%.3g, %.3g), (%.3g, %.3g)\n",
-                   idx, prevG[idx].geneExprs[0], prevG[idx].geneExprs[1],
-                   prevG[idx].geneExprs[ 2], prevG[idx].geneExprs[ 3],
-                   prevG[idx].geneExprs[ 4], prevG[idx].geneExprs[ 5],
-                   prevG[idx].geneExprs[ 6], prevG[idx].geneExprs[ 7],
-                   prevG[idx].geneExprs[ 8], prevG[idx].geneExprs[ 9],
-                   prevG[idx].geneExprs[10], prevG[idx].geneExprs[11],
-                   prevG[idx].geneExprs[12], prevG[idx].geneExprs[13],
-                   prevG[idx].geneExprs[14], prevG[idx].geneExprs[15],
-                   prevG[idx].geneExprs[16], prevG[idx].geneExprs[17],
-                   prevG[idx].geneExprs[18], prevG[idx].geneExprs[19]);*/
-    }
 
     if (prevG[idx].chosenPheno == APOP && !kill) {
         newG[idx].apoptosis(nGenes);
         atomicCAS(prevG[idx].actionDone, 0, 1);
-        atomicAdd(&count[3], 1);
-        if (prevG[idx].state == TC)
-            atomicAdd(&count[11], 1);
+        atomicAdd(&count[APOP], 1);
+        atomicAdd(&count[(3*prevG[idx].state+4)+APOP], 1);
         return;
     }
 
     if (prevG[idx].state != CSC && prevG[idx].state != TC) {
-        numEmpty = 0;
         for (i = 0; i < prevG[idx].params->nNeigh; i++)
              if (prevG[prevG[idx].neigh[i]].state == EMPTY) {
                  numEmpty++;
                  break;
              }
-        if (numEmpty == 0) {
-            if (!kill) {
-                atomicAdd(&count[5], 1);
-                atomicAdd(&count[6], 1);
-            }
+        if (numEmpty == 0)
             return;
-        }
     } else {
-        unsigned numTCORCSC = 0;
         for (i = 0; i < prevG[idx].params->nNeigh; i++)
             if (prevG[prevG[idx].neigh[i]].state == TC
              || prevG[prevG[idx].neigh[i]].state == CSC)
-                numTCORCSC++;
-        if (numTCORCSC == prevG[idx].params->nNeigh) {
-            if (!kill)
-                atomicAdd(&count[9], 1);
+                numTCOrCSC++;
+        if (numTCOrCSC == prevG[idx].params->nNeigh)
             return;
-        }
     }
 
     rndIdx = (unsigned*)malloc(prevG[idx].params->nNeigh*sizeof(unsigned));
@@ -344,27 +369,32 @@ __global__ void rule(Cell *newG, Cell *prevG, unsigned gSize,
         if (*prevG[neighIdx].actionApplied == 1) continue;
 
         if (prevG[idx].chosenPheno == PROLIF) {
-            state = newG[idx].proliferate(&newG[neighIdx], &rndState, nGenes);
+            state = newG[idx].proliferate(&newG[neighIdx], &rndState,
+                                          gSize, nGenes);
             if (state != -2) {
                 prevG[idx].cellRebirth = true;
-                atomicAdd(&count[1], 1);
+                atomicAdd(&count[PROLIF], 1);
+                atomicAdd(&count[(3*prevG[idx].state+4)+PROLIF], 1);
             }
         }
         else if (prevG[idx].chosenPheno == DIFF) {
-            state = newG[idx].differentiate(&newG[neighIdx], &rndState, nGenes);
+            state = newG[idx].differentiate(&newG[neighIdx], &rndState,
+                                            gSize, nGenes);
             if (state == -1) {
                 atomicCAS(prevG[neighIdx].inUse, 1, 0);
                 break;
             }
             if (state != -2) {
                 prevG[idx].cellRebirth = true;
-                atomicAdd(&count[4], 1);
+                atomicAdd(&count[DIFF], 1);
+                atomicAdd(&count[prevG[idx].state+20], 1);
             }
         }
         else if (prevG[idx].chosenPheno == QUIES) {
-            state = newG[idx].move(&newG[neighIdx], &rndState, nGenes);
+            state = newG[idx].move(&newG[neighIdx], &rndState, gSize, nGenes);
             if (state != -2) {
-                atomicAdd(&count[2], 1);
+                atomicAdd(&count[QUIES], 1);
+                atomicAdd(&count[(3*prevG[idx].state+4)+QUIES], 1);
                 newG[neighIdx].moved = true;
             }
         }
@@ -372,30 +402,19 @@ __global__ void rule(Cell *newG, Cell *prevG, unsigned gSize,
         if (state != -2) {
             atomicCAS(prevG[neighIdx].actionApplied, 0, 1);
             atomicCAS(prevG[idx].actionDone, 0, 1);
-            if (prevG[idx].state == TC)
-                atomicAdd(&count[10], 1);
+            prevG[idx].chosenCell = neighIdx;
             break;
         }
         atomicCAS(prevG[neighIdx].inUse, 1, 0);
     }
     free(rndIdx); rndIdx = NULL;
-
-    if (*prevG[idx].actionDone == 0) {
-        if (prevG[idx].state == TC && kill)
-            atomicAdd(&count[8], 1);
-        if ((prevG[idx].state == TC || prevG[idx].state == CSC) && kill) {
-            atomicAdd(&count[5], 1);
-            return;
-        }
-        atomicAdd(&count[5], 1);
-    }
 }
 
 __global__ void update_states(Cell *G, unsigned gSize, unsigned nGenes)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-	unsigned idx = x + y * blockDim.x * gridDim.x;
+	unsigned idx = x * gSize + y;
 	unsigned i;
     // Instead one could look at certain needing to be positively mutated
 	unsigned minMut = 2;
@@ -426,7 +445,7 @@ __global__ void tumour_excision(Cell *newG, unsigned gSize, unsigned nGenes)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * blockDim.x * gridDim.x;
+    unsigned idx = x * gSize + y;
     unsigned i, neighIdx;
 
     if (!(x < gSize && y < gSize)) return;
@@ -442,9 +461,121 @@ __global__ void tumour_excision(Cell *newG, unsigned gSize, unsigned nGenes)
             continue;
 
         newG[neighIdx].apoptosis(nGenes);
+        newG[neighIdx].excised = 1;
     }
 
     newG[idx].apoptosis(nGenes);
+    newG[idx].excised = 1;
+}
+
+__global__ void set_excision_circle(Cell *newG, unsigned gSize,
+                                    unsigned *rTC, int *tcX, int *tcY)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    unsigned count = 0, prevDepth, depth = 0, maxDepth = depth, i;
+    Cell *curr;
+
+    if (!(x < gSize && y < gSize)) return;
+
+    if (newG[idx].state != TC || *tcY != -1) return;
+
+    for (i = 0; i < newG[idx].params->nNeigh; i++)
+        if (newG[newG[idx].neigh[i]].state == TC
+         || newG[newG[idx].neigh[i]].state == CSC
+         || newG[newG[idx].neigh[i]].state == EMPTY)
+            count++;
+
+    if (count >= (double) newG[idx].params->nNeigh * 1.1) {
+        atomicCAS(tcX, -1, x);
+        if (atomicCAS(tcY, -1, y) == -1) {
+            curr = (Cell*)malloc(sizeof(Cell));
+            for (i = 0; i < newG[idx].params->nNeigh; i++) {
+                curr = &newG[idx]; depth = 0;
+                do {
+                    prevDepth = depth;
+                    if (newG[curr->neigh[i]].state == TC
+                     || newG[curr->neigh[i]].state == CSC
+                     || newG[curr->neigh[i]].state == EMPTY) {
+                        depth++;
+                        curr = &newG[curr->neigh[i]];
+                    }
+
+                    if (depth == gSize) break;
+                } while (prevDepth != depth);
+                if (depth > maxDepth) maxDepth = depth;
+                if (maxDepth == gSize) break;
+            }
+            free(curr); curr = NULL;
+            atomicAdd(rTC, maxDepth+1);
+            return;
+        }
+    }
+}
+
+__global__ void excision(Cell *newG, unsigned gSize, unsigned nGenes,
+                         unsigned r, unsigned cX, unsigned cY, unsigned *numTC)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+
+    if (!(x < gSize && y < gSize)) return;
+
+    if (newG[idx].state == EMPTY) return;
+
+    if (check_in_circle(x, y, gSize, r, cX, cY))
+    {
+        if (newG[idx].state == TC) atomicSub(numTC, 1);
+        newG[idx].apoptosis(nGenes);
+        newG[idx].excised = 1;
+    }
+}
+
+__global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, unsigned gSize,
+                                       unsigned t, unsigned *cscFormed,
+                                       unsigned *tcFormed, unsigned exciseCount,
+                                       unsigned *timeTCDead, bool perfectExcision,
+                                       unsigned *r, unsigned *cX, unsigned *cY,
+                                       unsigned *numTC)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+
+    if (!(x < gSize && y < gSize)) return;
+
+    if (exciseCount == 0 && newG[idx].state == TC) atomicAdd(numTC, 1);
+
+    if (exciseCount == 0 && prevG[idx].state != CSC
+     && newG[idx].state == CSC && !newG[idx].moved) {
+        if (*cscFormed == 1 || atomicCAS(cscFormed, 0, 1) == 1) {
+            printf("A CSC formed at %d, (%d, %d).\n", t, x, y);
+            return;
+        }
+
+        printf("The first CSC formed at %d, (%d, %d).\n", t, x, y);
+
+        return;
+    }
+    if (prevG[idx].state != TC && newG[idx].state == TC & !newG[idx].moved) {
+        if (tcFormed[exciseCount] == 1
+         || (perfectExcision && !check_in_circle(x, y, gSize, r[exciseCount],
+                                                 cX[exciseCount],cY[exciseCount]))
+         || atomicCAS(&tcFormed[exciseCount], 0, 1) == 1) {
+            printf("A TC was formed at %d, (%d, %d).\n", t, x, y);
+            return;
+        }
+
+        if (exciseCount == 0) {
+            printf("The first TC formed at %d, (%d, %d).\n", t, x, y);
+            return;
+        }
+
+        printf("A TC recurred in %d steps after excision %d at %d, (%d, %d).\n",
+               timeTCDead[exciseCount], exciseCount, t, x, y);
+    }
 }
 
 __global__ void display_ca(uchar4 *optr, Cell *grid, unsigned gSize,
@@ -452,7 +583,7 @@ __global__ void display_ca(uchar4 *optr, Cell *grid, unsigned gSize,
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-	unsigned idx = x + y * blockDim.x * gridDim.x;
+	unsigned idx = x * gSize + y;
     unsigned optrOffset = x * cellSize + y * cellSize * dim;
 	unsigned i, j;
 
@@ -473,7 +604,7 @@ __global__ void display_genes(uchar4 *optr, Cell *G, unsigned gSize,
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * blockDim.x * gridDim.x;
+    unsigned idx = x * gSize + y;
     unsigned optrOffset = x * cellSize + y * cellSize * dim;
     unsigned i, j;
     gene M = (gene) 0;
@@ -516,7 +647,7 @@ __global__ void display_carcin(uchar4 *optr, CarcinPDE *pde,
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned idx = x + y * blockDim.x * gridDim.x;
+    unsigned idx = x * gSize + y;
     unsigned optrOffset = x * cellSize + y * cellSize * dim;
     unsigned i, j;
     double carcinCon;
@@ -524,6 +655,8 @@ __global__ void display_carcin(uchar4 *optr, CarcinPDE *pde,
     if (!(x < gSize && y < gSize)) return;
 
     carcinCon = pde->soln[idx];
+    if (*pde->maxVal != 0.0 && *pde->maxVal < 0.11)
+        carcinCon /= *pde->maxVal;
 
     for (i = optrOffset; i < optrOffset + cellSize; i++)
         for (j = i; j < i + cellSize * dim; j += dim) {
