@@ -280,17 +280,17 @@ struct CA {
         memset(tcFormed, 0, (maxExcise+1)*sizeof(unsigned));
         CudaSafeCall(cudaMallocManaged((void**)&stateColors, nStates*sizeof(dim3)));
         CudaSafeCall(cudaMallocManaged((void**)&geneColors, nGenes*sizeof(dim3)));
-        bytesPerCell = 2 * num_digits(gridSize) + num_digits(gridSize * gridSize)
+        bytesPerCell = 2 * num_digits(gridSize * gridSize)
                      + num_digits(maxT + cellLifeSpan / cellCycleLen)
-                     + 39 * nGenes + 104;
+                     + 39 * nGenes + 103;
         cellDataSize = bytesPerCell * gridSize * gridSize + 1;
         CudaSafeCall(cudaMallocManaged((void**)&cellData, cellDataSize));
         memset(cellData, '\0', cellDataSize);
         headerCellData = (char*)malloc(101);
         memset(headerCellData, '\0', 101);
-        strcat(headerCellData, "# x\ty\tstate\tage\tprolif\tquies\tapop\tdiff");
-        strcat(headerCellData, "\t[geneExprs]\t[bOut]\tchosenPheno\t");
-        strcat(headerCellData, "chosenCell\tactionDone\texcised\n");
+        strcat(headerCellData, "# idx,state,age,prolif,quies,apop,diff");
+        strcat(headerCellData, ",[geneExprs],[bOut],chosenPheno");
+        strcat(headerCellData, ",chosenCell,actionDone,excised\n");
 	}
 
     void init(double *diffusion, double *influx, double *outflux, double *ic,

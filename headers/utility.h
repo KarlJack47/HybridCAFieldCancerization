@@ -129,13 +129,17 @@ __device__ char* num_to_string(double val, size_t *numChar, char *out=NULL,
                   frac = abs(val - (int) val) * pow(10, precision),
                   numDigFrac=num_digits(frac),
                   numZeros = precision - numDigFrac;
+    unsigned lastDigitFrac;
     char *outTemp;
 
     if (start != NULL) idx = *start;
 
     *numChar = numDigInt+1;
-    if (frac != 0 || (displayFrac && frac == 0))
+    if (frac != 0 || (displayFrac && frac == 0)) {
         *numChar = *numChar + numDigFrac + numZeros + 1;
+        lastDigitFrac = (int) (abs(val - (int) val) * pow(10, precision+1)) % 10;
+        if (lastDigitFrac >= 5) frac++;
+    }
     if (val < 0 || (displaySign && val >= 0))
         *numChar = *numChar+1;
     if (out == NULL) {
