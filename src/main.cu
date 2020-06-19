@@ -21,13 +21,13 @@ void cleanup(CA *ca, GUI *gui, CellParams *params)
 
 int main(int argc, char *argv[])
 {
-    unsigned i, j, nGenes = 10, nCarcin = 1;
+    unsigned i, j, nGenes = 10, nCarcin = 1, rTC = 0, cX = 0, cY = 0;
     size_t dbl = sizeof(double), st = sizeof(ca_state),
            eff = sizeof(effect), gType = sizeof(gene_type),
            gRel = sizeof(gene_related);
 
     unsigned T = 8766, gridSize = 256, outSize = 1024;
-    bool display = false, save = true;
+    bool display = false, save = true, perfectExcision = false;
     int maxTTC = -1;
     unsigned initType = 0;
 
@@ -50,22 +50,27 @@ int main(int argc, char *argv[])
 
     double start, end;
 
+    set_seed();
+
     if (argc >= 2) display = atoi(argv[1]);
     if (argc >= 3) save = atoi(argv[2]);
     if (argc >= 4) T = atoi(argv[3]);
     if (argc >= 5) gridSize = atoi(argv[4]);
-    if (argc >= 6) maxTTC = atoi(argv[5]);
-    if (argc == 7) initType = atoi(argv[6]);
+    if (argc >= 6) initType = atoi(argv[5]);
+    if (argc >= 7) perfectExcision = atoi(argv[6]);
+    if (argc == 8) maxTTC = atoi(argv[7]);
 
-    printf("The CA will run for %d timesteps on a grid of size %dx%d.\n",
+    printf("The CA will run for %d timesteps on a grid of size %dx%d,",
            T, gridSize, gridSize);
+    printf(" init type %d, perfectExcision %d, max time TC alive %d.\n",
+           initType, perfectExcision, maxTTC);
 
     start = omp_get_wtime();
 
     if (initType == 2) nCarcin = 2;
     else if (initType == 3) nCarcin = 0;
 
-    *ca = CA(gridSize, T, nGenes, nCarcin, save, maxTTC, outSize);
+    *ca = CA(gridSize, T, nGenes, nCarcin, save, outSize, maxTTC, perfectExcision);
     ca->initialize_memory();
 
     upregPhenoMap = (effect*)malloc(nGenes*4*eff);
@@ -73,18 +78,14 @@ int main(int argc, char *argv[])
     upregPhenoMap[  TP53 * 4 + PROLIF] = NEG;
     upregPhenoMap[  TP53 * 4 +  QUIES] = POS;
     upregPhenoMap[  TP53 * 4 +   APOP] = POS;
-    //upregPhenoMap[  TP53 * 4 +   DIFF] = NEG;
     upregPhenoMap[  TP73 * 4 +   APOP] = POS;
     upregPhenoMap[    RB * 4 + PROLIF] = NEG;
     upregPhenoMap[    RB * 4 +  QUIES] = POS;
-    //upregPhenoMap[    RB * 4 +   DIFF] = NEG;
     upregPhenoMap[   P21 * 4 + PROLIF] = NEG;
     upregPhenoMap[   P21 * 4 +  QUIES] = POS;
     upregPhenoMap[   P21 * 4 +   DIFF] = NEG;
     upregPhenoMap[  TP16 * 4 + PROLIF] = NEG;
-    //upregPhenoMap[  TP16 * 4 +   DIFF] = NEG;
     upregPhenoMap[  EGFR * 4 + PROLIF] = POS;
-    //upregPhenoMap[  EGFR * 4 +   DIFF] = POS;
     upregPhenoMap[ CCDN1 * 4 +   APOP] = NEG;
     upregPhenoMap[   MYC * 4 + PROLIF] = POS;
     upregPhenoMap[   MYC * 4 +   APOP] = NEG;
@@ -207,13 +208,13 @@ int main(int argc, char *argv[])
     if (nCarcin != 0) {
         diffusion = (double*)malloc(nCarcin*dbl);
         diffusion[0] = 4.5590004e-2; // cm^2/h
-        if (nCarcin == 2) diffusion[1] = 250.56; // cm^2/h
+        if (nCarcin == 2) diffusion[1] = 2.9487515e-2; // cm^2/h
         influx = (double*)malloc(nCarcin*dbl);
-        influx[0] = 1.3053467001e4; // g/cm^3*h
-        if (nCarcin == 2) influx[1] = 6.72514619883e5; // g/cm^3*h
+        influx[0] = 2.1755778; // microg/cm^3*h
+        if (nCarcin == 2) influx[1] = 2.6498538e-2; // microg/cm^3*h
         outflux = (double*)malloc(nCarcin*dbl);
-        outflux[0] = 1.5e-4; // g/cm^3*h
-        if (nCarcin == 2) outflux[1] = 3.0e-6; // g/cm^3*h
+        outflux[0] = 0.0; // g/cm^3*h
+        if (nCarcin == 2) outflux[1] = 3.9604607e-3; // microg/cm^3*h
         ic = (double*)malloc(nCarcin*dbl);
         memset(ic, 0, nCarcin*dbl);
         bc = (double*)malloc(nCarcin*dbl);
@@ -232,7 +233,7 @@ int main(int argc, char *argv[])
     geneColors[PIK3CA] = dim3(  1, 102,  94); // Dark green
     geneColors[   RAS] = dim3(  0,  60,  48); // Forest green
 
-    double weightStates[7] = { 0.4, 0.2, 0.01, 0.03, 0.02, 0.04, 0.3 };
+    double weightStates[7] = { 0.45, 0.22, 0.01, 0.005, 0.005, 0.02, 0.29 };
     if (initType != 1) {
         memset(weightStates, 0, 7*dbl);
         weightStates[NC] = 0.7;
@@ -240,8 +241,15 @@ int main(int argc, char *argv[])
         weightStates[EMPTY] = 0.29;
     }
 
+    if (initType == 1) {
+        rTC = ca->gridSize / 10;
+        cX = rand() % ca->gridSize;
+        cY = rand() % ca->gridSize;
+    }
+
     ca->init(diffusion, influx, outflux, ic, bc,
-             Wx, Wy, alpha, bias, geneColors, params, weightStates);
+             Wx, Wy, alpha, bias, geneColors,
+             params, weightStates, rTC, cX, cY);
 
     if (initType == 1) {
         dim3 blocks(NBLOCKS(ca->gridSize, ca->blockSize),
@@ -272,15 +280,15 @@ int main(int argc, char *argv[])
 
     if (nCarcin != 0) {
         carcinNames = (char**)malloc(sizeof(char*));
-        carcinNames[0] = (char*)malloc(8*sizeof(char));
+        carcinNames[0] = (char*)malloc(8);
         sprintf(carcinNames[0], "%s", "Alcohol");
         if (nCarcin == 2) {
-            carcinNames[1] = (char*)malloc(8*sizeof(char));
+            carcinNames[1] = (char*)malloc(8);
             sprintf(carcinNames[1], "%s", "Tobacco");
         }
     }
 
-    *gui = GUI(outSize, outSize, ca, display,
+    *gui = GUI(outSize, outSize, ca, display, perfectExcision,
                gridSize, T, nCarcin, carcinNames);
     if (nCarcin != 0) {
         free(carcinNames[0]); carcinNames[0] = NULL;
