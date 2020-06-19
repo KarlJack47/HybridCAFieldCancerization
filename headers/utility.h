@@ -144,12 +144,12 @@ __device__ char* num_to_string(double val, size_t *numChar, char *out=NULL,
         *numChar = *numChar+1;
     if (out == NULL) {
         outTemp = (char*)malloc(*numChar);
-        memset(outTemp, '\0', *numChar);
+        outTemp[*numChar-1] = '\0';
     } else outTemp = out;
 
     if (val < 0) {
         outTemp[idx++] = '-';
-        val = val * -1;
+        val *= -1;
     } else if (val >= 0 && displaySign) outTemp[idx++] = '+';
 
     for (i = numDigInt-1; i > -1; i--)

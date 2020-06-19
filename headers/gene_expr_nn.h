@@ -137,14 +137,14 @@ struct GeneExprNN {
         }
     }
 
-    void prefetch_memory(int dev)
+    void prefetch_memory(int dev, cudaStream_t *stream)
     {
         size_t dbl = sizeof(double);
 
         if (dev == -1) dev = cudaCpuDeviceId;
 
-        CudaSafeCall(cudaMemPrefetchAsync(WIn, nHid*nIn*dbl, dev, NULL));
-        CudaSafeCall(cudaMemPrefetchAsync(WOut, nHid*nOut*dbl, dev, NULL));
+        CudaSafeCall(cudaMemPrefetchAsync(WIn, nHid*nIn*dbl, dev, *stream));
+        CudaSafeCall(cudaMemPrefetchAsync(WOut, nHid*nOut*dbl, dev, *stream));
     }
 
     __device__ void evaluate(double *in, double *out, double *bOut)

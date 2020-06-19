@@ -80,6 +80,7 @@ __device__ unsigned get_rand_idx(T *L, const unsigned N,
     int count = -1, chosen = -1;
 
     if (idx == NULL) idxT = (unsigned*)malloc(N*sizeof(unsigned));
+    else idxT = idx;
 
     for (i = 0; i < N; i++) sorted[i] = 1000000000.0 * L[i];
     bitonic_sort(sorted, 0, N, false);
@@ -105,6 +106,8 @@ __device__ unsigned get_rand_idx(T *L, const unsigned N,
     rnd = curand_uniform_double(&localState);
     *rndState = localState;
     free(sorted); sorted = NULL;
+
+    if (idx == NULL) free(idxT);
 
     if (chosen != -1) return chosen;
     else if (count != -1) return count;

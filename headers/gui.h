@@ -47,6 +47,15 @@ struct GUI {
     bool paused;
     bool windowsShouldClose;
 
+    GUI()
+    {
+        fAnimCA = NULL;
+        fAnimGenes = NULL;
+        fAnimCarcin = NULL;
+        fAnimCell = NULL;
+        carcinNames = NULL;
+    }
+
     GUI(unsigned w=1024, unsigned h=1024, void *d=NULL, bool show=true,
         bool perfectexcision=false, unsigned gSize=256, unsigned T=8677,
         unsigned ncarcin=1, char **carNames=NULL)
@@ -75,9 +84,7 @@ struct GUI {
         if (carNames != NULL) {
             carcinNames = (char**)malloc(nCarcin*sizeof(char*));
             for (i = 0; i < nCarcin; i++) {
-                carcinNames[i] = (char*)malloc((strlen(carNames[i])+1)
-                                                *sizeof(char));
-                memset(carcinNames[i], '\0', (strlen(carNames[i])+1)*sizeof(char));
+                carcinNames[i] = (char*)calloc((strlen(carNames[i])+1), 1);
                 strcpy(carcinNames[i], carNames[i]);
             }
         }

@@ -13,12 +13,9 @@ struct CarcinPDE {
     unsigned maxIter;
 
     double deltaxy, deltat;
-    double diffusion;
-    double ic, bc;
-    double influx, outflux;
+    double diffusion, ic, bc, influx, outflux;
 
-    double *soln;
-    double *maxVal;
+    double *soln, *maxVal;
 
     CarcinPDE(int dev, unsigned idx, unsigned spaceSize, double diff,
               double influxIn, double outfluxIn, double icIn, double bcIn,
@@ -41,29 +38,31 @@ struct CarcinPDE {
         *maxVal = ic > bc ? ic : bc;
     }
 
-    void prefetch_memory(int dev)
+    void prefetch_memory(int dev, cudaStream_t *stream)
     {
         if (dev == -1) dev = cudaCpuDeviceId;
 
         CudaSafeCall(cudaMemPrefetchAsync(soln,
                                           N*N*sizeof(double),
-                                          dev, NULL));
+                                          dev, *stream));
     }
 
-    void init(unsigned blockSize)
+    void init(unsigned blockSize, cudaStream_t *stream)
     {
         dim3 blocks(NBLOCKS(N, blockSize), NBLOCKS(N, blockSize));
         dim3 threads(blockSize, blockSize);
 
-        init_pde<<< blocks, threads >>>(soln, ic, bc, N);
+        init_pde<<< blocks, threads, 0, *stream >>>(soln, ic, bc, N);
         CudaCheckError();
-        CudaSafeCall(cudaDeviceSynchronize());
 	}
 
     void free_resources(void)
     {
         if (soln != NULL) {
             CudaSafeCall(cudaFree(soln)); soln = NULL;
+        }
+        if (maxVal != NULL) {
+            CudaSafeCall(cudaFree(maxVal)); maxVal = NULL;
         }
     }
 

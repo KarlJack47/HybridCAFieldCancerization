@@ -73,8 +73,7 @@ int main(int argc, char *argv[])
     *ca = CA(gridSize, T, nGenes, nCarcin, save, outSize, maxTTC, perfectExcision);
     ca->initialize_memory();
 
-    upregPhenoMap = (effect*)malloc(nGenes*4*eff);
-    memset(upregPhenoMap, NONE, nGenes*4*eff);
+    upregPhenoMap = (effect*)calloc(nGenes*4, eff);
     upregPhenoMap[  TP53 * 4 + PROLIF] = NEG;
     upregPhenoMap[  TP53 * 4 +  QUIES] = POS;
     upregPhenoMap[  TP53 * 4 +   APOP] = POS;
@@ -95,8 +94,7 @@ int main(int argc, char *argv[])
     upregPhenoMap[   RAS * 4 +   APOP] = NEG;
     upregPhenoMap[   RAS * 4 +   DIFF] = POS;
 
-    downregPhenoMap = (effect*)malloc(nGenes*4*eff);
-    memset(downregPhenoMap, NONE, nGenes*4*eff);
+    downregPhenoMap = (effect*)calloc(nGenes*4, eff);
     for (i = 0; i < nGenes; i++)
         for (j = 0; j < 4; j++) {
             if (upregPhenoMap[i*4+j] == NONE) continue;
@@ -137,8 +135,7 @@ int main(int argc, char *argv[])
     geneType[  P21] = SUPPR; geneType[TP16] = SUPPR; geneType[  EGFR] =  ONCO;
     geneType[CCDN1] =  ONCO; geneType[ MYC] =  ONCO; geneType[PIK3CA] =  ONCO;
     geneType[  RAS] =  ONCO;
-    geneRelations = (gene_related*)malloc(nGenes*nGenes*gRel);
-    memset(geneRelations, NO, nGenes*nGenes*gRel);
+    geneRelations = (gene_related*)calloc(nGenes*nGenes, gRel);
     for (i = 1; i < nGenes; i++) geneRelations[TP53*nGenes+i] = YES;
     geneRelations[   RB * nGenes +   TP53] = YES;
     geneRelations[   RB * nGenes +  CCDN1] = YES;
@@ -152,10 +149,6 @@ int main(int argc, char *argv[])
     *params = CellParams(ca->nStates, nGenes, alpha, upregPhenoMap,
                          downregPhenoMap, stateMutMap, prolifMutMap,
                          diffMutMap, geneType, geneRelations);
-    params->prefetch_memory(ca->devId2, ca->nStates, nGenes);
-    CudaSafeCall(cudaMemPrefetchAsync(params,
-                                      sizeof(CellParams),
-                                      ca->devId2, NULL));
 
     free(upregPhenoMap); free(downregPhenoMap);
     upregPhenoMap = NULL; downregPhenoMap = NULL;
@@ -166,15 +159,14 @@ int main(int argc, char *argv[])
 
     if (nCarcin != 0)
         carcinMutMap = (double*)malloc(nCarcin*nGenes*dbl);
-	Wx = (double*)malloc(ca->nGenes*(nCarcin+1)*dbl);
-	Wy = (double*)malloc(ca->nGenes*nGenes*dbl);
+	Wx = (double*)calloc(ca->nGenes*(nCarcin+1), dbl);
+	Wy = (double*)calloc(ca->nGenes*nGenes, dbl);
 
     if (nCarcin != 0) {
         for (i = 0; i < nGenes; i++)
             for (j = 0; j < nCarcin; j++)
                 carcinMutMap[j*nCarcin+i] = 1.0;
     }
-    memset(Wx, 0, ca->nGenes*(nCarcin+1)*dbl);
     for (i = 0; i < nGenes; i++)
         for (j = 0; j < nCarcin+1; j++) {
             if (j == nCarcin) {
@@ -185,7 +177,6 @@ int main(int argc, char *argv[])
         }
     if (nCarcin != 0) { free(carcinMutMap); carcinMutMap = NULL; }
 
-    memset(Wy, 0, nGenes*nGenes*dbl);
     Wy[  TP53 * nGenes +   TP53] =  1.0;
     Wy[  TP73 * nGenes +   TP73] =  0.1;
     Wy[    RB * nGenes +     RB] =  0.3;
@@ -215,10 +206,8 @@ int main(int argc, char *argv[])
         outflux = (double*)malloc(nCarcin*dbl);
         outflux[0] = 0.0; // g/cm^3*h
         if (nCarcin == 2) outflux[1] = 3.9604607e-3; // microg/cm^3*h
-        ic = (double*)malloc(nCarcin*dbl);
-        memset(ic, 0, nCarcin*dbl);
-        bc = (double*)malloc(nCarcin*dbl);
-        memset(bc, 0, nCarcin*dbl);
+        ic = (double*)calloc(nCarcin, dbl);
+        bc = (double*)calloc(nCarcin, dbl);
     }
 
     geneColors = (dim3*)malloc(nGenes*sizeof(dim3));
@@ -259,14 +248,15 @@ int main(int argc, char *argv[])
                                          ca->NN, 100);
         CudaCheckError();
         CudaSafeCall(cudaDeviceSynchronize());
+
         update_states<<< blocks, threads >>>(ca->prevGrid, ca->gridSize,
                                              ca->nGenes);
         CudaCheckError();
         CudaSafeCall(cudaDeviceSynchronize());
-        cells_gpu_to_gpu_copy<<< blocks, threads >>>(ca->prevGrid,
-                                                     ca->newGrid,
-                                                     ca->gridSize,
-                                                     ca->nGenes);
+
+        cells_gpu_to_gpu_cpy<<< blocks, threads >>>(
+            ca->newGrid, ca->prevGrid, ca->gridSize, ca->nGenes
+        );
         CudaCheckError();
         CudaSafeCall(cudaDeviceSynchronize());
     }
@@ -280,11 +270,11 @@ int main(int argc, char *argv[])
 
     if (nCarcin != 0) {
         carcinNames = (char**)malloc(sizeof(char*));
-        carcinNames[0] = (char*)malloc(8);
-        sprintf(carcinNames[0], "%s", "Alcohol");
+        carcinNames[0] = (char*)calloc(8, 1);
+        strcat(carcinNames[0], "Alcohol");
         if (nCarcin == 2) {
-            carcinNames[1] = (char*)malloc(8);
-            sprintf(carcinNames[1], "%s", "Tobacco");
+            carcinNames[1] = (char*)calloc(8, 1);
+            strcat(carcinNames[1], "Tobacco");
         }
     }
 

@@ -24,7 +24,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             );
             CudaCheckError();
             if (!paused)
-                save_cell_data_to_file(ca, ticks, blocks, threads, streams[1]);
+                save_cell_data_to_file(ca, ticks, blocks, threads, &streams[1]);
             CudaSafeCall(cudaStreamSynchronize(streams[0]));
         } else if (!paused) {
             mutate_grid<<< blocks, threads, 0, streams[0] >>>(
@@ -36,8 +36,8 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             for (i = 0; i < ca->nCarcin; i++)
                 ca->pdes[i].time_step(ticks, ca->blockSize, &streams[i+2]);
 
-            cells_gpu_to_gpu_copy<<< blocks, threads, 0, streams[0] >>>(
-                ca->prevGrid, ca->newGrid, ca->gridSize, ca->nGenes
+            cells_gpu_to_gpu_cpy<<< blocks, threads, 0, streams[0] >>>(
+                ca->newGrid, ca->prevGrid, ca->gridSize, ca->nGenes
             );
             CudaCheckError();
 
@@ -168,15 +168,15 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             }
             CudaSafeCall(cudaFree(numTC)); numTC = NULL;
 
-            save_cell_data_to_file(ca, ticks, blocks, threads, streams[0]);
+            save_cell_data_to_file(ca, ticks, blocks, threads, &streams[0]);
 
             reset_rule_params<<< blocks, threads, 0, streams[0] >>>(
                 ca->prevGrid, ca->newGrid, ca->gridSize
             );
             CudaCheckError();
 
-            cells_gpu_to_gpu_copy<<< blocks, threads, 0, streams[0] >>>(
-                ca->newGrid, ca->prevGrid, ca->gridSize, ca->nGenes
+            cells_gpu_to_gpu_cpy<<< blocks, threads, 0, streams[0] >>>(
+                ca->prevGrid, ca->newGrid, ca->gridSize, ca->nGenes
             );
             CudaCheckError();
 
@@ -250,9 +250,9 @@ void anim_gpu_genes(uchar4* outputBitmap, unsigned dim, CA *ca,
             ca->NN->nOut, ca->geneColors
         );
         CudaCheckError();
+        CudaSafeCall(cudaDeviceSynchronize());
     }
 
-    CudaSafeCall(cudaDeviceSynchronize());
     if (ca->save && ticks <= ca->maxT && !paused
      && ticks % ca->framerate == 0)
         save_image(outputBitmap, dim, ca->blockSize,
@@ -274,9 +274,9 @@ void anim_gpu_carcin(uchar4* outputBitmap, unsigned dim, CA *ca,
             ca->gridSize, ca->cellSize, dim
         );
         CudaCheckError();
+        CudaSafeCall(cudaDeviceSynchronize());
     }
 
-    CudaSafeCall(cudaDeviceSynchronize());
     if (ca->save && ticks <= ca->maxT && !paused
      && ticks % ca->framerate == 0)
         save_image(outputBitmap, dim, ca->blockSize,
@@ -297,9 +297,8 @@ void anim_gpu_cell(uchar4* outputBitmap, unsigned dim, CA *ca,
             ca->stateColors
         );
         CudaCheckError();
+        CudaSafeCall(cudaDeviceSynchronize());
     }
-
-    CudaSafeCall(cudaDeviceSynchronize());
 }
 
 void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,

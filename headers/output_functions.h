@@ -14,6 +14,8 @@ int save_image(uchar4 *outputBitmap, size_t size, unsigned blockSize,
     unsigned char *jpegBuf = NULL;
     FILE *jpegFile = NULL;
     unsigned char *frame = NULL;
+    cudaStream_t streams[2];
+    for (i = 0; i < 2; i++) CudaSafeCall(cudaStreamCreate(&streams[i]));
 
     if (prefix != NULL) strcat(fname, prefix);
     for (i = 0; i < digMax-dig; i++) strcat(fname, "0");
@@ -22,10 +24,13 @@ int save_image(uchar4 *outputBitmap, size_t size, unsigned blockSize,
     CudaSafeCall(cudaMallocManaged((void**)&frame,
                                    size*size*4*sizeof(unsigned char)));
     CudaSafeCall(cudaMemPrefetchAsync(frame, size*size*4*sizeof(unsigned char),
-                                      dev, NULL));
-    copy_frame<<< blocks, threads >>>(outputBitmap, frame);
+                                      dev, streams[0]));
+    copy_frame<<< blocks, threads, 0, streams[1] >>>(outputBitmap, frame);
     CudaCheckError();
-    CudaSafeCall(cudaDeviceSynchronize());
+    for (i = 0; i < 2; i++) {
+        CudaSafeCall(cudaStreamSynchronize(streams[i]));
+        CudaSafeCall(cudaStreamDestroy(streams[i]));
+    }
 
     if ((tjInstance = tjInitCompress()) == NULL) {
         THROW_TJ("initializing compressor");
@@ -92,14 +97,14 @@ int compress_and_save_data(char *fname, char *header, char *input, size_t bytes)
 
     if (header != NULL) {
         dataSize += headerSize;
-        data = (char*)malloc(dataSize);
+        data = (char*)calloc(dataSize, 1);
         memcpy(data, header, headerSize);
         memcpy(data+headerSize, input, bytes - 1);
     }
 
     preferences.compressionLevel = 0;
     maxDstSize = LZ4F_compressFrameBound(dataSize, &preferences);
-    if ((compressedData = (char*)malloc(maxDstSize)) == NULL) {
+    if ((compressedData = (char*)calloc(maxDstSize, 1)) == NULL) {
         fprintf(stderr, "Failed to allocate memory for compressedData.\n");
         return 1;
     }
@@ -127,22 +132,23 @@ int compress_and_save_data(char *fname, char *header, char *input, size_t bytes)
 __global__ void save_cell_data(Cell*,Cell*,char*,unsigned,unsigned,
                                double,double,unsigned,size_t);
 void save_cell_data_to_file(CA *ca, unsigned t, dim3 blocks,
-                            dim3 threads, cudaStream_t stream)
+                            dim3 threads, cudaStream_t *stream)
 {
     unsigned numChar = num_digits(t) + 10;
-    char *fName = (char*)malloc(numChar);
+    char *fName = (char*)calloc(numChar, 1);
 
-    memset(fName, '\0', numChar);
     sprintf(fName, "%d.data.lz4", t);
 
-    save_cell_data<<< blocks, threads, 0, stream >>>(
+    save_cell_data<<< blocks, threads, 0, *stream >>>(
         ca->prevGrid, ca->newGrid, ca->cellData, ca->gridSize, ca->maxT,
         ca->cellLifeSpan, ca->cellCycleLen, ca->nGenes, ca->bytesPerCell
     );
     CudaCheckError();
-    CudaSafeCall(cudaStreamSynchronize(stream));
+    CudaSafeCall(cudaStreamSynchronize(*stream));
+
     compress_and_save_data(fName, ca->headerCellData, ca->cellData,
                            ca->cellDataSize);
+
     free(fName); fName = NULL;
 }
 

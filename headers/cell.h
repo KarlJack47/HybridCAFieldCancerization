@@ -3,10 +3,9 @@
 
 struct CellParams {
     unsigned nPheno, nNeigh;
-    double phenoIncr, exprAdjMaxIncr;
-    double mutThresh;
-    gene CSCGeneIdx;
+    double mutThresh, phenoIncr, exprAdjMaxIncr;
     double chanceMove, chanceKill, chanceUpreg, chancePhenoMut, chanceExprAdj;
+    gene CSCGeneIdx;
 
     effect *upregPhenoMap, *downregPhenoMap;
     double *phenoInit;
@@ -107,43 +106,44 @@ struct CellParams {
         }
     }
 
-    void prefetch_memory(int dev, unsigned nStates, unsigned nGenes)
+    void prefetch_memory(int dev, unsigned nStates, unsigned nGenes,
+                         cudaStream_t *stream)
     {
         size_t dbl = sizeof(double), eff = sizeof(effect),
                st = sizeof(ca_state), gType = sizeof(gene_type),
                gRel = sizeof(gene_related);
+
         if (dev == -1) dev = cudaCpuDeviceId;
 
         CudaSafeCall(cudaMemPrefetchAsync(upregPhenoMap,
                                           nGenes*nPheno*eff,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(downregPhenoMap,
                                           nGenes*nPheno*eff,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(phenoInit,
                                           nStates*nPheno*dbl,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(stateMutMap,
                                           (nStates-1)*nGenes*st,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(prolifMutMap,
                                           (nStates-1)*nGenes*st,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(diffMutMap,
                                           (nStates-1)*(nGenes+1)*st,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(geneType, nGenes*gType,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(geneRelations, nGenes*nGenes*gRel,
-                                          dev, NULL));
+                                          dev, *stream));
     }
 };
 
 struct Cell {
     int device;
     ca_state state;
-    unsigned age;
-    unsigned location;
+    unsigned location, age;
     unsigned *neigh;
     double *phenotype;
     double *geneExprs;
@@ -159,8 +159,8 @@ struct Cell {
     {
         neigh = NULL;
         phenotype = NULL;
-        geneExprs = NULL;
-        bOut = NULL;
+        geneExprs = NULL; bOut = NULL;
+        inUse = NULL; actionDone = NULL; actionApplied = NULL;
         params = NULL;
     }
 
@@ -170,9 +170,7 @@ struct Cell {
          double *weightStates=NULL, unsigned radius=0,
          unsigned cX=0, unsigned cY=0)
     {
-        double rnd;
-        double S;
-        bool statesIn = true;
+        double rnd, S, weightStatesTemp[7] = { 0.0 };
 
         set_seed();
 
@@ -181,25 +179,23 @@ struct Cell {
         location = x * gridSize + y;
 
         if (weightStates == NULL) {
-            weightStates = (double*)malloc(7*sizeof(double));
-            weightStates[NC] = 0.70; weightStates[SC] = 0.01;
-            weightStates[EMPTY] = 0.29;
-            statesIn = false;
-        }
-        S = weightStates[NC];
+            weightStatesTemp[NC] = 0.70; weightStatesTemp[SC] = 0.01;
+            weightStatesTemp[EMPTY] = 0.29;
+        } else memcpy(weightStatesTemp, weightStates, 7*sizeof(double));
+        S = weightStatesTemp[NC];
 
         rnd = rand() / (double) RAND_MAX;
 	    if (abs(rnd) <= S)
 	        state = NC;
-	    else if (abs(rnd) <= (S += weightStates[MNC]))
+	    else if (abs(rnd) <= (S += weightStatesTemp[MNC]))
 	        state = MNC;
-	    else if (abs(rnd) <= (S += weightStates[SC]))
+	    else if (abs(rnd) <= (S += weightStatesTemp[SC]))
 	        state = SC;
-	    else if (abs(rnd) <= (S += weightStates[MSC]))
+	    else if (abs(rnd) <= (S += weightStatesTemp[MSC]))
 	        state = MSC;
-	    else if (abs(rnd) <= (S += weightStates[CSC]))
+	    else if (abs(rnd) <= (S += weightStatesTemp[CSC]))
 	        state = CSC;
-	    else if (abs(rnd) <= (S += weightStates[TC]))
+	    else if (abs(rnd) <= (S += weightStatesTemp[TC]))
 	        state = TC;
 	    else state = EMPTY;
 
@@ -210,8 +206,6 @@ struct Cell {
 	        else if (rnd <= (S += 0.01)) state = CSC;
 	        else state = EMPTY;
 	    }
-
-	    if (!statesIn) free(weightStates);
 
         init(x, y, gridSize, nGenes);
 
@@ -285,30 +279,30 @@ struct Cell {
         }
     }
 
-    void prefetch_memory(int dev, unsigned gSize, unsigned nGenes)
+    void prefetch_memory(int dev, unsigned gSize, unsigned nGenes,
+                         cudaStream_t *stream)
     {
         size_t dbl = sizeof(double);
 
         if (dev == -1) dev = cudaCpuDeviceId;
+
         CudaSafeCall(cudaMemPrefetchAsync(neigh,
                                           params->nNeigh*sizeof(unsigned),
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(geneExprs,
                                           2*nGenes*dbl,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(bOut,
                                           nGenes*dbl,
-                                          dev, NULL));
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(phenotype,
                                           params->nPheno*dbl,
-                                          dev, NULL));
+                                          dev, *stream));
     }
 
     __device__ void adjust_phenotype(unsigned pheno, double incr)
     {
-        double incrSign;
-        double minIncr = abs(incr), chosenIncr = incr;
-        double sum = 0.0;
+        double incrSign, minIncr = abs(incr), chosenIncr = incr, sum = 0.0;
 
         if (incr == 0.0) return;
         if ((state == NC || state == MNC || state == TC) && pheno == DIFF)

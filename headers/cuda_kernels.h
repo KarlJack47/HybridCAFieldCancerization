@@ -43,8 +43,7 @@ __global__ void pde_space_step(double *soln, double *maxVal, unsigned t,
     double piDivN = M_PI / (double) N, piSquared = M_PI * M_PI,
            srcTerm = influx - outflux,
            icMinBc = ic - bc, NSquared = deltaxy * deltaxy * N * N,
-           Dt = D * t * deltat;
-    double sum, nOdd, mOdd, lambda, expResult;
+           Dt = D * t * deltat, sum, nOdd, mOdd, lambda, expResult;
 
     if (!(x < N && y < N)) return;
 
@@ -69,7 +68,7 @@ __global__ void pde_space_step(double *soln, double *maxVal, unsigned t,
 }
 
 // CA related kernels
-__global__ void cells_gpu_to_gpu_copy(Cell *src, Cell *dst, unsigned gSize,
+__global__ void cells_gpu_to_gpu_cpy(Cell *dst, Cell *src, unsigned gSize,
                                       unsigned nGenes)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -115,7 +114,6 @@ __global__ void init_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
     }
 
     out = (double*)malloc(NN->nOut*sizeof(double));
-    memset(out, 0, NN->nOut*sizeof(double));
     for (i = 0; i < numIter; i++) {
         for (j = 0; j < NN->nOut; j++) {
             rnd = curand_uniform_double(&rndState) * (0.001 - 0.0) + 0.0;
@@ -123,6 +121,7 @@ __global__ void init_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
         }
         prevG[idx].mutate(NN, out, &rndState);
     }
+    free(out); out = NULL;
 }
 
 __global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
@@ -241,7 +240,6 @@ __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
 
     in = (double*)malloc(NN->nIn*sizeof(double));
     out = (double*)malloc(NN->nOut*sizeof(double));
-    memset(in, 0, NN->nIn*sizeof(double));
     memset(out, 0, NN->nOut*sizeof(double));
     for (i = 0; i < NN->nIn-1; i++) {
         in[i] = pdes[i].soln[idx];
