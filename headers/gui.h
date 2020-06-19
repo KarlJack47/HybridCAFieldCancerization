@@ -8,6 +8,8 @@
 #include <iostream>
 #include <unistd.h>
 
+int save_image(uchar4*,size_t,unsigned,char*,unsigned,unsigned,int);
+
 static void error_callback(int error, const char* description)
 {
     fprintf(stderr, "Error: %s\n", description);
@@ -19,13 +21,16 @@ struct GUI {
     GLuint bufferObjs[nWindows];
     cudaGraphicsResource *resrcs[nWindows];
     uchar4 *devPtrs[nWindows]; size_t sizes[nWindows];
-    cudaStream_t streams[nWindows];
     unsigned width, height;
     void *dataBlock;
-    void (*fAnimCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,bool,cudaStream_t);
-    void (*fAnimGenes)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,cudaStream_t);
-    void (*fAnimCarcin)(uchar4*,unsigned,void*,unsigned,unsigned,bool,bool,bool,cudaStream_t);
-    void (*fAnimCell)(uchar4*,unsigned,void*,unsigned,unsigned,bool,cudaStream_t);
+    void (*fAnimCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
+                    unsigned, unsigned,unsigned,bool*);
+    void (*fAnimGenes)(uchar4*,unsigned,void*,
+                       unsigned,bool,bool);
+    void (*fAnimCarcin)(uchar4*,unsigned,void*,unsigned,
+                        unsigned,bool,bool);
+    void (*fAnimCell)(uchar4*,unsigned,void*,
+                      unsigned,unsigned,bool);
     void (*fAnimTimerAndSaver)(void*,bool,unsigned,bool,bool);
     bool display;
     unsigned gridSize;
@@ -36,14 +41,15 @@ struct GUI {
     unsigned currCarcin;
     unsigned currContext;
     unsigned currCell[2];
+    unsigned radius, centerX, centerY;
     bool detached[nWindows-1];
-    bool excise;
+    bool excise, perfectExcision;
     bool paused;
     bool windowsShouldClose;
 
     GUI(unsigned w=1024, unsigned h=1024, void *d=NULL, bool show=true,
-        unsigned gSize=256, unsigned T=8677, unsigned ncarcin=1,
-        char **carNames=NULL)
+        bool perfectexcision=false, unsigned gSize=256, unsigned T=8677,
+        unsigned ncarcin=1, char **carNames=NULL)
     {
         unsigned i;
 
@@ -54,6 +60,8 @@ struct GUI {
         paused = false;
         if (display) paused = true;
         excise = false;
+        perfectExcision = perfectexcision;
+        radius = 0;
         gridSize = gSize;
         maxT = T;
         nCarcin = ncarcin;
@@ -101,11 +109,6 @@ struct GUI {
             create_window(CARCIN_GRID, width, height, windowName,
                           &key_carcin, NULL);
         }
-
-        for (i = 0; i < nWindows; i++) {
-            if (nCarcin == 0 && i == 3) continue;
-            CudaSafeCall(cudaStreamCreate(&streams[i]));
-        }
     }
 
     static GUI** get_gui_ptr(void)
@@ -140,7 +143,6 @@ struct GUI {
 
         for (i = 0; i < nWindows; i++) {
             if (nCarcin == 0 && i == 3) continue;
-            CudaSafeCall(cudaStreamDestroy(streams[i]));
             if (!windows[i]) continue;
             CudaSafeCall(cudaGraphicsUnregisterResource(resrcs[i]));
             glfwMakeContextCurrent(windows[i]);
@@ -195,30 +197,35 @@ struct GUI {
 
         if (windowIdx == CA_GRID)
             fAnimCA(devPtrs[windowIdx], width, dataBlock, ticks, display,
-                    paused, excise, windowsShouldClose, streams[CA_GRID]);
+                    paused, excise, radius, centerX, centerY,
+                    &windowsShouldClose);
         else if (windowIdx == GENE_INFO)
             fAnimGenes(devPtrs[windowIdx], width, dataBlock, ticks, display,
-                       paused, windowsShouldClose, streams[GENE_INFO]);
+                       paused);
         else if (windowIdx == CELL_INFO)
             fAnimCell(devPtrs[windowIdx], width, dataBlock, idx, ticks,
-                      display, streams[CELL_INFO]);
+                      display);
         else if (windowIdx == CARCIN_GRID)
             fAnimCarcin(devPtrs[windowIdx], width, dataBlock, idx, ticks,
-                        display, paused, windowsShouldClose,
-                        streams[CARCIN_GRID]);
+                        display, paused);
 
-        CudaSafeCall(cudaStreamSynchronize(streams[windowIdx]));
         CudaSafeCall(cudaGraphicsUnmapResources(1, &resrcs[windowIdx], NULL));
 
         if (display && (currContext == windowIdx
-         || (windowIdx != 0 && detached[windowIdx-1])))
-            draw(windowIdx, width, height);
+         || (windowIdx != 0 && detached[windowIdx-1]))) {
+            if (idx == curr)
+                draw(windowIdx, width, height);
+        }
     }
 
-    void anim(void(*fCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,bool,cudaStream_t),
-              void(*fGenes)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,cudaStream_t),
-              void(*fCarcin)(uchar4*,unsigned,void*,unsigned,unsigned,bool,bool,bool,cudaStream_t),
-              void(*fCell)(uchar4*,unsigned,void*,unsigned,unsigned,bool,cudaStream_t),
+    void anim(void(*fCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
+                         unsigned,unsigned,unsigned,bool*),
+              void(*fGenes)(uchar4*,unsigned,void*,
+                            unsigned,bool,bool),
+              void(*fCarcin)(uchar4*,unsigned,void*,unsigned,
+                             unsigned,bool,bool),
+              void(*fCell)(uchar4*,unsigned,void*,
+                           unsigned,unsigned,bool),
               void(*fTimeAndSave)(void*,bool,unsigned,bool,bool))
     {
         unsigned i, idx;
@@ -273,7 +280,7 @@ struct GUI {
             if (display) glfwPollEvents();
 
             if (display && (detached[1] || currContext == CELL_INFO)) {
-                memset(cellName, '\0', 18*sizeof(char));
+                memset(cellName, '\0', 18);
                 sprintf(cellName, "Cell (%d, %d)",
                         currCell[0], currCell[1]);
                 glfwSetWindowTitle(windows[CELL_INFO], cellName);
@@ -282,8 +289,9 @@ struct GUI {
             if (display && (detached[2] || currContext == CARCIN_GRID))
                 glfwSetWindowTitle(windows[CARCIN_GRID], carcinNames[currCarcin]);
 
-            if (!paused) fAnimTimerAndSaver(dataBlock, true, ticks, paused,
-                                            windowsShouldClose);
+            if (!paused || windowsShouldClose)
+                fAnimTimerAndSaver(dataBlock, true, ticks, paused,
+                                   windowsShouldClose);
 
             update_window(CA_GRID, ticks);
             if (paused) glfwSwapBuffers(windows[CA_GRID]);
@@ -301,20 +309,22 @@ struct GUI {
             for (i = 0; i < nCarcin; i++)
                 if ((paused && i == currCarcin) || !paused) {
                     update_window(CARCIN_GRID, ticks, i, currCarcin);
-                    if (paused) glfwSwapBuffers(windows[i]);
+                    if (paused) glfwSwapBuffers(windows[CARCIN_GRID]);
                 }
 
-            if (!paused) fAnimTimerAndSaver(dataBlock, false, ticks, paused,
-                                            windowsShouldClose);
+            if (windowsShouldClose)
+                for (i = 0; i < nWindows; i++) {
+                    if (nCarcin == 0 && i == 3) continue;
+                    hide_window(windows[i]);
+                }
+
+            if (!paused || windowsShouldClose)
+                fAnimTimerAndSaver(dataBlock, false, ticks, paused,
+                                   windowsShouldClose);
 
             if (!paused) ticks++;
 
             if (ticks == maxT+1) break;
-        }
-
-        for (i = 0; i < nWindows; i++) {
-            if (nCarcin == 0 && i == 3) continue;
-            hide_window(windows[i]);
         }
     }
 
@@ -396,13 +406,13 @@ struct GUI {
                 break;
             case GLFW_KEY_K:
                 if (action == GLFW_PRESS) {
-                    if (gui->excise == false) {
+                    if (!gui->excise) {
                         gui->excise = true;
-                        printf("Tumour excision mode is activated.\n");
+                        printf("Excision mode is activated.\n");
                     }
                     else {
                         gui->excise = false;
-                        printf("Tumour excision mode is deactivated.\n");
+                        printf("Excision mode is deactivated.\n");
                     }
                 }
                 break;
@@ -460,7 +470,7 @@ struct GUI {
     static void key_cell(GLFWwindow *window, int key,
                          int scancode, int action, int mods)
     {
-        char prefix[100] = { '\0' };
+        char prefix[18] = { '\0' };
         GUI *gui = *(get_gui_ptr());
         unsigned n = 4;
         if (gui->nCarcin == 0) n = 3;
@@ -502,10 +512,9 @@ struct GUI {
                 break;
             case GLFW_KEY_S:
                 if (action == GLFW_PRESS && gui->paused) {
-                    memset(prefix, '\0', 100*sizeof(char));
+                    memset(prefix, '\0', 17);
                     sprintf(prefix, "cell(%d, %d)_", gui->currCell[0],
                             gui->currCell[1]);
-                    CudaSafeCall(cudaStreamSynchronize(gui->streams[CELL_INFO]));
                     save_image(gui->devPtrs[2], gui->width, 16, prefix,
                                gui->ticks-1, gui->maxT, 0);
                 }
@@ -587,8 +596,19 @@ struct GUI {
             cellY = (int) (((gui->height - ypos) / (double) gui->height)
                             * (double) gui->gridSize);
 
+            if (cellX >= gui->gridSize) cellX = gui->gridSize - 1;
+            if (cellY >= gui->gridSize) cellY = gui->gridSize - 1;
             gui->currCell[0] = cellX;
             gui->currCell[1] = cellY;
+
+            if (!gui->perfectExcision && gui->excise && gui->paused) {
+                gui->centerX = cellX;
+                gui->centerY = cellY;
+                printf("Circle center location (%d, %d)\n",
+                       gui->centerX, gui->centerY);
+                printf("Pick the radius of excision: ");
+                scanf("%d", &gui->radius);
+            }
         }
     }
 
