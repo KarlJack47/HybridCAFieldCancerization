@@ -3,15 +3,10 @@
 
 struct CellParams {
     unsigned nPheno, nNeigh;
-    double phenoIncr;
-    double exprAdjMaxIncr;
+    double phenoIncr, exprAdjMaxIncr;
     double mutThresh;
     gene CSCGeneIdx;
-    double chanceMove;
-    double chanceKill;
-    double chanceUpreg;
-    double chancePhenoMut;
-    double chanceExprAdj;
+    double chanceMove, chanceKill, chanceUpreg, chancePhenoMut, chanceExprAdj;
 
     effect *upregPhenoMap, *downregPhenoMap;
     double *phenoInit;
@@ -156,7 +151,7 @@ struct Cell {
 
     int chosenPheno, chosenCell;
     bool cellRebirth, moved;
-    unsigned *inUse, *actionDone, *actionApplied;
+    unsigned *inUse, *actionDone, *actionApplied, excised;
 
     CellParams *params;
 
@@ -172,7 +167,8 @@ struct Cell {
     Cell(unsigned dev, CellParams *paramsIn,
          unsigned x, unsigned y, unsigned gridSize,
          unsigned nGenes, double cellCycleLen, double cellLifeSpan,
-         double *weightStates=NULL)
+         double *weightStates=NULL, unsigned radius=0,
+         unsigned cX=0, unsigned cY=0)
     {
         double rnd;
         double S;
@@ -205,8 +201,15 @@ struct Cell {
 	        state = CSC;
 	    else if (abs(rnd) <= (S += weightStates[TC]))
 	        state = TC;
-	    else
-	        state = EMPTY;
+	    else state = EMPTY;
+
+	    if (radius != 0 && check_in_circle(x, y, gridSize, radius, cX, cY)) {
+	        rnd = rand() / (double) RAND_MAX;
+	        S = 0.89; // percentage of TC
+	        if (rnd <= S) state = TC;
+	        else if (rnd <= (S += 0.01)) state = CSC;
+	        else state = EMPTY;
+	    }
 
 	    if (!statesIn) free(weightStates);
 
@@ -238,7 +241,7 @@ struct Cell {
         neigh[NORTH_EAST] = xIncr * gridSize + yIncr;
         neigh[SOUTH_EAST] = xIncr * gridSize + yDecr;
         neigh[SOUTH_WEST] = xDecr * gridSize + yDecr;
-		neigh[NORTH_WEST] = xDecr * gridSize + yIncr;
+        neigh[NORTH_WEST] = xDecr * gridSize + yIncr;
 
         CudaSafeCall(cudaMallocManaged((void**)&geneExprs,
                                        2*nGenes*dbl));
@@ -254,6 +257,7 @@ struct Cell {
         *actionApplied = 0;
         CudaSafeCall(cudaMallocManaged((void**)&actionDone, unsgn));
         *actionDone = 0;
+        excised = 0;
     }
 
     void free_resources(void)
@@ -441,7 +445,7 @@ struct Cell {
     }
 
     __device__ int proliferate(Cell *c, curandState_t *rndState,
-                               unsigned nGenes)
+                               unsigned gSize, unsigned nGenes)
     {
         ca_state newState = ERR;
         gene m;
@@ -477,8 +481,9 @@ struct Cell {
                 }
             }
             if (c->state != EMPTY && (state == CSC || state == TC)) {
-                printf("(%d, %d) killed by (%d, %d) via proliferation\n",
-                       c->location, c->state, location, state);
+                printf("(%d, %d, %d) killed by (%d, %d, %d) via proliferation\n",
+                       c->location / gSize, c->location % gSize, c->state,
+                       location / gSize, location % gSize, state);
                 c->apoptosis(nGenes);
             }
             c->change_state(newState);
@@ -493,7 +498,7 @@ struct Cell {
     }
 
     __device__ int differentiate(Cell *c, curandState_t *rndState,
-                                 unsigned nGenes)
+                                 unsigned gSize, unsigned nGenes)
     {
         ca_state newState = ERR;
         gene m;
@@ -527,8 +532,9 @@ struct Cell {
             }
             if (newState == -1) { *rndState = localState; return newState; }
             if (c->state != EMPTY && state == CSC) {
-                printf("(%d, %d) killed by (%d, %d) via differentiation\n",
-                       c->location, c->state, location, state);
+                printf("(%d, %d, %d) killed by (%d, %d, %d) via differentiation\n",
+                       c->location / gSize, c->location % gSize, c->state,
+                       location / gSize, location % gSize, state);
                 c->apoptosis(nGenes);
             }
             c->change_state(newState);
@@ -542,7 +548,8 @@ struct Cell {
         return newState;
     }
 
-    __device__ int move(Cell *c, curandState_t *rndState, unsigned nGenes)
+    __device__ int move(Cell *c, curandState_t *rndState,
+                        unsigned gSize, unsigned nGenes)
     {
         curandState_t localState;
 
@@ -559,8 +566,9 @@ struct Cell {
                && curand_uniform_double(&localState) <= params->chanceKill)
 			 || c->state == EMPTY) {
 			    if (c->state != EMPTY && (state == CSC || state == TC)) {
-			        printf("(%d, %d) killed by (%d, %d) via movement\n",
-			               c->location, c->state, location, state);
+			        printf("(%d, %d, %d) killed by (%d, %d, %d) via movement\n",
+			               c->location / gSize, c->location % gSize, c->state,
+			               location / gSize, location % gSize, state);
 			        c->apoptosis(nGenes);
 			    }
                 c->change_state(state);
