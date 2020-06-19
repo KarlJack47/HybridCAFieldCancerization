@@ -12,8 +12,10 @@ display=0
 save=1
 maxTime=8766
 gridSize=256
+initType=0
+perfectExcision=0
 maxTTC=-1
-while getopts hvdsn:t:g:e: option; do
+while getopts hvdsn:t:g:i:pe: option; do
     case "${option}" in
         h) help=1;;
         v) verbose=1;;
@@ -22,6 +24,8 @@ while getopts hvdsn:t:g:e: option; do
 	    n) numSim=${OPTARG};;
         t) maxTime=${OPTARG};;
         g) gridSize=${OPTARG};;
+        i) initType=${OPTARG};;
+        p) perfectExcision=1;;
 	    e) maxTTC=${OPTARG};;
     esac
 done
@@ -37,7 +41,10 @@ if [ $help -eq 1 ]; then
     echo '  -s     enables saving of pictures and videos, default=enabled'
     echo '  -n int number of simulations to run, default=100'
     echo '  -t int number of time steps, default=8766'
-    echo '  -g int grid size, default=256 (power of 2 between 16 and 512)'
+    echo '  -g int grid size, default=256 (power of 2 between 16 and 1024)'
+    echo '  -i int init type, default=0, 0=one carcinogen,'
+    echo '         1=start with tumour cells, 2=two carcinogen, 3=no carcinogen'
+    echo '  -p     enables perfect tumour excision, default=disabled'
     echo '  -e int frequency of tumour excision, default=-1 meaning no excision'
     echo '         is performed unless excision mode is activated in the gui'
     exit 0
@@ -69,28 +76,25 @@ for ((i=1; i <= numSim; i++)); do
     cd $i
 
     if [ $verbose -eq 1 ]; then
-        ../../main $display $save $maxTime $gridSize $maxTTC\
-        >> >(tee $i.txt) 2> $i.log
+        ../../main $display $save $maxTime $gridSize $initType\
+          $perfectExcision $maxTTC >> >(tee $i.txt) 2> $i.log
     else
-        ../../main $display $save $maxTime $gridSize $maxTTC\
-        > $i.txt 2> $i.log
+        ../../main $display $save $maxTime $gridSize $initType\
+          $perfectExcision $maxTTC > $i.txt 2> $i.log
     fi
     if [ ! -s $i.log ]; then
         rm $i.log
+    else
+        i=$(($numSim+1))
     fi
-    if [ $save -eq 1 ]; then
-        if [ $(ls | grep ^[0-9]*.jpeg | wc -l) -lt $(($maxTime+1)) ]; then
-            i=$(($numSim+1))
-        fi
-    fi
+    sed -i '/progress/d' $i.txt
+    gnuplot ../../bin/create_plots
     cd ..
 
     if [ $verbose -eq 1 ]; then
         echo 'Done simulation' $j
     fi
 done
-
-sed -i '/progress/d' */*.txt
 
 if [ $verbose -eq 1 ]; then
     echo ''
