@@ -57,19 +57,19 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             CudaSafeCall(cudaStreamSynchronize(streams[0]));
 
             for (i = 0; i < 4; i++) {
-                save_data(ca->countFiles[i+7], ca->headerCount, ticks,
-                          countData[i], 0, 0, 0);
+                save_count_data(ca->countFiles[i+7], ca->headerCount, ticks,
+                                countData[i], 0, 0, 0);
                 for (j = 0; j < ca->nStates; j++) {
                     if (j == EMPTY || (i == DIFF && (j == NC || j == MNC || j == TC)))
                         continue;
                     if (i != DIFF)
-                        save_data(ca->countFiles[j*3+(ca->nGenes+11)+i],
-                                  ca->headerCount, ticks, countData[(j*3+4)+i],
-                                  0, 0, 0);
+                        save_count_data(ca->countFiles[j*3+(ca->nGenes+11)+i],
+                                        ca->headerCount, ticks,
+                                        countData[(j*3+4)+i], 0, 0, 0);
                     else
-                        save_data(ca->countFiles[j+(3*ca->nStates+ca->nGenes+6)],
-                                  ca->headerCount, ticks,
-                                  countData[(3*ca->nStates-1)+j], 0, 0, 0);
+                        save_count_data(ca->countFiles[j+(3*ca->nStates+ca->nGenes+6)],
+                                        ca->headerCount, ticks,
+                                        countData[(3*ca->nStates-1)+j], 0, 0, 0);
                 }
             }
             CudaSafeCall(cudaFree(countData)); countData = NULL;
@@ -107,12 +107,14 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 if (!ca->tcFormed[i])
                     ca->timeTCDead[i]++;
 
-            if ((excise || ca->timeTCAlive % ca->maxTTCAlive == 0)
+            if ((excise || (ca->maxTTCAlive != -1
+             && ca->timeTCAlive != 0 && ca->timeTCAlive % ca->maxTTCAlive == 0))
              && ca->exciseCount == ca->maxExcise)
                 printf("The maximum number of excisions have been performed.\n");
 
             if (ca->exciseCount < ca->maxExcise
-             && (excise || ca->timeTCAlive % ca->maxTTCAlive == 0)) {
+             && (excise || (ca->maxTTCAlive != -1
+             && ca->timeTCAlive != 0 && ca->timeTCAlive % ca->maxTTCAlive == 0))) {
                 if (!ca->perfectExcision) {
                     CudaSafeCall(cudaMallocManaged((void**)&rTC,
                                                    sizeof(unsigned)));
@@ -198,22 +200,22 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             CudaCheckError();
             CudaSafeCall(cudaStreamSynchronize(streams[0]));
             for (i = 0; i < ca->nStates; i++) {
-                save_data(ca->countFiles[i], ca->headerCount, ticks,
-                          countData[i], ca->stateColors[i].x,
-                          ca->stateColors[i].y, ca->stateColors[i].z);
+                save_count_data(ca->countFiles[i], ca->headerCount, ticks,
+                                countData[i], ca->stateColors[i].x,
+                                ca->stateColors[i].y, ca->stateColors[i].z);
                 for (j = 0; j < ca->nGenes; j++) {
                     if (i == EMPTY) continue;
-                    save_data(ca->countFiles[i*ca->nGenes+(3*ca->nStates+ca->nGenes+11)+j],
-                              ca->headerCount, ticks,
-                              countData[i*ca->nGenes+(ca->nGenes+ca->nStates)+j],
-                              ca->stateColors[i].x, ca->stateColors[i].y,
-                              ca->stateColors[i].z);
+                    save_count_data(ca->countFiles[i*ca->nGenes+(3*ca->nStates+ca->nGenes+11)+j],
+                                    ca->headerCount, ticks,
+                                    countData[i*ca->nGenes+(ca->nGenes+ca->nStates)+j],
+                                    ca->stateColors[i].x, ca->stateColors[i].y,
+                                    ca->stateColors[i].z);
                }
             }
             for (i = 0; i < ca->nGenes; i++)
-                save_data(ca->countFiles[i+11], ca->headerCount, ticks,
-                          countData[i+7], ca->geneColors[i].x,
-                          ca->geneColors[i].y, ca->geneColors[i].z);
+                save_count_data(ca->countFiles[i+11], ca->headerCount, ticks,
+                                countData[i+7], ca->geneColors[i].x,
+                                ca->geneColors[i].y, ca->geneColors[i].z);
 
             numCells = ca->gridSize * ca->gridSize;
             if (countData[EMPTY] == numCells

@@ -146,8 +146,8 @@ void save_cell_data_to_file(CA *ca, unsigned t, dim3 blocks,
     free(fName); fName = NULL;
 }
 
-int save_data(char *fname, char *header, double t, double count,
-              unsigned red, unsigned green, unsigned blue)
+int save_count_data(char *fname, char *header, double t, double count,
+                    unsigned red, unsigned green, unsigned blue)
 {
     FILE *fptr;
 
