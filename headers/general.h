@@ -14,6 +14,7 @@
 #include "error_check.h"
 #include <errno.h>
 #include <turbojpeg.h>
+#include <lz4frame.h>
 
 #define THROW(action, message) printf("ERROR in line %d while %s:\n%s\n",\
                                       __LINE__, action, message)
@@ -39,20 +40,11 @@ typedef enum { NORTH, EAST, SOUTH, WEST,
 
 #include "gene_expr_nn.h"
 #include "cell.h"
-__global__ void init_pde(double*,double,double,unsigned,double);
-__global__ void pde_space_step(double*,unsigned,unsigned,unsigned,double,
-                               double,double,double,double,double);
 #include "carcin_pde.h"
 #include "cuda_kernels.h"
-#include "output_functions.h"
 #include "gui.h"
-struct CA;
-void anim_gpu_ca(uchar4*,unsigned,CA*,unsigned,bool,bool,bool,bool,cudaStream_t);
-void anim_gpu_genes(uchar4*,unsigned,CA*,unsigned,bool,bool,bool,cudaStream_t);
-void anim_gpu_carcin(uchar4*,unsigned,CA*,unsigned,unsigned,bool,bool,bool,cudaStream_t);
-void anim_gpu_cell(uchar4*,unsigned,CA*,unsigned,unsigned,bool,cudaStream_t);
-void anim_gpu_timer_and_saver(CA*,bool,unsigned,bool,bool);
 #include "ca.h"
+#include "output_functions.h"
 #include "anim_functions.h"
 
 #endif // __GENERAL_H__
