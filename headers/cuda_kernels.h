@@ -133,40 +133,41 @@ __global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
     unsigned idx = x * gSize + y;
     unsigned i, dataIdx = idx * bytesPerCell;
-    unsigned numDigGSize = num_digits(gSize * gSize),
-             numDigAge = num_digits(maxT + cellLifeSpan / cellCycleLen);
+    unsigned nDigGSize = num_digits(gSize * gSize),
+             nDigAge = num_digits(maxT + cellLifeSpan / cellCycleLen),
+             nDigInt = 1, nDigFrac = 10, nDigDoub = nDigInt + nDigFrac + 1;
     size_t numChar;
 
     if (!(x < gSize && y < gSize)) return;
 
-    num_to_string_with_padding(idx, numDigGSize, cellData, &dataIdx);
+    num_to_string_with_padding(idx, nDigGSize, cellData, &dataIdx);
     cellData[dataIdx++] = ',';
 
     num_to_string(newG[idx].state, &numChar, cellData, &dataIdx);
     cellData[dataIdx++] = ',';
 
-    num_to_string_with_padding(newG[idx].age, numDigAge, cellData, &dataIdx);
+    num_to_string_with_padding(newG[idx].age, nDigAge, cellData, &dataIdx);
     cellData[dataIdx++] = ',';
 
     num_to_string_with_padding(newG[idx].phenotype[PROLIF],
-                               13, cellData, &dataIdx, true);
+                               nDigDoub, cellData, &dataIdx, true);
     cellData[dataIdx++] = ',';
     num_to_string_with_padding(newG[idx].phenotype[QUIES],
-                               13, cellData, &dataIdx, true);
+                               nDigDoub, cellData, &dataIdx, true);
     cellData[dataIdx++] = ',';
     num_to_string_with_padding(newG[idx].phenotype[APOP],
-                               13, cellData, &dataIdx, true);
+                               nDigDoub, cellData, &dataIdx, true);
     cellData[dataIdx++] = ',';
     num_to_string_with_padding(newG[idx].phenotype[DIFF],
-                               13, cellData, &dataIdx, true);
+                               nDigDoub, cellData, &dataIdx, true);
     cellData[dataIdx++] = ',';
 
     cellData[dataIdx++] = '[';
     for (i = 0; i < nGenes; i++) {
-        num_to_string_with_padding(newG[idx].geneExprs[i*2], 13,
+        num_to_string_with_padding(newG[idx].geneExprs[i*2], nDigDoub,
                                    cellData, &dataIdx, true);
         cellData[dataIdx++] = ',';
-        num_to_string_with_padding(newG[idx].geneExprs[i*2+1], 13,
+        num_to_string_with_padding(newG[idx].geneExprs[i*2+1], nDigDoub,
                                    cellData, &dataIdx, true);
         if (i != nGenes-1) cellData[dataIdx++] = ',';
     }
@@ -176,7 +177,7 @@ __global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
     num_to_string_with_padding(prevG[idx].chosenPheno, 2, cellData, &dataIdx);
     cellData[dataIdx++] = ',';
 
-    num_to_string_with_padding(prevG[idx].chosenCell, numDigGSize+1,
+    num_to_string_with_padding(prevG[idx].chosenCell, nDigGSize+1,
                                cellData, &dataIdx);
     cellData[dataIdx++] = ',';
 

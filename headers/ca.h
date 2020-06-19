@@ -168,7 +168,8 @@ struct CA {
     void initialize_memory(void)
     {
         int i, j, numDev;
-        unsigned nDigGene = num_digits(nGenes);
+        unsigned nPheno = 4, nDigGene = num_digits(nGenes),
+                 nDigInt = 1, nDigFrac = 10;
 
         CudaSafeCall(cudaGetDeviceCount(&numDev));
         for (i = numDev-1; i > -1; i--) {
@@ -271,7 +272,8 @@ struct CA {
 
         bytesPerCell = 2 * num_digits(gridSize * gridSize)
                      + num_digits(maxT + cellLifeSpan / cellCycleLen)
-                     + 26 * nGenes + 91;
+                     + (nDigInt + nDigFrac + 1) * nPheno
+                     + (2 * (nDigInt + nDigFrac) + 4) * nGenes + 19;
         cellDataSize = bytesPerCell * gridSize * gridSize + 1;
         CudaSafeCall(cudaMallocManaged((void**)&cellData, cellDataSize));
         cellData[cellDataSize-1] = '\0';
