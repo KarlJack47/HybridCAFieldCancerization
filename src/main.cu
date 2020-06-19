@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
            *ic = NULL, *bc = NULL;
 
     double *carcinMutMap = NULL, *Wx = NULL, *Wy = NULL;
-    double alpha = 1000000.0, bias = 0.001;
+    double mutRatePerMitosis = 3.3e-11, alpha = 1000000.0, bias = 0.001;
     dim3 *geneColors = NULL;
 
     effect *upregPhenoMap = NULL, *downregPhenoMap = NULL;
@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
     for (i = 0; i < nGenes; i++)
         for (j = 0; j < nCarcin+1; j++) {
             if (j == nCarcin) {
-                Wx[i*(nCarcin+1)+j] = 1e-6;
+                Wx[i*(nCarcin+1)+j] = mutRatePerMitosis;
                 continue;
             }
             Wx[i*(nCarcin+1)+j] = carcinMutMap[j*nCarcin+i];
