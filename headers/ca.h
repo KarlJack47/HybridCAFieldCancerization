@@ -271,14 +271,14 @@ struct CA {
 
         bytesPerCell = 2 * num_digits(gridSize * gridSize)
                      + num_digits(maxT + cellLifeSpan / cellCycleLen)
-                     + 39 * nGenes + 103;
+                     + 26 * nGenes + 91;
         cellDataSize = bytesPerCell * gridSize * gridSize + 1;
         CudaSafeCall(cudaMallocManaged((void**)&cellData, cellDataSize));
         cellData[cellDataSize-1] = '\0';
-        headerCellData = (char*)calloc(101, 1);
+        headerCellData = (char*)calloc(93, 1);
         strcat(headerCellData, "# idx,state,age,prolif,quies,apop,diff");
-        strcat(headerCellData, ",[geneExprs],[bOut],chosenPheno");
-        strcat(headerCellData, ",chosenCell,actionDone,excised\n");
+        strcat(headerCellData, ",[geneExprs],chosenPheno,chosenCell");
+        strcat(headerCellData, ",actionDone,excised\n");
 	}
 
     void init_grid_cell(Cell *G, unsigned i, unsigned j, int dev,

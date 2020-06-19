@@ -173,15 +173,6 @@ __global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
     cellData[dataIdx++] = ']';
     cellData[dataIdx++] = ',';
 
-    cellData[dataIdx++] = '[';
-    for (i = 0; i < nGenes; i++) {
-        num_to_string_with_padding(newG[idx].bOut[i], 13,
-                                   cellData, &dataIdx, true);
-        if (i != nGenes-1) cellData[dataIdx++] = '\t';
-    }
-    cellData[dataIdx++] = ']';
-    cellData[dataIdx++] = ',';
-
     num_to_string_with_padding(prevG[idx].chosenPheno, 2, cellData, &dataIdx);
     cellData[dataIdx++] = ',';
 
