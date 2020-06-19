@@ -77,4 +77,92 @@ void save_video(char *prefix, char *outputName,
     system(command);
 }
 
+int compress_and_save_data(char *fname, char *header, char *input, size_t bytes) {
+    FILE *fptr;
+    char *data = input; size_t dataSize = bytes - 1;
+    size_t headerSize = strlen(header);
+    size_t maxDstSize = 0;
+    char *compressedData = NULL; size_t compressedDataSize;
+    LZ4F_preferences_t preferences = LZ4F_INIT_PREFERENCES;
+
+    if (!(fptr = fopen(fname, "wb"))) {
+        fprintf(stderr, "Error opening %s\n", fname);
+        return 1;
+    }
+
+    if (header != NULL) {
+        dataSize += headerSize;
+        data = (char*)malloc(dataSize);
+        memcpy(data, header, headerSize);
+        memcpy(data+headerSize, input, bytes - 1);
+    }
+
+    preferences.compressionLevel = 0;
+    maxDstSize = LZ4F_compressFrameBound(dataSize, &preferences);
+    if ((compressedData = (char*)malloc(maxDstSize)) == NULL) {
+        fprintf(stderr, "Failed to allocate memory for compressedData.\n");
+        return 1;
+    }
+    compressedDataSize = LZ4F_compressFrame(compressedData, maxDstSize,
+                                            data, dataSize, &preferences);
+    if (header != NULL) { free(data); data = NULL; }
+    if (compressedDataSize <= 0) {
+        fprintf(stderr, "Failure compressing the data.");
+        return 1;
+    }
+    /*if (compressedDataSize > 0)
+        printf("Compression Ratio: %.2f, old size: %lu, new size: %lu\n",
+               (float) compressedDataSize / dataSize, dataSize,
+               compressedDataSize);*/
+
+    fwrite(compressedData, 1, compressedDataSize, fptr);
+
+    free(compressedData); compressedData = NULL;
+
+    fclose(fptr);
+
+    return 0;
+}
+
+__global__ void save_cell_data(Cell*,Cell*,char*,unsigned,unsigned,
+                               double,double,unsigned,size_t);
+void save_cell_data_to_file(CA *ca, unsigned t, dim3 blocks,
+                            dim3 threads, cudaStream_t stream)
+{
+    unsigned numChar = num_digits(t) + 10;
+    char *fName = (char*)malloc(numChar);
+
+    memset(fName, '\0', numChar);
+    sprintf(fName, "%d.data.lz4", t);
+
+    save_cell_data<<< blocks, threads, 0, stream >>>(
+        ca->prevGrid, ca->newGrid, ca->cellData, ca->gridSize, ca->maxT,
+        ca->cellLifeSpan, ca->cellCycleLen, ca->nGenes, ca->bytesPerCell
+    );
+    CudaCheckError();
+    CudaSafeCall(cudaStreamSynchronize(stream));
+    compress_and_save_data(fName, ca->headerCellData, ca->cellData,
+                           ca->cellDataSize);
+    free(fName); fName = NULL;
+}
+
+int save_data(char *fname, char *header, double t, double count,
+              unsigned red, unsigned green, unsigned blue)
+{
+    FILE *fptr;
+
+    if (!(fptr = fopen(fname, "a"))) {
+        fprintf(stderr, "Error opening %s\n", fname);
+        return 1;
+    }
+
+    if (header != NULL && t == 0) fprintf(fptr, "%s", header);
+
+    fprintf(fptr, "%g\t%g\t%d\n", t, count, 65536 * red + 256 * green + blue);
+
+    fclose(fptr);
+
+    return 0;
+}
+
 #endif // __OUTPUT_FUNCTIONS_H__
