@@ -28,10 +28,12 @@ in the directory you want the output of the program to be.
 6. While the CA window is the currently active one:
    1. Press the right arrow key to step through the simulation, hold to keep it going.
       Note this functionality only really makes sense from a paused state.
-   2. Press the 'K' key to set tumour excision mode on. While this is active all tumor cells and their neighbours are 
+   2. Press the 'K' key to set excision mode on. While this is active all tumor cells and their neighbours are 
       killed. Note that the key 'K' acts as a toggle switch so to stop tumour excision one must hit the key again.
       Also if the simulation is currently paused tumour excision won't occur till it is unpaused and will occur at the end
       of the timestep.  
+   3. If excision mode is active and a user clicks on a cell in the grid then they will be specifying the center for an excision
+      to be formed and asked to enter a radius (in number of cells). If they specify a radius of zero no excision occurs.  
 7. When the Gene Families is the current active one:
    1. Press the right arrow key to step through the simulation.
 8. While the Cell window is the currently active one:
