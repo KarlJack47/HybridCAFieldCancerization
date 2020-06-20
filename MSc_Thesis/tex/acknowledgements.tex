@@ -1,0 +1,14 @@
+% A workaround to allow relative paths in included subfiles
+% that are to be compiled separately
+% See https://tex.stackexchange.com/questions/153312/subfiles-inside-a-subfile-using-relative-paths
+\providecommand{\main}{..}
+\documentclass[\main/thesis.tex]{subfiles}
+
+\begin{document}
+
+% environment for acknowledgements.
+\begin{acknowledgements} 
+Thanks to my supervisors Thomas Hillen and Jay Newby. I also give thanks to Ion Bicca who has pushed me to where I am today and guided me.
+\end{acknowledgements}
+
+\end{document}

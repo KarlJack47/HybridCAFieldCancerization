@@ -1,0 +1,187 @@
+% University of Alberta Example Thesis
+% By the Rogue's Gallery, Department of Computing Science
+% Last updated September 15, 2017
+
+\providecommand{\main}{.}
+\documentclass[12pt]{report}          % for default format
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+% Package dependencies  %
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[utf8]{inputenc}
+\usepackage{subfiles}
+\usepackage[titletoc]{appendix}
+\usepackage{amssymb,amsmath}
+\usepackage{url}
+\usepackage{xr-hyper}
+\usepackage[breaklinks=true,hidelinks]{hyperref} % See https://en.wikibooks.org/wiki/LaTeX/Hyperlinks#Customization
+\usepackage{tabulary} % Better text wrapping in tables. See https://en.wikibooks.org/wiki/LaTeX/Tables
+\usepackage{rotating} % For the 'sidewaystable' environment. See https://en.wikibooks.org/wiki/LaTeX/Rotations
+\usepackage{multirow} % For multirow/multicolumn cells in a table. See https://en.wikibooks.org/wiki/LaTeX/Tables#Columns_spanning_multiple_rows
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{enumitem}   % for more control over enumerate
+\usepackage{mdwlist}	% compact lists and the 'note' environment
+\usepackage{xspace}
+\usepackage{xcolor}
+\usepackage{csquotes} % Also used with biblatex
+\usepackage{xmpincl} % Seems to be needed when converting to PDF/A
+\usepackage{titlesec}
+\setcounter{secnumdepth}{4}
+
+\usepackage{\main/uathesis}
+
+%%%%%%%%%%%%%%%
+% biblatex    %
+%%%%%%%%%%%%%%%
+% (Added by Bernard Llanos)
+% biblatex is intended to be the successor to BibTeX
+% (https://en.wikibooks.org/wiki/LaTeX/Bibliography_Management#biblatex)
+\usepackage[backend=biber,style=nature,backref=true,sortcites=true,sorting=nyt,doi=false,url=false,isbn=false,maxbibnames=3,mincitenames=1,maxcitenames=2]{biblatex}
+% `backref=true` adds back references - Links to the in-text citations from
+% the corresponding bibliography entries. Back references are not mentioned
+% in thesis guidelines, but are, in my opinion, helpful for reading and editing.
+\renewcommand*{\bibfont}{\normalfont\scriptsize}
+\usepackage[american]{babel}
+
+\defbibenvironment{bibliography}
+  {\trivlist}
+  {\endtrivlist}
+  {\item
+   \printtext[labelnumberwidth]{%
+   \printfield{labelprefix}%
+   \printfield{labelnumber}}%
+   \addspace}
+
+% The following macro will put back references on the right edge of the page
+% (https://tex.stackexchange.com/questions/149009/biblatex-pagebackref-reference-in-the-flush-right-margin)
+\renewbibmacro*{pageref}{%
+   \iflistundef{pageref}
+     {\renewcommand{\finentrypunct}{\addperiod}}
+     {\renewcommand{\finentrypunct}{\addspace}%
+      \printtext{\addperiod\hfill\rlap{\hskip15pt\colorbox{blue!5}{\scriptsize\printlist[pageref][-\value{listtotal}]{pageref}}}}}}
+
+\addbibresource{\main/refs.bib}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Shorthands               %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% From the CVPR paper template (http://cvpr2017.thecvf.com/submission/main_conference/author_guidelines)
+% Add a period to the end of an abbreviation unless there's one
+% already, then \xspace.
+\makeatletter
+\DeclareRobustCommand\onedot{\futurelet\@let@token\@onedot}
+\def\@onedot{\ifx\@let@token.\else.\null\fi\xspace}
+
+\def\eg{\emph{e.g}\onedot} \def\Eg{\emph{E.g}\onedot}
+\def\ie{\emph{i.e}\onedot} \def\Ie{\emph{I.e}\onedot}
+\def\cf{\emph{c.f}\onedot} \def\Cf{\emph{C.f}\onedot}
+\def\etc{\emph{etc}\onedot} \def\vs{\emph{vs}\onedot}
+\def\wrt{w.r.t\onedot} \def\dof{d.o.f\onedot}
+\def\etal{\emph{et al}\onedot}
+\def\minus{\text{-}}
+\makeatother
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Title page and Table of Contents Tweaks %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Correct title for TOC
+\renewcommand{\contentsname}{Table of Contents}
+% Fill in the following
+\title{Hybrid Cellular Automaton of Field Cancerization} % Title can't use formulae, symbols, superscripts, subscripts, greek letters, etc. all of which should be replaced with word substitutes
+\author{Karl Deutscher}
+\degree{\MSc}
+\dept{Mathematical and Statistical Sciences}
+\field{Applied Mathematics}
+\submissionyear{\number2019}
+
+%%%%%%%%%%%%%%%%%%%%%
+% Document Content  %
+%%%%%%%%%%%%%%%%%%%%%
+
+% This is a modular document.
+% The 'subfiles' package allows you to typeset the included
+% documents separately from the main document, so that you
+% can view only pieces of the thesis at a time.
+% See https://en.wikibooks.org/wiki/LaTeX/Modular_Documents
+%
+% Subfiles that contain references: You can just run
+% `biber subfilename` on them when compiling them individually.
+% There is no need to make them reference the bibliography database
+% 'refs.bib', as they inherit the reference from this file.
+
+\newcommand{\onlyinsubfile}[1]{#1}
+\newcommand{\notinsubfile}[1]{}
+
+\begin{document}
+
+\renewcommand{\onlyinsubfile}[1]{}
+\renewcommand{\notinsubfile}[1]{#1}
+
+\preamblepagenumbering % lower case roman numerals for early pages
+\titlepage % adds title page. Can be commented out before submission if convenient
+
+%\subfile{\main/tex/abstract.tex}
+
+\doublespacing
+% \truedoublespacing
+% \singlespacing
+% \onehalfspacing
+
+%\subfile{\main/tex/dedication.tex}
+
+\subfile{\main/tex/acknowledgements.tex}
+
+\singlespacing % Flip to single spacing for table of contents settings
+               
+\tableofcontents
+               
+% The rest of the document has to be at least one-half-spaced.
+% Double-spacing is most common, but uncomment whichever you want, or 
+% single-spacing if you just want to do that for your personal purposes.
+% Long-quoted passages and footnotes can be in single spacing
+\doublespacing
+% \truedoublespacing
+% \singlespacing
+% \onehalfspacing
+
+\setforbodyoftext % settings for the body including roman numeral numbering starting at 1
+
+\subfile{\main/tex/introduction/biological/biological_overview.tex}
+\subfile{\main/tex/introduction/biological/carcinogenesis.tex}
+\subfile{\main/tex/introduction/biological/csc.tex}
+\subfile{\main/tex/introduction/biological/field_cancerization.tex}
+\subfile{\main/tex/introduction/mathematical/math.tex}
+\subfile{\main/tex/model/overview.tex}
+\subfile{\main/tex/model/carcinogen_pde.tex}
+\newpage
+\subfile{\main/tex/model/gene_expression_nn.tex}
+\newpage
+\subfile{\main/tex/model/ca.tex}
+%\subfile{\main/tex/conclusion.tex}
+
+% Renaming the bibliography: See http://tex.stackexchange.com/questions/12597/renaming-the-bibliography-page-using-bibtex
+\renewcommand\bibname{References}
+\clearpage\addcontentsline{toc}{chapter}{\bibname}
+
+\singlespacing
+%\setlength{\columnsep}{0.2cm}
+%\begin{multicols*}{2}[\LARGE\center{\textbf{References}}]
+%\printbibliography[heading=none]
+%\end{multicols*}
+\printbibliography
+
+\normalsize
+\doublespacing
+
+% Appendices are optional.
+%
+% The standard `\appendix` macro will not put the word "appendix" before
+% table of contents entries.
+% See https://tex.stackexchange.com/questions/44858/adding-the-word-appendix-to-table-of-contents-in-latex
+%\begin{appendices}
+%\end{appendices}
+
+\end{document}
