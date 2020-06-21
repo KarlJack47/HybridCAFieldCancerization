@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd MSC_Thesis
+cd MSc_Thesis
 
 pdflatex thesis.tex > /dev/null
 biber thesis > /dev/null
