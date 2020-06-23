@@ -4,7 +4,7 @@
 void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                  unsigned ticks, bool display, bool paused, bool excise,
                  unsigned radius, unsigned centerX, unsigned centerY,
-                 bool *windowsShouldClose)
+                 bool *windowsShouldClose, bool *keys)
 {
     unsigned i, j, *numTC, *countData, *rTC, numCells;
     int *tcX, *tcY;
@@ -13,6 +13,15 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 NBLOCKS(ca->gridSize, ca->blockSize));
     dim3 threads(ca->blockSize, ca->blockSize);
     cudaStream_t streams[ca->nCarcin+2], *streamsExcise;
+
+    if (keys[0])
+        ca->save ? ca->save = false : ca->save = true;
+    else if (keys[1]) {
+        printf("Enter how many time steps TC are alive: ");
+        scanf("%d", &ca->maxTTCAlive);
+    } else if (keys[2])
+        ca->perfectExcision ? ca->perfectExcision = false
+                            : ca->perfectExcision = true;
 
     if (ticks <= ca->maxT) {
         for (i = 0; i < ca->nCarcin+2; i++)

@@ -3,7 +3,7 @@
 
 struct CA;
 void anim_gpu_ca(uchar4*,unsigned,CA*,unsigned,bool,bool,bool,
-                 unsigned,unsigned,unsigned,bool*);
+                 unsigned,unsigned,unsigned,bool*,bool*);
 void anim_gpu_genes(uchar4*,unsigned,CA*,
                     unsigned,bool,bool);
 void anim_gpu_carcin(uchar4*,unsigned,CA*,unsigned,
@@ -421,7 +421,7 @@ struct CA {
     {
         framerate = frameRate;
         gui->anim((void (*)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
-                            unsigned,unsigned,unsigned,bool*))anim_gpu_ca,
+                            unsigned,unsigned,unsigned,bool*,bool*))anim_gpu_ca,
                   (void (*)(uchar4*,unsigned,void*,
                             unsigned,bool,bool))anim_gpu_genes,
                   (void (*)(uchar4*,unsigned,void*,unsigned,

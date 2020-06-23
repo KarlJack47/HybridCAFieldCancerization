@@ -1,6 +1,43 @@
 #ifndef __UTILITY_H__
 #define __UTILITY_H__
 
+void reset_terminal_mode(struct termios *oldt)
+{
+    tcsetattr(STDIN_FILENO, TCSANOW, oldt);
+}
+
+void set_terminal_mode(struct termios *oldt)
+{
+    struct termios newt;
+
+    tcgetattr(STDIN_FILENO, oldt);
+    memcpy(&newt, oldt, sizeof(newt));
+    cfmakeraw(&newt);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+}
+
+int kbhit(void)
+{
+    struct timeval tv = { 0L, 0L };
+    fd_set fds;
+
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+
+    return select(1, &fds, NULL, NULL, &tv);
+}
+
+int getch(void)
+{
+    int out;
+    unsigned char c;
+
+    if ((out = read(STDIN_FILENO, &c, sizeof(c))) < 0)
+        return out;
+    else
+        return c;
+}
+
 __host__ __device__ unsigned num_digits(double x)
 {
     x = abs(x);

@@ -24,7 +24,7 @@ struct GUI {
     unsigned width, height;
     void *dataBlock;
     void (*fAnimCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
-                    unsigned, unsigned,unsigned,bool*);
+                    unsigned, unsigned,unsigned,bool*,bool*);
     void (*fAnimGenes)(uchar4*,unsigned,void*,
                        unsigned,bool,bool);
     void (*fAnimCarcin)(uchar4*,unsigned,void*,unsigned,
@@ -46,6 +46,7 @@ struct GUI {
     bool excise, perfectExcision;
     bool paused;
     bool windowsShouldClose;
+    bool keys[3];
 
     GUI()
     {
@@ -57,8 +58,8 @@ struct GUI {
     }
 
     GUI(unsigned w=1024, unsigned h=1024, void *d=NULL, bool show=true,
-        bool perfectexcision=false, unsigned gSize=256, unsigned T=8677,
-        unsigned ncarcin=1, char **carNames=NULL)
+        bool perfectexcision=false, unsigned gSize=256,
+        unsigned T=8677, unsigned ncarcin=1, char **carNames=NULL)
     {
         unsigned i;
 
@@ -205,7 +206,7 @@ struct GUI {
         if (windowIdx == CA_GRID)
             fAnimCA(devPtrs[windowIdx], width, dataBlock, ticks, display,
                     paused, excise, radius, centerX, centerY,
-                    &windowsShouldClose);
+                    &windowsShouldClose, keys);
         else if (windowIdx == GENE_INFO)
             fAnimGenes(devPtrs[windowIdx], width, dataBlock, ticks, display,
                        paused);
@@ -226,7 +227,7 @@ struct GUI {
     }
 
     void anim(void(*fCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
-                         unsigned,unsigned,unsigned,bool*),
+                         unsigned,unsigned,unsigned,bool*,bool*),
               void(*fGenes)(uchar4*,unsigned,void*,
                             unsigned,bool,bool),
               void(*fCarcin)(uchar4*,unsigned,void*,unsigned,
@@ -236,7 +237,9 @@ struct GUI {
               void(*fTimeAndSave)(void*,bool,unsigned,bool,bool))
     {
         unsigned i, idx;
-        int xpos, ypos;
+        bool exciseBefore, displayBefore;
+        int xpos, ypos, key;
+        struct termios oldt;
         char cellName[18] = { '\0' };
         GUI **gui = get_gui_ptr();
 
@@ -254,6 +257,42 @@ struct GUI {
         if (display) show_window(windows[0]);
 
         while (!windowsShouldClose) {
+            exciseBefore = excise; displayBefore = display;
+            keys[0] = false; keys[1] = false; keys[2] = false;
+            set_terminal_mode(&oldt);
+            while (kbhit()) {
+                key = getch();
+                if (key == 32) // space bar
+                    paused ? paused = false : paused = true;
+                else if (key == 27) // ESC key
+                    windowsShouldClose = true;
+                else if (key == 107) // k key
+                    excise ? excise = false : excise = true;
+                else if (key == 103) // g key
+                    display ? display = false : display = true;
+                else if (key == 115) // s key
+                    keys[0] ? keys[0] = false : keys[0] = true;
+                else if (key == 101) // e key
+                    keys[1] ? keys[1] = false : keys[1] = true;
+                else if (key == 112) // p key
+                    keys[2] ? keys[2] = false : keys[2] = true;
+            }
+            reset_terminal_mode(&oldt);
+            if (excise && exciseBefore != excise)
+                printf("\bExcision mode is activated.\n");
+            else if (!excise && exciseBefore != excise)
+                printf("\bExcision mode is deactivated.\n");
+            if (display && displayBefore != display)
+                for (i = 0; i < nWindows; i++) {
+                    if (i == CA_GRID || detached[i])
+                        show_window(windows[i]);
+                }
+            else if (!display && displayBefore != display)
+                for (i = 0; i < nWindows; i++) {
+                    if (nCarcin == 0 && i == 3) continue;
+                        hide_window(windows[i]);
+                }
+
             if (glfwWindowShouldClose(windows[CA_GRID])
              || glfwWindowShouldClose(windows[GENE_INFO])
              || glfwWindowShouldClose(windows[CELL_INFO])

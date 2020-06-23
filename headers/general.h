@@ -3,6 +3,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/select.h>
+#include <termios.h>
 #include <omp.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -26,7 +29,7 @@
 
 typedef enum { POS=1, NEG=-1, NONE=0 } effect;
 typedef enum { CA_GRID, GENE_INFO, CELL_INFO, CARCIN_GRID } gui_window;
-typedef enum { NC, MNC, SC, MSC, CSC, TC, EMPTY, ERR=-1 } ca_state;
+typedef enum { NC, MNC, SC, MSC, CSC, TC, EMPTY, ERROR=-1 } ca_state;
 typedef enum { PROLIF, QUIES, APOP, DIFF } cell_phenotype;
 typedef enum { TP53, TP73, RB, P21, TP16, EGFR, CCDN1, MYC, PIK3CA, RAS } gene;
 typedef enum { SUPPR, ONCO } gene_type;
