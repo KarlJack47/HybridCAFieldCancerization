@@ -30,22 +30,22 @@ struct CellParams {
         if (phenoinit == NULL) {
             phenoInit[ NC * nPheno + PROLIF] = 0.024000;
             phenoInit[MNC * nPheno + PROLIF] = 0.024000;
-            phenoInit[ SC * nPheno + PROLIF] = 0.006399;
-            phenoInit[MSC * nPheno + PROLIF] = 0.006399;
-            phenoInit[CSC * nPheno + PROLIF] = 0.000625;
-            phenoInit[ TC * nPheno + PROLIF] = 0.000625;
+            phenoInit[ SC * nPheno + PROLIF] = 0.013500;
+            phenoInit[MSC * nPheno + PROLIF] = 0.006750;
+            phenoInit[CSC * nPheno + PROLIF] = 0.001250;
+            phenoInit[ TC * nPheno + PROLIF] = 0.001250;
             phenoInit[ NC * nPheno +  QUIES] = 0.966000;
             phenoInit[MNC * nPheno +  QUIES] = 0.971000;
-            phenoInit[ SC * nPheno +  QUIES] = 0.966101;
-            phenoInit[MSC * nPheno +  QUIES] = 0.967351;
-            phenoInit[CSC * nPheno +  QUIES] = 0.991750;
-            phenoInit[ TC * nPheno +  QUIES] = 0.993125;
+            phenoInit[ SC * nPheno +  QUIES] = 0.956500;
+            phenoInit[MSC * nPheno +  QUIES] = 0.965750;
+            phenoInit[CSC * nPheno +  QUIES] = 0.991250;
+            phenoInit[ TC * nPheno +  QUIES] = 0.997500;
             phenoInit[ NC * nPheno +   APOP] = 0.010000;
             phenoInit[MNC * nPheno +   APOP] = 0.005000;
-            phenoInit[ SC * nPheno +   APOP] = 0.002500;
-            phenoInit[MSC * nPheno +   APOP] = 0.001250;
-            phenoInit[CSC * nPheno +   APOP] = 0.000625;
-            phenoInit[ TC * nPheno +   APOP] = 0.000625;
+            phenoInit[ SC * nPheno +   APOP] = 0.005000;
+            phenoInit[MSC * nPheno +   APOP] = 0.002500;
+            phenoInit[CSC * nPheno +   APOP] = 0.001250;
+            phenoInit[ TC * nPheno +   APOP] = 0.001250;
             phenoInit[ NC * nPheno +   DIFF] = 0.000000;
             phenoInit[MNC * nPheno +   DIFF] = 0.000000;
             phenoInit[ SC * nPheno +   DIFF] = 0.025000;
@@ -357,7 +357,7 @@ struct Cell {
         unsigned i;
         double delta, deltaSign, S;
 
-        if (newState == ERR) return;
+        if (newState == ERROR) return;
         if (state == newState) return;
 
         for (i = 0; i < params->nPheno; i++) {
@@ -441,7 +441,7 @@ struct Cell {
     __device__ int proliferate(Cell *c, curandState_t *rndState,
                                unsigned gSize, unsigned nGenes)
     {
-        ca_state newState = ERR;
+        ca_state newState = ERROR;
         gene m;
         curandState_t localState;
 
@@ -494,7 +494,7 @@ struct Cell {
     __device__ int differentiate(Cell *c, curandState_t *rndState,
                                  unsigned gSize, unsigned nGenes)
     {
-        ca_state newState = ERR;
+        ca_state newState = ERROR;
         gene m;
         curandState_t localState;
 
