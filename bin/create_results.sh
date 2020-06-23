@@ -6,27 +6,21 @@ if [ ! -f main ]; then
 fi
 
 help=0
-verbose=1
-numSim=100
-display=0
-save=1
-maxTime=8766
-gridSize=256
-initType=0
-perfectExcision=0
-maxTTC=-1
+verbose=0
+numSim=10
+options=()
 while getopts hvdsn:t:g:i:pe: option; do
     case "${option}" in
         h) help=1;;
         v) verbose=1;;
-        d) display=1;;
-        s) save=1;;
+        d) options+=("-d");;
+        s) options+=("-s");;
 	    n) numSim=${OPTARG};;
-        t) maxTime=${OPTARG};;
-        g) gridSize=${OPTARG};;
-        i) initType=${OPTARG};;
-        p) perfectExcision=1;;
-	    e) maxTTC=${OPTARG};;
+        t) options+=("-t ${OPTARG}");;
+        g) options+=("-g ${OPTARG}");;
+        i) options+=("-i ${OPTARG}");;
+        p) options+=("-p");;
+	    e) options+=("-e ${OPTARG}");;
     esac
 done
 
@@ -36,10 +30,10 @@ if [ $help -eq 1 ]; then
     echo ''
     echo 'Options:'
     echo '  -h     prints out the information you are currently reading'
-    echo '  -v     flag used to display progress of the script'
+    echo '  -v     flag used to display progress of the script, default=disabled'
     echo '  -d     enables the gui, default=disabled'
-    echo '  -s     enables saving of pictures and videos, default=enabled'
-    echo '  -n int number of simulations to run, default=100'
+    echo '  -s     enables saving of pictures and videos, default=disabled'
+    echo '  -n int number of simulations to run, default=10'
     echo '  -t int number of time steps, default=8766'
     echo '  -g int grid size, default=256 (power of 2 between 16 and 1024)'
     echo '  -i int init type, default=0, 0=one carcinogen,'
@@ -52,13 +46,7 @@ fi
 
 if [ $verbose -eq 1 ]; then
     echo 'Simulation Runner'
-    if [ $maxTTC -eq -1 ]; then
-        echo 'Running' $numSim 'simulations with a grid size of' $gridSize\
-             'and' $maxTime 'time steps.'
-    else
-        echo 'Running' $numSim 'simulations with a grid size of' $gridSize','\
-             $maxTime 'time steps, and' $maxTTC 'time steps before excisions.'
-    fi
+    echo 'Running' $numSim 'simulations.'
     echo ''
 fi
 
@@ -76,11 +64,9 @@ for ((i=1; i <= numSim; i++)); do
     cd $i
 
     if [ $verbose -eq 1 ]; then
-        ../../main $display $save $maxTime $gridSize $initType\
-          $perfectExcision $maxTTC >> >(tee $i.txt) 2> $i.log
+        ../../main "${options[@]}" >> >(tee $i.txt) 2> $i.log
     else
-        ../../main $display $save $maxTime $gridSize $initType\
-          $perfectExcision $maxTTC > $i.txt 2> $i.log
+        ../../main "${options[@]}" > $i.txt 2> $i.log
     fi
     if [ ! -s $i.log ]; then
         rm $i.log

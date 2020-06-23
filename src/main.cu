@@ -27,8 +27,8 @@ int main(int argc, char *argv[])
            gRel = sizeof(gene_related);
 
     unsigned T = 8766, gridSize = 256, outSize = 1024;
-    bool display = false, save = true, perfectExcision = false;
-    int maxTTC = -1;
+    bool display = false, save = false, perfectExcision = false;
+    int opt, maxTTC = -1;
     unsigned initType = 0;
 
     CA *ca = (CA*)malloc(sizeof(CA));
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
            *ic = NULL, *bc = NULL;
 
     double *carcinMutMap = NULL, *Wx = NULL, *Wy = NULL;
-    double mutRatePerMitosis = 3.3e-11, alpha = 1000000.0, bias = 0.001;
+    double mutRatePerMitosis = 1e-8, alpha = 1000000.0, bias = 0.001;
     dim3 *geneColors = NULL;
 
     effect *upregPhenoMap = NULL, *downregPhenoMap = NULL;
@@ -52,13 +52,40 @@ int main(int argc, char *argv[])
 
     set_seed();
 
-    if (argc >= 2) display = atoi(argv[1]);
-    if (argc >= 3) save = atoi(argv[2]);
-    if (argc >= 4) T = atoi(argv[3]);
-    if (argc >= 5) gridSize = atoi(argv[4]);
-    if (argc >= 6) initType = atoi(argv[5]);
-    if (argc >= 7) perfectExcision = atoi(argv[6]);
-    if (argc == 8) maxTTC = atoi(argv[7]);
+    while ((opt = getopt(argc, argv, ":dst:g:i:pe:")) != -1) {
+        switch(opt)
+        {
+            case 'd':
+                display = true;
+                break;
+            case 's':
+                save = true;
+                break;
+            case 't':
+                T = atoi(optarg);
+                break;
+            case 'g':
+                gridSize = atoi(optarg);
+                break;
+            case 'i':
+                initType = atoi(optarg);
+                break;
+            case 'p':
+                perfectExcision = true;
+                break;
+            case 'e':
+                maxTTC = atoi(optarg);
+                break;
+            case ':':
+                printf("Option needs a value\n");
+                break;
+            case '?':
+                printf("Unknown option: %c\n", optopt);
+                break;
+        }
+    }
+    for (; optind < argc; optind++)
+        printf("extra argument: %s\n", argv[optind]);
 
     printf("The CA will run for %d timesteps on a grid of size %dx%d,",
            T, gridSize, gridSize);
@@ -118,7 +145,7 @@ int main(int argc, char *argv[])
     memcpy(prolifMutMap, stateMutMap, (ca->nStates-1)*nGenes*st);
 
     diffMutMap = (ca_state*)malloc((ca->nStates-1)*(nGenes+1)*st);
-    memset(diffMutMap, ERR, (ca->nStates-1)*(nGenes+1)*st);
+    memset(diffMutMap, ERROR, (ca->nStates-1)*(nGenes+1)*st);
     for (i = 0; i < nGenes+1; i++) {
         diffMutMap[ SC*(nGenes+1)+i] =  NC;
         diffMutMap[MSC*(nGenes+1)+i] = MNC;
@@ -199,13 +226,13 @@ int main(int argc, char *argv[])
     if (nCarcin != 0) {
         diffusion = (double*)malloc(nCarcin*dbl);
         diffusion[0] = 4.5590004e-2; // cm^2/h
-        if (nCarcin == 2) diffusion[1] = 2.9487515e-2; // cm^2/h
+        if (nCarcin == 2) diffusion[1] = 2.94875146e-2; // cm^2/h
         influx = (double*)malloc(nCarcin*dbl);
         influx[0] = 2.1755778; // microg/cm^3*h
-        if (nCarcin == 2) influx[1] = 2.6498538e-2; // microg/cm^3*h
+        if (nCarcin == 2) influx[1] = 5.04734057e-2; // microg/cm^3*h
         outflux = (double*)malloc(nCarcin*dbl);
         outflux[0] = 0.0; // g/cm^3*h
-        if (nCarcin == 2) outflux[1] = 3.9604607e-3; // microg/cm^3*h
+        if (nCarcin == 2) outflux[1] = 7.54113434e-3; // microg/cm^3*h
         ic = (double*)calloc(nCarcin, dbl);
         bc = (double*)calloc(nCarcin, dbl);
     }
