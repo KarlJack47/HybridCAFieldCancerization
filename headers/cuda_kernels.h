@@ -124,6 +124,69 @@ __global__ void init_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
     free(out); out = NULL;
 }
 
+__global__ void reset_grid(Cell *prevG, unsigned gSize, unsigned nGenes,
+                           double *weightStates, unsigned rTC, unsigned centerX,
+                           unsigned centerY, double cellLifeSpan,
+                           double cellCycleLen)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    unsigned i, nPheno;
+    double maxAge = ceil(cellLifeSpan / cellCycleLen);
+    curandState_t rndState;
+    ca_state state;
+    double rnd, S;
+
+    if (!(x < gSize && y < gSize)) return;
+
+    curand_init((unsigned long long) clock(), idx, 0, &rndState);
+
+    S = weightStates[NC];
+    rnd = curand_uniform_double(&rndState);
+	if (rnd <= S)
+	    prevG[idx].state = NC;
+	else if (rnd <= (S += weightStates[MNC]))
+	    prevG[idx].state = MNC;
+	else if (rnd <= (S += weightStates[SC]))
+	    prevG[idx].state = SC;
+	else if (rnd <= (S += weightStates[MSC]))
+	    prevG[idx].state = MSC;
+	else if (rnd <= (S += weightStates[CSC]))
+	    prevG[idx].state = CSC;
+	else if (rnd <= (S += weightStates[TC]))
+	    prevG[idx].state = TC;
+	else prevG[idx].state = EMPTY;
+
+	if (rTC != 0 && check_in_circle(x, y, gSize, rTC, centerX, centerY)) {
+	    rnd = curand_uniform_double(&rndState);
+	    S = 0.89; // percentage of TC
+	    if (rnd <= S) prevG[idx].state = TC;
+	    else if (rnd <= (S += 0.01)) prevG[idx].state = CSC;
+	    else prevG[idx].state = EMPTY;
+	}
+
+    nPheno = prevG[idx].params->nPheno;
+    state = prevG[idx].state;
+    for (i = 0; i < nPheno; i++)
+	    prevG[idx].phenotype[i] = prevG[idx].params->phenoInit[state*nPheno+i];
+
+    if (state == EMPTY) prevG[idx].age = 0;
+    else prevG[idx].age = ceil(curand_uniform_double(&rndState) * maxAge);
+
+    for (i = 0; i < nGenes; i++) {
+        prevG[idx].geneExprs[i*2] = 0.0;
+        prevG[idx].geneExprs[i*2+1] = 0.0;
+        prevG[idx].bOut[i] = 0.0;
+    }
+
+    prevG[idx].chosenPheno = -1; prevG[idx].chosenCell = -1;
+    prevG[idx].cellRebirth = false; prevG[idx].moved = false;
+    *prevG[idx].inUse = 0;
+    *prevG[idx].actionApplied = 0; *prevG[idx].actionDone = 0;
+    prevG[idx].excised = 0;
+}
+
 __global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
                                unsigned gSize, unsigned maxT,
                                double cellLifeSpan, double cellCycleLen,

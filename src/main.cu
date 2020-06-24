@@ -21,8 +21,8 @@ void cleanup(CA *ca, GUI *gui, CellParams *params)
 
 int main(int argc, char *argv[])
 {
-    unsigned i = 0, j = 0, k = 0, nStates = 7, nGenes = 10, nCarcin = 1,
-             maxNCarcin = 2, rTC = 0, cX = 0, cY = 0;
+    unsigned i = 0, j = 0, k = 0, nStates = 7, nPheno = 4, nGenes = 10,
+             nCarcin = 1, maxNCarcin = 2, rTC = 0, cX = 0, cY = 0, nSim = 1;
     size_t dbl = sizeof(double), st = sizeof(ca_state),
            eff = sizeof(effect), gRel = sizeof(gene_related);
 
@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     CA *ca = (CA*)malloc(sizeof(CA));
     GUI *gui = (GUI*)malloc(sizeof(GUI));
 
-    char **carcinNames;
+    char **carcinNames = NULL;
     double diffusion[maxNCarcin], influx[maxNCarcin], outflux[maxNCarcin],
            ic[maxNCarcin], bc[maxNCarcin];
     bool carcinogens[maxNCarcin] = { false };
@@ -46,16 +46,25 @@ int main(int argc, char *argv[])
     double mutRatePerMitosis = 1e-8, alpha = 1000000.0, bias = 0.001;
     dim3 geneColors[nGenes];
 
-    effect upregPhenoMap[4*nGenes], downregPhenoMap[4*nGenes];
+    effect upregPhenoMap[nPheno*nGenes], downregPhenoMap[nPheno*nGenes];
     ca_state stateMutMap[nGenes*(nStates-1)], prolifMutMap[nGenes*(nStates-1)], 
              diffMutMap[(nGenes+1)*(nStates-1)];
     gene_type geneType[nGenes];
     gene_related geneRelations[nGenes*nGenes];
     CellParams *params = NULL;
+    double *weightStates = NULL;
+
+    char outDir[22] = { '\0' }; struct stat dirStat = { 0 };
+    time_t currTime; struct tm *timeinfo = NULL; char timeStamp[15] = { '\0' };
+    char outSimDir[num_digits(nSim)] = { '\0' };
+
+    dim3 blocks, threads;
 
     double start, end;
 
     set_seed();
+
+    start = omp_get_wtime();
 
     for (i = 0; i < maxNCarcin; i++) {
        maxTInflux[i] = -1;
@@ -63,7 +72,7 @@ int main(int argc, char *argv[])
        exposureTime[i] = 24;
     }
 
-    while ((opt = getopt(argc, argv, ":dst:g:i:c:a:b:x:pe:")) != -1) {
+    while ((opt = getopt(argc, argv, ":dst:g:i:c:a:b:x:pe:n:f:")) != -1) {
         switch(opt)
         {
             case 'd':
@@ -103,6 +112,12 @@ int main(int argc, char *argv[])
             case 'e':
                 maxTTC = atoi(optarg);
                 break;
+            case 'n':
+                nSim = atoi(optarg);
+                break;
+            case 'f':
+                strcpy(outDir, optarg);
+                break;
             case ':':
                 printf("Option needs a value\n");
                 break;
@@ -114,12 +129,22 @@ int main(int argc, char *argv[])
     for (; optind < argc; optind++)
         printf("extra argument: %s\n", argv[optind]);
 
+    if (strlen(outDir) == 0) {
+        time(&currTime); timeinfo = localtime(&currTime);
+        strftime(timeStamp, 15, "%Y%m%d%H%M%S", timeinfo);
+        strcat(outDir, "output_");
+        strcat(outDir, timeStamp);
+
+        if (stat(outDir, &dirStat) == -1) {
+            mkdir(outDir, 0700);
+            chdir(outDir);
+        }
+    }
+
     printf("The CA will run for %d timesteps on a grid of size %dx%d,",
            T, gridSize, gridSize);
     printf(" init type %d, perfectExcision %d, max time TC alive %d.\n",
-           initType, perfectExcision, maxTTC);
-
-    start = omp_get_wtime(); 
+           initType, perfectExcision, maxTTC); 
 
     if (initType == 0) {
         for (i = 0; i < maxNCarcin; i++)
@@ -138,33 +163,35 @@ int main(int argc, char *argv[])
     *ca = CA(gridSize, T, nGenes, nCarcin, maxNCarcin,
              save, outSize, maxTTC, perfectExcision);
     ca->initialize_memory();
+    blocks.x = NBLOCKS(gridSize, ca->blockSize); blocks.y = blocks.x;
+    threads.x = ca->blockSize; threads.y = threads.x;
 
-    memset(upregPhenoMap, NONE, 4*nGenes*eff);
-    upregPhenoMap[  TP53 * 4 + PROLIF] = NEG;
-    upregPhenoMap[  TP53 * 4 +  QUIES] = POS;
-    upregPhenoMap[  TP53 * 4 +   APOP] = POS;
-    upregPhenoMap[  TP73 * 4 +   APOP] = POS;
-    upregPhenoMap[    RB * 4 + PROLIF] = NEG;
-    upregPhenoMap[    RB * 4 +  QUIES] = POS;
-    upregPhenoMap[   P21 * 4 + PROLIF] = NEG;
-    upregPhenoMap[   P21 * 4 +  QUIES] = POS;
-    upregPhenoMap[   P21 * 4 +   DIFF] = NEG;
-    upregPhenoMap[  TP16 * 4 + PROLIF] = NEG;
-    upregPhenoMap[  EGFR * 4 + PROLIF] = POS;
-    upregPhenoMap[ CCDN1 * 4 +   APOP] = NEG;
-    upregPhenoMap[   MYC * 4 + PROLIF] = POS;
-    upregPhenoMap[   MYC * 4 +   APOP] = NEG;
-    upregPhenoMap[   MYC * 4 +   DIFF] = POS;
-    upregPhenoMap[PIK3CA * 4 +   APOP] = NEG;
-    upregPhenoMap[   RAS * 4 + PROLIF] = POS;
-    upregPhenoMap[   RAS * 4 +   APOP] = NEG;
-    upregPhenoMap[   RAS * 4 +   DIFF] = POS;
+    memset(upregPhenoMap, NONE, nPheno*nGenes*eff);
+    upregPhenoMap[  TP53 * nPheno + PROLIF] = NEG;
+    upregPhenoMap[  TP53 * nPheno +  QUIES] = POS;
+    upregPhenoMap[  TP53 * nPheno +   APOP] = POS;
+    upregPhenoMap[  TP73 * nPheno +   APOP] = POS;
+    upregPhenoMap[    RB * nPheno + PROLIF] = NEG;
+    upregPhenoMap[    RB * nPheno +  QUIES] = POS;
+    upregPhenoMap[   P21 * nPheno + PROLIF] = NEG;
+    upregPhenoMap[   P21 * nPheno +  QUIES] = POS;
+    upregPhenoMap[   P21 * nPheno +   DIFF] = NEG;
+    upregPhenoMap[  TP16 * nPheno + PROLIF] = NEG;
+    upregPhenoMap[  EGFR * nPheno + PROLIF] = POS;
+    upregPhenoMap[ CCDN1 * nPheno +   APOP] = NEG;
+    upregPhenoMap[   MYC * nPheno + PROLIF] = POS;
+    upregPhenoMap[   MYC * nPheno +   APOP] = NEG;
+    upregPhenoMap[   MYC * nPheno +   DIFF] = POS;
+    upregPhenoMap[PIK3CA * nPheno +   APOP] = NEG;
+    upregPhenoMap[   RAS * nPheno + PROLIF] = POS;
+    upregPhenoMap[   RAS * nPheno +   APOP] = NEG;
+    upregPhenoMap[   RAS * nPheno +   DIFF] = POS;
 
-    memset(downregPhenoMap, NONE, 4*nGenes*eff);
+    memset(downregPhenoMap, NONE, nPheno*nGenes*eff);
     for (i = 0; i < nGenes; i++)
-        for (j = 0; j < 4; j++) {
-            if (upregPhenoMap[i*4+j] == NONE) continue;
-            downregPhenoMap[i*4+j] = (effect) -upregPhenoMap[i*4+j];
+        for (j = 0; j < nPheno; j++) {
+            if (upregPhenoMap[i*nPheno+j] == NONE) continue;
+            downregPhenoMap[i*nPheno+j] = (effect) -upregPhenoMap[i*nPheno+j];
         }
 
     for (i = 0; i < nGenes; i++) {
@@ -264,9 +291,12 @@ int main(int argc, char *argv[])
     geneColors[PIK3CA] = dim3(  1, 102,  94); // Dark green
     geneColors[   RAS] = dim3(  0,  60,  48); // Forest green
 
-    double weightStates[7] = { 0.45, 0.22, 0.01, 0.005, 0.005, 0.02, 0.29 };
+    CudaSafeCall(cudaMallocManaged((void**)&weightStates, nStates*dbl));
+    weightStates[NC] = 0.45; weightStates[MNC] = 0.22; weightStates[SC] = 0.01; 
+    weightStates[MSC] = 0.005; weightStates[CSC] = 0.005;
+    weightStates[TC] = 0.02; weightStates[EMPTY] = 0.29;
     if (initType != 1) {
-        memset(weightStates, 0, 7*dbl);
+        memset(weightStates, 0, nStates*dbl);
         weightStates[NC] = 0.7;
         weightStates[SC] = 0.01;
         weightStates[EMPTY] = 0.29;
@@ -284,9 +314,6 @@ int main(int argc, char *argv[])
              params, weightStates, rTC, cX, cY);
 
     if (initType == 1) {
-        dim3 blocks(NBLOCKS(ca->gridSize, ca->blockSize),
-                    NBLOCKS(ca->gridSize, ca->blockSize));
-        dim3 threads(ca->blockSize, ca->blockSize);
         init_grid<<< blocks, threads >>>(ca->prevGrid, ca->gridSize,
                                          ca->NN, 100);
         CudaCheckError();
@@ -310,9 +337,9 @@ int main(int argc, char *argv[])
     carcinNames[1] = (char*)calloc(8, 1);
     strcat(carcinNames[1], "Tobacco");
 
-    *gui = GUI(outSize, outSize, ca, display, perfectExcision,
-               gridSize, T, &ca->nCarcin, maxNCarcin, ca->carcinogens, 
-               carcinNames);
+    *gui = GUI(outSize, outSize, ca, display, &ca->perfectExcision,
+               gridSize, &ca->maxT, &ca->nCarcin, maxNCarcin, 
+               ca->carcinogens, carcinNames);
     for (i = 0; i < maxNCarcin; i++) {
         free(carcinNames[i]); carcinNames[i] = NULL;
     }
@@ -327,8 +354,64 @@ int main(int argc, char *argv[])
     end = omp_get_wtime();
     printf("It took %f seconds to initialize the memory.\n", end - start);
 
-    ca->animate(1, gui);
+    
 
+    k = 1;
+    do {
+        sprintf(outSimDir, "%d", k); 
+        if (stat(outSimDir, &dirStat) == -1) {
+            mkdir(outSimDir, 0700);
+            chdir(outSimDir);
+        }
+
+        printf("Starting simulation %d\n", k);
+
+        ca->animate(1, gui);
+
+        printf("Done simulation %d\n", k);
+        k++;
+        chdir("..");
+
+        if (k == nSim) continue;
+
+        cX = rand() % gridSize;
+        cY = rand() % gridSize;
+        reset_grid<<< blocks, threads >>>(
+            ca->prevGrid, gridSize, nGenes, weightStates, rTC,
+            cX, cY, ca->cellLifeSpan, ca->cellCycleLen
+        );
+        CudaCheckError();
+        CudaSafeCall(cudaDeviceSynchronize());
+
+        cells_gpu_to_gpu_cpy<<< blocks, threads >>>(ca->newGrid, ca->prevGrid, 
+                                                    gridSize, nGenes);
+        CudaCheckError();
+        CudaSafeCall(cudaDeviceSynchronize());
+        
+        gui->display = display; ca->save = save;
+        ca->perfectExcision = perfectExcision; ca->maxTTCAlive = maxTTC;
+        ca->nCarcin = nCarcin;
+        for (i = 0; i < maxNCarcin; i++) {
+            ca->pdes[i].t = 0; ca->pdes[i].nCycles = 1;
+            ca->pdes[i].maxTInflux = maxTInflux[i];
+            ca->pdes[i].maxTNoInflux = maxTNoInflux[i];
+            ca->pdes[i].exposureTime = exposureTime[i];
+            ca->carcinogens[i] = carcinogens[i];
+        }
+        *ca->cscFormed = false;
+        for (i = 0; i < ca->exciseCount; i++) {
+            ca->tcFormed[i] = false;
+            ca->timeTCDead[i] = 1;
+            ca->radius[i] = 0;
+        }
+        ca->exciseCount = 0;
+        ca->radius[0] = gridSize;
+        ca->centerX[0] = gridSize / 2 - 1; ca->centerY[0] = ca->centerX[0];
+
+        
+    } while(k < nSim);
+
+    CudaSafeCall(cudaFree(weightStates));
     cleanup(ca, gui, params);
 
     return 0;

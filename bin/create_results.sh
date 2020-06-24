@@ -15,7 +15,9 @@ while getopts hvdsn:t:g:i:c:a:b:x:pe: option; do
         v) verbose=1;;
         d) options+=("-d");;
         s) options+=("-s");;
-	    n) numSim=${OPTARG};;
+	    n) options+=("-n ${OPTARG}")
+           numSim=${OPTARG}
+	       ;;
         t) options+=("-t ${OPTARG}");;
         g) options+=("-g ${OPTARG}");;
         i) options+=("-i ${OPTARG}");;
@@ -57,33 +59,24 @@ fi
 outFolder=output_$(date -d "today" +"%Y%m%d%H%M%S")
 mkdir $outFolder
 cd $outFolder
+options+=("-f $outFolder")
+
+if [ $verbose -eq 1 ]; then
+    ../main "${options[@]}" >> >(tee out.txt) 2> out.log
+else
+    ../main "${options[@]}" > out.txt 2> out.log
+fi
+
+if [ ! -s out.log ]; then
+    rm out.log
+fi
+sed -i '/progress/d' out.txt
 
 for ((i=1; i <= numSim; i++)); do
-    j=$i
-    if [ $verbose -eq 1 ]; then
-        echo 'Running simulation' $i
-    fi
-
-    mkdir $i
     cd $i
-
-    if [ $verbose -eq 1 ]; then
-        ../../main "${options[@]}" >> >(tee $i.txt) 2> $i.log
-    else
-        ../../main "${options[@]}" > $i.txt 2> $i.log
-    fi
-    if [ ! -s $i.log ]; then
-        rm $i.log
-    else
-        i=$(($numSim+1))
-    fi
-    sed -i '/progress/d' $i.txt
     gnuplot ../../bin/create_plots
+    sed 's/.*Starting simulation $i\(.*\)Done simulation $i/\1/' out.txt > $i.txt
     cd ..
-
-    if [ $verbose -eq 1 ]; then
-        echo 'Done simulation' $j
-    fi
 done
 
 if [ $verbose -eq 1 ]; then
