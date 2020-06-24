@@ -21,10 +21,10 @@ void cleanup(CA *ca, GUI *gui, CellParams *params)
 
 int main(int argc, char *argv[])
 {
-    unsigned i, j, nGenes = 10, nCarcin = 1, rTC = 0, cX = 0, cY = 0;
+    unsigned i = 0, j = 0, k = 0, nStates = 7, nGenes = 10, nCarcin = 1,
+             maxNCarcin = 2, rTC = 0, cX = 0, cY = 0;
     size_t dbl = sizeof(double), st = sizeof(ca_state),
-           eff = sizeof(effect), gType = sizeof(gene_type),
-           gRel = sizeof(gene_related);
+           eff = sizeof(effect), gRel = sizeof(gene_related);
 
     unsigned T = 8766, gridSize = 256, outSize = 1024;
     bool display = false, save = false, perfectExcision = false;
@@ -34,25 +34,36 @@ int main(int argc, char *argv[])
     CA *ca = (CA*)malloc(sizeof(CA));
     GUI *gui = (GUI*)malloc(sizeof(GUI));
 
-    char **carcinNames = NULL;
-    double *diffusion = NULL, *influx = NULL, *outflux = NULL,
-           *ic = NULL, *bc = NULL;
+    char **carcinNames;
+    double diffusion[maxNCarcin], influx[maxNCarcin], outflux[maxNCarcin],
+           ic[maxNCarcin], bc[maxNCarcin];
+    bool carcinogens[maxNCarcin] = { false };
+    int maxTInflux[maxNCarcin], maxTNoInflux[maxNCarcin];
+    double exposureTime[maxNCarcin];
 
-    double *carcinMutMap = NULL, *Wx = NULL, *Wy = NULL;
+    double carcinMutMap[maxNCarcin*nGenes], Wx[(maxNCarcin+1)*nGenes],
+           Wy[nGenes*nGenes];
     double mutRatePerMitosis = 1e-8, alpha = 1000000.0, bias = 0.001;
-    dim3 *geneColors = NULL;
+    dim3 geneColors[nGenes];
 
-    effect *upregPhenoMap = NULL, *downregPhenoMap = NULL;
-    ca_state *stateMutMap = NULL, *prolifMutMap = NULL, *diffMutMap = NULL;
-    gene_type *geneType = NULL;
-    gene_related *geneRelations = NULL;
+    effect upregPhenoMap[4*nGenes], downregPhenoMap[4*nGenes];
+    ca_state stateMutMap[nGenes*(nStates-1)], prolifMutMap[nGenes*(nStates-1)], 
+             diffMutMap[(nGenes+1)*(nStates-1)];
+    gene_type geneType[nGenes];
+    gene_related geneRelations[nGenes*nGenes];
     CellParams *params = NULL;
 
     double start, end;
 
     set_seed();
 
-    while ((opt = getopt(argc, argv, ":dst:g:i:pe:")) != -1) {
+    for (i = 0; i < maxNCarcin; i++) {
+       maxTInflux[i] = -1;
+       maxTNoInflux[i] = -1;
+       exposureTime[i] = 24;
+    }
+
+    while ((opt = getopt(argc, argv, ":dst:g:i:c:a:b:x:pe:")) != -1) {
         switch(opt)
         {
             case 'd':
@@ -69,6 +80,22 @@ int main(int argc, char *argv[])
                 break;
             case 'i':
                 initType = atoi(optarg);
+                break;
+            case 'c':
+                if (atoi(optarg) < maxNCarcin)
+                    carcinogens[atoi(optarg)] = true;
+                break;
+            case 'a':
+                if (i < maxNCarcin)
+                    maxTInflux[i++] = atoi(optarg);
+                break;
+            case 'b':
+                if (j < maxNCarcin)
+                    maxTNoInflux[j++] = atoi(optarg);
+                break;
+            case 'x':
+                if (k < maxNCarcin)
+                    exposureTime[k++] = atoi(optarg);
                 break;
             case 'p':
                 perfectExcision = true;
@@ -92,15 +119,27 @@ int main(int argc, char *argv[])
     printf(" init type %d, perfectExcision %d, max time TC alive %d.\n",
            initType, perfectExcision, maxTTC);
 
-    start = omp_get_wtime();
+    start = omp_get_wtime(); 
 
-    if (initType == 2) nCarcin = 2;
-    else if (initType == 3) nCarcin = 0;
+    if (initType == 0) {
+        for (i = 0; i < maxNCarcin; i++)
+            if (carcinogens[i]) break;
+        if (i == maxNCarcin) carcinogens[0] = true;
+    } else if (initType == 2) {
+        nCarcin = maxNCarcin;
+        for (i = 0; i < maxNCarcin; i++)
+            carcinogens[i] = true;
+    } else if (initType == 3) {
+        nCarcin = 0;
+        for (i = 0; i < maxNCarcin; i++)
+            carcinogens[i] = false;
+    }
 
-    *ca = CA(gridSize, T, nGenes, nCarcin, save, outSize, maxTTC, perfectExcision);
+    *ca = CA(gridSize, T, nGenes, nCarcin, maxNCarcin,
+             save, outSize, maxTTC, perfectExcision);
     ca->initialize_memory();
 
-    upregPhenoMap = (effect*)calloc(nGenes*4, eff);
+    memset(upregPhenoMap, NONE, 4*nGenes*eff);
     upregPhenoMap[  TP53 * 4 + PROLIF] = NEG;
     upregPhenoMap[  TP53 * 4 +  QUIES] = POS;
     upregPhenoMap[  TP53 * 4 +   APOP] = POS;
@@ -121,14 +160,13 @@ int main(int argc, char *argv[])
     upregPhenoMap[   RAS * 4 +   APOP] = NEG;
     upregPhenoMap[   RAS * 4 +   DIFF] = POS;
 
-    downregPhenoMap = (effect*)calloc(nGenes*4, eff);
+    memset(downregPhenoMap, NONE, 4*nGenes*eff);
     for (i = 0; i < nGenes; i++)
         for (j = 0; j < 4; j++) {
             if (upregPhenoMap[i*4+j] == NONE) continue;
             downregPhenoMap[i*4+j] = (effect) -upregPhenoMap[i*4+j];
         }
 
-    stateMutMap = (ca_state*)malloc((ca->nStates-1)*nGenes*st);
     for (i = 0; i < nGenes; i++) {
         stateMutMap[ NC*nGenes+i] = MNC;
         stateMutMap[MNC*nGenes+i] = MNC;
@@ -141,10 +179,8 @@ int main(int argc, char *argv[])
         stateMutMap[i*nGenes+MYC] = CSC;
         stateMutMap[i*nGenes+RAS] = CSC;
     }
-    prolifMutMap = (ca_state*)malloc((ca->nStates-1)*nGenes*st);
     memcpy(prolifMutMap, stateMutMap, (ca->nStates-1)*nGenes*st);
 
-    diffMutMap = (ca_state*)malloc((ca->nStates-1)*(nGenes+1)*st);
     memset(diffMutMap, ERROR, (ca->nStates-1)*(nGenes+1)*st);
     for (i = 0; i < nGenes+1; i++) {
         diffMutMap[ SC*(nGenes+1)+i] =  NC;
@@ -157,12 +193,11 @@ int main(int argc, char *argv[])
         diffMutMap[i*(nGenes+1)+(RAS+1)] = CSC;
     }
 
-    geneType = (gene_type*)malloc(nGenes*gType);
     geneType[ TP53] = SUPPR; geneType[TP73] = SUPPR; geneType[    RB] = SUPPR;
     geneType[  P21] = SUPPR; geneType[TP16] = SUPPR; geneType[  EGFR] =  ONCO;
     geneType[CCDN1] =  ONCO; geneType[ MYC] =  ONCO; geneType[PIK3CA] =  ONCO;
     geneType[  RAS] =  ONCO;
-    geneRelations = (gene_related*)calloc(nGenes*nGenes, gRel);
+    memset(geneRelations, 0, nGenes*nGenes*gRel);
     for (i = 1; i < nGenes; i++) geneRelations[TP53*nGenes+i] = YES;
     geneRelations[   RB * nGenes +   TP53] = YES;
     geneRelations[   RB * nGenes +  CCDN1] = YES;
@@ -177,33 +212,19 @@ int main(int argc, char *argv[])
                          downregPhenoMap, stateMutMap, prolifMutMap,
                          diffMutMap, geneType, geneRelations);
 
-    free(upregPhenoMap); free(downregPhenoMap);
-    upregPhenoMap = NULL; downregPhenoMap = NULL;
-    free(stateMutMap); free(prolifMutMap); free(diffMutMap);
-    stateMutMap = NULL; prolifMutMap = NULL; diffMutMap = NULL;
-    free(geneType); free(geneRelations);
-    geneType = NULL; geneRelations = NULL;
-
-    if (nCarcin != 0)
-        carcinMutMap = (double*)malloc(nCarcin*nGenes*dbl);
-	Wx = (double*)calloc(ca->nGenes*(nCarcin+1), dbl);
-	Wy = (double*)calloc(ca->nGenes*nGenes, dbl);
-
-    if (nCarcin != 0) {
-        for (i = 0; i < nGenes; i++)
-            for (j = 0; j < nCarcin; j++)
-                carcinMutMap[j*nCarcin+i] = 1.0;
-    }
+	memset(Wx, 0, nGenes*(maxNCarcin+1)*dbl);
+	memset(Wy, 0, nGenes*nGenes*dbl);
     for (i = 0; i < nGenes; i++)
-        for (j = 0; j < nCarcin+1; j++) {
-            if (j == nCarcin) {
-                Wx[i*(nCarcin+1)+j] = mutRatePerMitosis;
+        for (j = 0; j < maxNCarcin; j++)
+            carcinMutMap[j*maxNCarcin+i] = 1.0;
+    for (i = 0; i < nGenes; i++)
+        for (j = 0; j < maxNCarcin+1; j++) {
+            if (j == maxNCarcin) {
+                Wx[i*(maxNCarcin+1)+j] = mutRatePerMitosis;
                 continue;
             }
-            Wx[i*(nCarcin+1)+j] = carcinMutMap[j*nCarcin+i];
+            Wx[i*(maxNCarcin+1)+j] = carcinMutMap[j*maxNCarcin+i];
         }
-    if (nCarcin != 0) { free(carcinMutMap); carcinMutMap = NULL; }
-
     Wy[  TP53 * nGenes +   TP53] =  1.0;
     Wy[  TP73 * nGenes +   TP73] =  0.1;
     Wy[    RB * nGenes +     RB] =  0.3;
@@ -223,21 +244,15 @@ int main(int argc, char *argv[])
     Wy[ CCDN1 * nGenes +    RAS] =  0.01;
     Wy[   MYC * nGenes +    RAS] =  0.01;
 
-    if (nCarcin != 0) {
-        diffusion = (double*)malloc(nCarcin*dbl);
-        diffusion[0] = 4.5590004e-2; // cm^2/h
-        if (nCarcin == 2) diffusion[1] = 2.94875146e-2; // cm^2/h
-        influx = (double*)malloc(nCarcin*dbl);
-        influx[0] = 2.1755778; // microg/cm^3*h
-        if (nCarcin == 2) influx[1] = 5.04734057e-2; // microg/cm^3*h
-        outflux = (double*)malloc(nCarcin*dbl);
-        outflux[0] = 0.0; // g/cm^3*h
-        if (nCarcin == 2) outflux[1] = 7.54113434e-3; // microg/cm^3*h
-        ic = (double*)calloc(nCarcin, dbl);
-        bc = (double*)calloc(nCarcin, dbl);
-    }
+    diffusion[0] = 4.5590004e-2; // cm^2/h
+    influx[0] = 2.1755778; // microg/cm^3*h
+    outflux[0] = 0.0; // g/cm^3*h
+    diffusion[1] = 2.94875146e-2; // cm^2/h
+    influx[1] = 5.04734057e-2; // microg/cm^3*h
+    outflux[1] = 7.54113434e-3; // microg/cm^3*h
+    memset(ic, 0, maxNCarcin*dbl);
+    memset(bc, 0, maxNCarcin*dbl);
 
-    geneColors = (dim3*)malloc(nGenes*sizeof(dim3));
     geneColors[  TP53] = dim3( 84,  48,   5); // Dark brown
     geneColors[  TP73] = dim3(140,  81,  10); // Light brown
     geneColors[    RB] = dim3(191, 129,  45); // Brown orange
@@ -263,7 +278,8 @@ int main(int argc, char *argv[])
         cY = rand() % ca->gridSize;
     }
 
-    ca->init(diffusion, influx, outflux, ic, bc,
+    ca->init(diffusion, influx, outflux, ic, bc, maxTInflux,
+             maxTNoInflux, exposureTime, carcinogens,
              Wx, Wy, alpha, bias, geneColors,
              params, weightStates, rTC, cX, cY);
 
@@ -288,35 +304,22 @@ int main(int argc, char *argv[])
         CudaSafeCall(cudaDeviceSynchronize());
     }
 
-    free(Wx); free(Wy); free(geneColors);
-    Wx = NULL; Wy = NULL; geneColors = NULL;
-    if (nCarcin != 0) {
-        free(diffusion); free(influx); free(outflux); free(ic); free(bc);
-        diffusion = NULL; influx = NULL; outflux = NULL; ic = NULL; bc = NULL;
-    }
-
-    if (nCarcin != 0) {
-        carcinNames = (char**)malloc(sizeof(char*));
-        carcinNames[0] = (char*)calloc(8, 1);
-        strcat(carcinNames[0], "Alcohol");
-        if (nCarcin == 2) {
-            carcinNames[1] = (char*)calloc(8, 1);
-            strcat(carcinNames[1], "Tobacco");
-        }
-    }
+    carcinNames = (char**)malloc(maxNCarcin*sizeof(char*));
+    carcinNames[0] = (char*)calloc(8, 1);
+    strcat(carcinNames[0], "Alcohol");
+    carcinNames[1] = (char*)calloc(8, 1);
+    strcat(carcinNames[1], "Tobacco");
 
     *gui = GUI(outSize, outSize, ca, display, perfectExcision,
-               gridSize, T, nCarcin, carcinNames);
-    if (nCarcin != 0) {
-        free(carcinNames[0]); carcinNames[0] = NULL;
-        if (nCarcin == 2) {
-            free(carcinNames[1]); carcinNames[1] = NULL;
-        }
-        free(carcinNames); carcinNames = NULL;
+               gridSize, T, &ca->nCarcin, maxNCarcin, ca->carcinogens, 
+               carcinNames);
+    for (i = 0; i < maxNCarcin; i++) {
+        free(carcinNames[i]); carcinNames[i] = NULL;
     }
+    free(carcinNames); carcinNames = NULL;
 
     if (!gui->windows[0] || !gui->windows[1]
-     || !gui->windows[2] || (nCarcin != 0 && !gui->windows[3])) {
+     || !gui->windows[2] || !gui->windows[3]) {
         cleanup(ca, gui, params);
         return 1;
     }

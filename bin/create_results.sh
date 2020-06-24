@@ -9,7 +9,7 @@ help=0
 verbose=0
 numSim=10
 options=()
-while getopts hvdsn:t:g:i:pe: option; do
+while getopts hvdsn:t:g:i:c:a:b:x:pe: option; do
     case "${option}" in
         h) help=1;;
         v) verbose=1;;
@@ -19,6 +19,10 @@ while getopts hvdsn:t:g:i:pe: option; do
         t) options+=("-t ${OPTARG}");;
         g) options+=("-g ${OPTARG}");;
         i) options+=("-i ${OPTARG}");;
+        c) options+=("-c ${OPTARG}");;
+        a) options+=("-a ${OPTARG}");;
+        b) options+=("-b ${OPTARG}");;
+        x) options+=("-x ${OPTARG}");;
         p) options+=("-p");;
 	    e) options+=("-e ${OPTARG}");;
     esac

@@ -217,7 +217,7 @@ __global__ void collect_data(Cell *G, unsigned *counts,
 }
 
 __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
-                            CarcinPDE *pdes, unsigned t)
+                            CarcinPDE *pdes, bool *carcinogens, unsigned t)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -233,9 +233,10 @@ __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
     in = (double*)malloc(NN->nIn*sizeof(double));
     out = (double*)malloc(NN->nOut*sizeof(double));
     memset(out, 0, NN->nOut*sizeof(double));
-    for (i = 0; i < NN->nIn-1; i++) {
-        in[i] = pdes[i].soln[idx];
-    }
+    for (i = 0; i < NN->nIn-1; i++)
+        if (carcinogens[i])
+            in[i] = pdes[i].soln[idx];
+        else in[i] = 0.0;
     in[NN->nIn-1] = prevG[idx].age;
     NN->evaluate(in, out, prevG[idx].bOut);
     free(in); in = NULL;

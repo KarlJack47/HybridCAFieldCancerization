@@ -24,13 +24,13 @@ struct CA {
     unsigned maxT;
     int maxTTCAlive;
 
-    unsigned nGenes, nCarcin, nStates;
+    unsigned nStates, nGenes, nCarcin, maxNCarcin;
 
     double cellVolume, cellCycleLen, cellLifeSpan;
 
     unsigned *cscFormed, *tcFormed, exciseCount, maxExcise,
              timeTCAlive, *timeTCDead;
-    bool perfectExcision;
+    bool perfectExcision, *carcinogens;
     unsigned *radius, *centerX, *centerY;
 
     clock_t start, end, startStep, endStep;
@@ -43,12 +43,14 @@ struct CA {
     size_t cellDataSize, bytesPerCell;
 
     CA(unsigned gSize, unsigned T, unsigned ngenes, unsigned ncarcin,
-       bool saveIn, unsigned dim, int maxTTC=-1, bool perfectexcision=false)
+       unsigned maxncarcin, bool saveIn, unsigned dim, int maxTTC=-1,
+       bool perfectexcision=false)
     {
         blockSize = 16;
 
         gridSize = gSize; maxT = T;
-        nStates = 7; nGenes = ngenes; nCarcin = ncarcin;
+        nStates = 7; nGenes = ngenes;
+        nCarcin = ncarcin; maxNCarcin = maxncarcin;
 
         cellVolume = 1.596e-9; // relative to cm, epithelial cell
         cellCycleLen = 10.0; // in hours, for tastebuds
@@ -107,9 +109,12 @@ struct CA {
         }
 
         if (pdes != NULL) {
-            for (i = 0; i < nCarcin; i++)
+            for (i = 0; i < maxNCarcin; i++)
                 pdes[i].free_resources();
             CudaSafeCall(cudaFree(pdes)); pdes = NULL;
+        }
+        if (carcinogens != NULL) {
+            CudaSafeCall(cudaFree(carcinogens)); carcinogens = NULL;
         }
         if (NN != NULL) {
             NN->free_resources();
@@ -183,11 +188,11 @@ struct CA {
         devId1 = 0; devId2 = 0;
         if (numDev == 2) devId2 = 1;
 
-        if (nCarcin != 0)
-            CudaSafeCall(cudaMallocManaged((void**)&pdes,
-                                           nCarcin*sizeof(CarcinPDE)));
-        else
-            pdes = NULL;
+        CudaSafeCall(cudaMallocManaged((void**)&pdes,
+                                       maxNCarcin*sizeof(CarcinPDE)));
+        CudaSafeCall(cudaMallocManaged((void**)&carcinogens,
+                                       maxNCarcin*sizeof(bool)));
+        memset(carcinogens, false, maxNCarcin*sizeof(bool));
         CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(GeneExprNN)));
         CudaSafeCall(cudaMallocManaged((void**)&prevGrid,
                                        gridSize*gridSize*sizeof(Cell)));
@@ -295,15 +300,17 @@ struct CA {
     }
 
     void init(double *diffusion, double *influx, double *outflux, double *ic,
-              double *bc, double *Wx, double *Wy, double alpha, double bias,
-              dim3 *genecolors, CellParams *params, double *weightStates=NULL,
-              unsigned rTC=0, unsigned cX=0, unsigned cY=0)
+              double *bc, int *maxTInflux, int *maxTNoInflux,
+              double *timeInflux, bool *carcin, double *Wx, double *Wy,
+              double alpha, double bias, dim3 *genecolors, CellParams *params,
+              double *weightStates=NULL, unsigned rTC=0, unsigned cX=0,
+              unsigned cY=0)
     {
         unsigned i, j, k, numFinished, dev;
         int nt = omp_get_num_procs(), counts[nt] = { 0 };
         dim3 blocks(NBLOCKS(gridSize, blockSize), NBLOCKS(gridSize, blockSize));
         dim3 threads(blockSize, blockSize);
-        cudaStream_t prefetch[nCarcin+5]; cudaStream_t kernel[nCarcin+1];
+        cudaStream_t prefetch[maxNCarcin+5]; cudaStream_t kernel[maxNCarcin+1];
 
         for (i = 0; i < nGenes; i++) {
             geneColors[i].x = genecolors[i].x;
@@ -311,9 +318,9 @@ struct CA {
             geneColors[i].z = genecolors[i].z;
         }
 
-        for (i = 0; i < nCarcin+5; i++) {
+        for (i = 0; i < maxNCarcin+5; i++) {
             CudaSafeCall(cudaStreamCreate(&prefetch[i]));
-            if (i < nCarcin+1) CudaSafeCall(cudaStreamCreate(&kernel[i]));
+            if (i < maxNCarcin+1) CudaSafeCall(cudaStreamCreate(&kernel[i]));
         }
 
         printf("Grid initialization progress:   0.00/100.00");
@@ -351,16 +358,18 @@ struct CA {
         );
         CudaCheckError();
 
-        for (k = 0; k < nCarcin; k++) {
+        for (k = 0; k < maxNCarcin; k++) {
             dev = k % 2 == 1 ? devId1 : devId2;
             pdes[k] = CarcinPDE(dev, k, gridSize, diffusion[k], influx[k],
-                                outflux[k], ic[k], bc[k], cellVolume,
-                                cellCycleLen);
+                                outflux[k], ic[k], bc[k], maxTInflux[k],
+                                maxTNoInflux[k], cellVolume, cellCycleLen,
+                                timeInflux[k]);
             pdes[k].prefetch_memory(dev, &prefetch[k+5]);
             pdes[k].init(blockSize, &kernel[k+1]);
+            if (carcin[k]) carcinogens[k] = true;
         }
 
-        *NN = GeneExprNN(devId2, nCarcin+1, nGenes, alpha, bias);
+        *NN = GeneExprNN(devId2, maxNCarcin+1, nGenes, alpha, bias);
         NN->memory_allocate(Wx, Wy);
         NN->prefetch_memory(devId2, &prefetch[4]);
 
@@ -374,43 +383,45 @@ struct CA {
         CudaSafeCall(cudaMemPrefetchAsync(newGrid,
                                           gridSize*gridSize*sizeof(Cell),
                                           devId2, prefetch[3]));
-        if (nCarcin != 0)
-            CudaSafeCall(cudaMemPrefetchAsync(pdes,
-                                              nCarcin*sizeof(CarcinPDE),
-                                              devId2, prefetch[4]));
+        CudaSafeCall(cudaMemPrefetchAsync(pdes,
+                                          maxNCarcin*sizeof(CarcinPDE),
+                                          devId2, prefetch[4]));
+        CudaSafeCall(cudaMemPrefetchAsync(carcinogens,
+                                          maxNCarcin*sizeof(bool),
+                                          devId2, prefetch[0]));
 
         CudaSafeCall(cudaMemPrefetchAsync(NN,
                                           sizeof(GeneExprNN),
-                                          devId2, prefetch[0]));
+                                          devId2, prefetch[1]));
         CudaSafeCall(cudaMemPrefetchAsync(tcFormed,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[1]));
+                                          devId1, prefetch[2]));
         CudaSafeCall(cudaMemPrefetchAsync(timeTCDead,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[2]));
+                                          devId1, prefetch[3]));
         CudaSafeCall(cudaMemPrefetchAsync(radius,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[3]));
+                                          devId1, prefetch[4]));
         CudaSafeCall(cudaMemPrefetchAsync(centerX,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[4]));
+                                          devId1, prefetch[0]));
         CudaSafeCall(cudaMemPrefetchAsync(centerY,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[0]));
+                                          devId1, prefetch[1]));
         CudaSafeCall(cudaMemPrefetchAsync(stateColors,
                                           nStates*sizeof(dim3),
-                                          devId1, prefetch[1]));
+                                          devId1, prefetch[2]));
         CudaSafeCall(cudaMemPrefetchAsync(geneColors,
                                           nGenes*sizeof(dim3),
-                                          devId1, prefetch[2]));
+                                          devId1, prefetch[3]));
         CudaSafeCall(cudaMemPrefetchAsync(cellData,
                                           cellDataSize,
-                                          devId2, prefetch[3]));
+                                          devId2, prefetch[4]));
 
-        for (i = 0; i < nCarcin+5; i++) {
+        for (i = 0; i < maxNCarcin+5; i++) {
             CudaSafeCall(cudaStreamSynchronize(prefetch[i]));
             CudaSafeCall(cudaStreamDestroy(prefetch[i]));
-            if (i < nCarcin+1) {
+            if (i < maxNCarcin+1) {
                 CudaSafeCall(cudaStreamSynchronize(kernel[i]));
                 CudaSafeCall(cudaStreamDestroy(kernel[i]));
             }
