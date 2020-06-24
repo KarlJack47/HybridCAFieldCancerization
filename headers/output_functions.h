@@ -3,11 +3,11 @@
 
 __global__ void copy_frame(uchar4*, unsigned char*);
 int save_image(uchar4 *outputBitmap, size_t size, unsigned blockSize,
-               char *prefix, unsigned time, unsigned maxT, int dev)
+               char *prefix, unsigned time, int dev, unsigned nDigitsMaxT=6)
 {
     dim3 blocks(NBLOCKS(size, blockSize), NBLOCKS(size, blockSize));
     dim3 threads(blockSize, blockSize);
-    unsigned digMax = num_digits(maxT), dig = num_digits(time), i;
+    unsigned dig = num_digits(time), i;
     char fname[150] = { '\0' };
     tjhandle tjInstance = NULL;
     unsigned long jpegSize = 0;
@@ -18,7 +18,7 @@ int save_image(uchar4 *outputBitmap, size_t size, unsigned blockSize,
     for (i = 0; i < 2; i++) CudaSafeCall(cudaStreamCreate(&streams[i]));
 
     if (prefix != NULL) strcat(fname, prefix);
-    for (i = 0; i < digMax-dig; i++) strcat(fname, "0");
+    for (i = 0; i < nDigitsMaxT-dig; i++) strcat(fname, "0");
     sprintf(&fname[strlen(fname)], "%d.jpeg", time);
 
     CudaSafeCall(cudaMallocManaged((void**)&frame,
@@ -66,16 +66,15 @@ int save_image(uchar4 *outputBitmap, size_t size, unsigned blockSize,
 }
 
 void save_video(char *prefix, char *outputName,
-                unsigned framerate, unsigned maxT)
+                unsigned framerate, unsigned nDigitsMaxT=6)
 {
     char command[250] = { '\0' };
-    unsigned numDigMaxT = num_digits(maxT);
 
     sprintf(command, "ffmpeg -y -v quiet -framerate %d -start_number 0 -i ",
             framerate);
     if (prefix != NULL) strcat(command, prefix);
-    if (numDigMaxT == 1) strcat(command, "%%d.jpeg");
-    else sprintf(&command[strlen(command)], "%%%d%dd.jpeg", 0, numDigMaxT);
+    if (nDigitsMaxT == 1) strcat(command, "%%d.jpeg");
+    else sprintf(&command[strlen(command)], "%%%d%dd.jpeg", 0, nDigitsMaxT);
     sprintf(&command[strlen(command)], " -c:v libx264 -pix_fmt yuv420p %s",
             outputName);
 

@@ -321,7 +321,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
         if (ca->save && !paused
          && ticks % ca->framerate == 0)
             save_image(outputBitmap, dim, ca->blockSize, NULL, ticks,
-                       ca->maxT, ca->devId2);
+                       ca->devId2);
     }
 
     for (i = 0; i < ca->maxNCarcin+2; i++)
@@ -348,7 +348,7 @@ void anim_gpu_genes(uchar4* outputBitmap, unsigned dim, CA *ca,
     if (ca->save && ticks <= ca->maxT && !paused
      && ticks % ca->framerate == 0)
         save_image(outputBitmap, dim, ca->blockSize,
-                   ca->prefixes[0], ticks, ca->maxT, ca->devId2);
+                   ca->prefixes[0], ticks, ca->devId2);
 }
 
 void anim_gpu_carcin(uchar4* outputBitmap, unsigned dim, CA *ca,
@@ -372,7 +372,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, unsigned dim, CA *ca,
     if (ca->save && ticks <= ca->maxT && !paused
      && ticks % ca->framerate == 0)
         save_image(outputBitmap, dim, ca->blockSize,
-                   ca->prefixes[carcinIdx+1], ticks, ca->maxT, ca->devId2);
+                   ca->prefixes[carcinIdx+1], ticks, ca->devId2);
 
 }
 
@@ -416,14 +416,14 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
             #pragma omp section
             {
                 printf("Saving video %s.\n", ca->outNames[0]);
-                save_video(NULL, ca->outNames[0], videoFramerate, ca->maxT);
+                save_video(NULL, ca->outNames[0], videoFramerate);
                 printf("Finished video %s.\n", ca->outNames[0]);
             }
             #pragma omp section
             {
                 printf("Saving video %s.\n", ca->outNames[1]);
                 save_video(ca->prefixes[0], ca->outNames[1],
-                           videoFramerate, ca->maxT);
+                           videoFramerate);
                 printf("Finished video %s.\n", ca->outNames[1]);
             }
             #pragma omp section
@@ -432,8 +432,7 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
                     if (!ca->carcinogens[carcinIdx]) continue;
                     printf("Saving video %s.\n", ca->outNames[carcinIdx+2]);
                     save_video(ca->prefixes[carcinIdx+1],
-                               ca->outNames[carcinIdx+2], videoFramerate,
-                               ca->maxT);
+                               ca->outNames[carcinIdx+2], videoFramerate);
                     printf("Finished video %s.\n", ca->outNames[carcinIdx+2]);
                 }
             }

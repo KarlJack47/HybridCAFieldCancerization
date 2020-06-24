@@ -8,7 +8,7 @@
 #include <iostream>
 #include <unistd.h>
 
-int save_image(uchar4*,size_t,unsigned,char*,unsigned,unsigned,int);
+int save_image(uchar4*,size_t,unsigned,char*,unsigned,int,unsigned);
 
 static void error_callback(int error, const char* description)
 {
@@ -31,9 +31,9 @@ struct GUI {
     void (*fAnimCell)(uchar4*,unsigned,void*,
                       unsigned,unsigned,bool);
     void (*fAnimTimerAndSaver)(void*,bool,unsigned,bool,bool);
-    bool display, paused, excise, perfectExcision, windowsShouldClose,
+    bool display, paused, excise, *perfectExcision, windowsShouldClose,
          detached[nWindows-1], keys[7], *carcinogens;
-    unsigned width, height, ticks, gridSize, *nCarcin, maxNCarcin, maxT,
+    unsigned width, height, ticks, gridSize, *nCarcin, maxNCarcin, *maxT,
              currCarcin, currContext, currCell[2], radius, centerX, centerY;
     char **carcinNames;
 
@@ -48,8 +48,8 @@ struct GUI {
     }
 
     GUI(unsigned w=1024, unsigned h=1024, void *d=NULL, bool show=true,
-        bool perfectexcision=false, unsigned gSize=256,
-        unsigned T=8677, unsigned *ncarcin=NULL, unsigned maxncarcin=2,
+        bool *perfectexcision=NULL, unsigned gSize=256,
+        unsigned *T=NULL, unsigned *ncarcin=NULL, unsigned maxncarcin=2,
         bool *carcin=NULL, char **carNames=NULL)
     {
         unsigned i;
@@ -68,7 +68,6 @@ struct GUI {
         nCarcin = ncarcin; maxNCarcin = maxncarcin;
         if (carcin != NULL)
             carcinogens = carcin;
-        ticks = 0;
 
         glfwSetErrorCallback(error_callback);
 
@@ -231,8 +230,9 @@ struct GUI {
                            unsigned,unsigned,bool),
               void(*fTimeAndSave)(void*,bool,unsigned,bool,bool))
     {
-        unsigned i, idx;
-        bool exciseBefore, displayBefore;
+        //                              s    e    p   c   a   b    x
+        unsigned i, idx, keyVal[7] = { 115, 101, 112, 99, 97, 98, 120 };
+        bool exciseBefore, displayBefore, changeMaxT;
         int xpos, ypos, key;
         struct termios oldt;
         char cellName[18] = { '\0' };
@@ -248,10 +248,12 @@ struct GUI {
         currContext = 0;
         detached[0] = false; detached[1] = false; detached[2] = false;
         windowsShouldClose = false;
+        ticks = 0;
         if (display) show_window(windows[0]);
 
         while (!windowsShouldClose) {
             exciseBefore = excise; displayBefore = display;
+            changeMaxT = false;
             for (i = 0; i < 7; i++)
                 keys[i] = false;
             set_terminal_mode(&oldt);
@@ -265,40 +267,36 @@ struct GUI {
                     excise ? excise = false : excise = true;
                 else if (key == 103) // g key
                     display ? display = false : display = true;
-                else if (key == 115) // s key
-                    keys[0] ? keys[0] = false : keys[0] = true;
-                else if (key == 101) // e key
-                    keys[1] ? keys[1] = false : keys[1] = true;
-                else if (key == 112) // p key
-                    keys[2] ? keys[2] = false : keys[2] = true;
-                else if (key == 99) // c key
-                    keys[3] ? keys[3] = false : keys[3] = true;
-                else if (key == 97) // a key
-                    keys[4] ? keys[4] = false : keys[4] = true;
-                else if (key == 98) // c key
-                    keys[5] ? keys[5] = false : keys[5] = true;
-                else if (key == 120) // x key
-                    keys[6] ? keys[6] = false : keys[6] = true;
+                else if (key == 116) // t key
+                    changeMaxT ? changeMaxT = false : changeMaxT = true;
+                for (i = 0; i < 7; i++)
+                    if (key == keyVal[i]) {
+                        keys[i] ? keys[i] = false : keys[i] = true;
+                        break;
+                    }
             }
             reset_terminal_mode(&oldt);
+            fflush(stdout);
             if (excise && exciseBefore != excise) {
-                printf("\bExcision mode is activated.\n");
-                printf("Pick circle center location (0-%d 0-%d): \n",
+                printf("Excision mode is activated.\n");
+                printf("Pick circle center location (0-%d 0-%d): ",
                        gridSize, gridSize);
                 scanf("%d %d", &centerX, &centerY);
                 printf("Pick the radius of excision: ");
                 scanf("%d", &radius);
             }
             else if (!excise && exciseBefore != excise)
-                printf("\bExcision mode is deactivated.\n");
-            if (display && displayBefore != display)
+                printf("Excision mode is deactivated.\n");
+            if (displayBefore != display)
                 for (i = 0; i < nWindows; i++)
-                    if (i == CA_GRID || detached[i-1])
-                        show_window(windows[i]);
-            else if (!display && displayBefore != display)
-                for (i = 0; i < nWindows; i++)
-                    if (i == CA_GRID || detached[i-1])
-                        hide_window(windows[i]);
+                    if (i == CA_GRID || detached[i-1]) {
+                        if (display) show_window(windows[i]);
+                        else hide_window(windows[i]);
+                    }
+            if (changeMaxT) {
+                printf("Pick a new maximum time (<999999): ");
+                scanf("%u", maxT);
+            }
 
             if (glfwWindowShouldClose(windows[CA_GRID])
              || glfwWindowShouldClose(windows[GENE_INFO])
@@ -375,7 +373,7 @@ struct GUI {
 
             if (!paused) ticks++;
 
-            if (ticks == maxT+1) break;
+            if (ticks == *maxT+1) break;
         }
     }
 
@@ -391,7 +389,6 @@ struct GUI {
                                bool *separated, unsigned n = 4, bool incr=true)
     {
         unsigned i;
-        int xpos, ypos;
 
         if (separated[0] && separated[1] && (n == 4 && separated[2])) {
             *curr = CA_GRID;
@@ -399,24 +396,10 @@ struct GUI {
             return;
         }
 
-        glfwGetWindowPos(windows[*curr], &xpos, &ypos);
-        for (i = 0; i < n; i++) {
-            if (i == *curr) continue;
-            if (i == CA_GRID || (i != CA_GRID && !separated[i-1]))
-                glfwSetWindowPos(windows[i], xpos, ypos);
-        }
-
         change_current(curr, n, incr);
         while (*curr != CA_GRID && separated[*curr-1]) {
             if (*curr == CA_GRID) break;
             change_current(curr, n, incr);
-        }
-
-        glfwGetWindowPos(windows[*curr], &xpos, &ypos);
-        for (i = 0; i < n; i++) {
-            if (i == *curr) continue;
-            if (i == CA_GRID || (i != CA_GRID && !separated[i-1]))
-                glfwSetWindowPos(windows[i], xpos, ypos);
         }
 
         for (i = 0; i < n; i++) {
@@ -582,7 +565,7 @@ struct GUI {
                     sprintf(prefix, "cell(%d, %d)_", gui->currCell[0],
                             gui->currCell[1]);
                     save_image(gui->devPtrs[2], gui->width, 16, prefix,
-                               gui->ticks-1, gui->maxT, 0);
+                               gui->ticks-1, 0, 6);
                 }
                 break;
             case GLFW_KEY_A:
@@ -671,7 +654,7 @@ struct GUI {
             gui->currCell[0] = cellX;
             gui->currCell[1] = cellY;
 
-            if (!gui->perfectExcision && gui->excise && gui->paused) {
+            if (!(*gui->perfectExcision) && gui->excise && gui->paused) {
                 gui->centerX = cellX;
                 gui->centerY = cellY;
                 printf("Circle center location (%d, %d)\n",
