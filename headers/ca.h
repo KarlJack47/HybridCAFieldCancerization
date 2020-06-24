@@ -98,6 +98,7 @@ struct CA {
                     print_progress(numFinished, gridSize*gridSize);
                 }
             printf("\n");
+            fflush(stdout);
             printf("It took %f seconds to finish freeing the memory.\n",
                    omp_get_wtime() - start);
         }
@@ -352,6 +353,7 @@ struct CA {
                 print_progress(numFinished, gridSize*gridSize);
             }
         printf("\n");
+        fflush(stdout);
 
         cells_gpu_to_gpu_cpy<<< blocks, threads, 0, kernel[0] >>>(
             newGrid, prevGrid, gridSize, nGenes

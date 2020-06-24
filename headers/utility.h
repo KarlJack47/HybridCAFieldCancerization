@@ -67,6 +67,7 @@ void print_progress(unsigned currAmount, unsigned N)
     for (k = 0; k < limit; k++) strcat(format, "\b");
     strcat(format, "%.2f/%.2f");
     printf(format, progress, 100.0);
+    fflush(stdout);
 }
 
 __host__ __device__ bool check_in_circle(unsigned x, unsigned y, unsigned gSize,
