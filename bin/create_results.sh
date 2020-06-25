@@ -75,7 +75,7 @@ sed -i '/progress/d' out.txt
 for ((i=1; i <= numSim; i++)); do
     cd $i
     gnuplot ../../bin/create_plots
-    sed 's/.*Starting simulation $i\(.*\)Done simulation $i/\1/' out.txt > $i.txt
+    sed 's/.*Starting simulation $i\(.*\)Done simulation $i/\1/' ../out.txt > $i.txt
     cd ..
 done
 
