@@ -3,7 +3,7 @@
 
 __global__ void copy_frame(uchar4*, unsigned char*);
 int save_image(uchar4 *outputBitmap, size_t size, unsigned blockSize,
-               char *prefix, unsigned time, int dev, unsigned nDigitsMaxT=6)
+               char *prefix, unsigned time, int dev, unsigned nDigitsMaxT=7)
 {
     dim3 blocks(NBLOCKS(size, blockSize), NBLOCKS(size, blockSize));
     dim3 threads(blockSize, blockSize);
@@ -65,20 +65,48 @@ int save_image(uchar4 *outputBitmap, size_t size, unsigned blockSize,
     return 0;
 }
 
-void save_video(char *prefix, char *outputName,
-                unsigned framerate, unsigned nDigitsMaxT=6)
+void save_video(char *prefix, char *outputName, unsigned startPoint,
+                unsigned framerate, unsigned nDigitsMaxT=7)
 {
+    unsigned i;
     char command[250] = { '\0' };
+    char frames[2][strlen(prefix)+12];
+    char *temp;
 
-    sprintf(command, "ffmpeg -y -v quiet -framerate %d -start_number 0 -i ",
-            framerate);
+    for (i = 0; i < 2; i++) {
+        if (prefix != NULL) strcat(frames[i], prefix);
+        sprintf(&frames[i][strlen(frames[i])], "_frame%d.mp4", i+1);
+    }
+
+    if (startPoint == 0) temp = outputName;
+    else temp = frames[1];
+
+    sprintf(command, "ffmpeg -y -v quiet -framerate %d -start_number %d -i ",
+            framerate, startPoint);
     if (prefix != NULL) strcat(command, prefix);
     if (nDigitsMaxT == 1) strcat(command, "%%d.jpeg");
     else sprintf(&command[strlen(command)], "%%%d%dd.jpeg", 0, nDigitsMaxT);
     sprintf(&command[strlen(command)], " -c:v libx264 -pix_fmt yuv420p %s",
-            outputName);
+            temp);
 
     system(command);
+
+    if (startPoint != 0) {
+        if (rename(outputName, frames[0]) != 0)
+            fprintf(stderr, "%s couldn't be renamed to %s\n",
+                    outputName, frames[0]);
+        memset(command, '\0', 250);
+        strcat(command, "ffmpeg -y -v quiet -f concat -safe 0 ");
+        sprintf(&command[strlen(command)],
+                "-i <(echo \"file '$PWD/%s'\"; echo \"file '$PWD/%s'\") ",
+                frames[0], frames[1]);
+        sprintf(&command[strlen(command)], "-c copy %s", outputName);
+        system(command);
+        if (remove(frames[0]) != 0)
+            fprintf(stderr, "%s couldn't be deleted\n", frames[0]);
+        if (remove(frames[1]) != 0)
+            fprintf(stderr, "%s couldn't be deleted\n", frames[1]);
+    }
 }
 
 int compress_and_save_data(char *fname, char *header, char *input, size_t bytes) {

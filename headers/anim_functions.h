@@ -396,7 +396,8 @@ void anim_gpu_cell(uchar4* outputBitmap, unsigned dim, CA *ca,
 void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
                               bool windowsShouldClose)
 {
-    const unsigned videoFramerate = 24;
+    unsigned videoFramerate = 24;
+    int startPoint = ticks - videoFramerate;
     unsigned carcinIdx;
 
     if (start && !windowsShouldClose) {
@@ -409,20 +410,24 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
     }
     if (ticks == 0 && !paused) ca->start = clock();
 
-    if (!start && ca->save && (windowsShouldClose
-    || (!paused && ticks == ca->maxT))) {
+    if (!start && ca->save && (windowsShouldClose || (!paused && ((ticks != 0
+     && startPoint % videoFramerate == 0) || ticks == ca->maxT)))) {
+        if (ticks < videoFramerate) {
+            startPoint = 0;
+            videoFramerate = 1;
+        }
         #pragma omp parallel sections num_threads(3)
         {
             #pragma omp section
             {
                 printf("Saving video %s.\n", ca->outNames[0]);
-                save_video(NULL, ca->outNames[0], videoFramerate);
+                save_video(NULL, ca->outNames[0], startPoint, videoFramerate);
                 printf("Finished video %s.\n", ca->outNames[0]);
             }
             #pragma omp section
             {
                 printf("Saving video %s.\n", ca->outNames[1]);
-                save_video(ca->prefixes[0], ca->outNames[1],
+                save_video(ca->prefixes[0], ca->outNames[1], startPoint,
                            videoFramerate);
                 printf("Finished video %s.\n", ca->outNames[1]);
             }
@@ -431,8 +436,8 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
                 for (carcinIdx = 0; carcinIdx < ca->maxNCarcin; carcinIdx++) {
                     if (!ca->carcinogens[carcinIdx]) continue;
                     printf("Saving video %s.\n", ca->outNames[carcinIdx+2]);
-                    save_video(ca->prefixes[carcinIdx+1],
-                               ca->outNames[carcinIdx+2], videoFramerate);
+                    save_video(ca->prefixes[carcinIdx+1], ca->outNames[carcinIdx+2],
+                               startPoint, videoFramerate);
                     printf("Finished video %s.\n", ca->outNames[carcinIdx+2]);
                 }
             }

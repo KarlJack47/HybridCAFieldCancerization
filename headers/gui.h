@@ -565,7 +565,7 @@ struct GUI {
                     sprintf(prefix, "cell(%d, %d)_", gui->currCell[0],
                             gui->currCell[1]);
                     save_image(gui->devPtrs[2], gui->width, 16, prefix,
-                               gui->ticks-1, 0, 6);
+                               gui->ticks-1, 0, 7);
                 }
                 break;
             case GLFW_KEY_A:
