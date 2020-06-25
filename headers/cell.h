@@ -30,14 +30,14 @@ struct CellParams {
         if (phenoinit == NULL) {
             phenoInit[ NC * nPheno + PROLIF] = 0.024000;
             phenoInit[MNC * nPheno + PROLIF] = 0.024000;
-            phenoInit[ SC * nPheno + PROLIF] = 0.013700;
-            phenoInit[MSC * nPheno + PROLIF] = 0.006850;
+            phenoInit[ SC * nPheno + PROLIF] = 0.013600;
+            phenoInit[MSC * nPheno + PROLIF] = 0.006800;
             phenoInit[CSC * nPheno + PROLIF] = 0.001250;
             phenoInit[ TC * nPheno + PROLIF] = 0.001250;
             phenoInit[ NC * nPheno +  QUIES] = 0.966000;
             phenoInit[MNC * nPheno +  QUIES] = 0.971000;
-            phenoInit[ SC * nPheno +  QUIES] = 0.956300;
-            phenoInit[MSC * nPheno +  QUIES] = 0.965650;
+            phenoInit[ SC * nPheno +  QUIES] = 0.956400;
+            phenoInit[MSC * nPheno +  QUIES] = 0.965700;
             phenoInit[CSC * nPheno +  QUIES] = 0.991250;
             phenoInit[ TC * nPheno +  QUIES] = 0.997500;
             phenoInit[ NC * nPheno +   APOP] = 0.010000;
