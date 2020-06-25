@@ -78,6 +78,8 @@ for ((i=1; i <= numSim; i++)); do
   gnuplot ../../bin/create_plots
   sed -n '/'"${pattern[0]}"$i'/,/'"${pattern[1]}"$i'/p;/'"${pattern[1]}"$i'/q'\
     ../out.txt > $i.txt
+  sed -i '/'"${pattern[0]}"$i'/,/'"${pattern[1]}"$i'/d;/'"${pattern[1]}"$i'/q'\
+    ../out.txt
   cd ..
 done
 
