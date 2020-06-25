@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 
     double carcinMutMap[maxNCarcin*nGenes], Wx[(maxNCarcin+1)*nGenes],
            Wy[nGenes*nGenes];
-    double mutRatePerMitosis = 1e-8, alpha = 1000000.0, bias = 0.001;
+    double mutRatePerMitosis = 1e-7, alpha = 1000000.0, bias = 0.001;
     dim3 geneColors[nGenes];
 
     effect upregPhenoMap[nPheno*nGenes], downregPhenoMap[nPheno*nGenes];
