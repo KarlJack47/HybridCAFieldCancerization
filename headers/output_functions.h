@@ -70,12 +70,14 @@ void save_video(char *prefix, char *outputName, unsigned startPoint,
 {
     unsigned i;
     char command[250] = { '\0' };
-    char frames[2][strlen(prefix)+12];
+    char frames[2][(prefix ? strlen(prefix) : 0)+11] = { { '\0' }, { '\0' } };
     char *temp;
+    FILE *vidList; struct stat buffer;
+    char vidListName[(prefix ? strlen(prefix) : 0)+11] = { '\0' };
 
     for (i = 0; i < 2; i++) {
-        if (prefix != NULL) strcat(frames[i], prefix);
-        sprintf(&frames[i][strlen(frames[i])], "_frame%d.mp4", i+1);
+        if (prefix) strcat(frames[i], prefix);
+        sprintf(&frames[i][strlen(frames[i])], "frame%d.mp4", i+1);
     }
 
     if (startPoint == 0) temp = outputName;
@@ -83,7 +85,7 @@ void save_video(char *prefix, char *outputName, unsigned startPoint,
 
     sprintf(command, "ffmpeg -y -v quiet -framerate %d -start_number %d -i ",
             framerate, startPoint);
-    if (prefix != NULL) strcat(command, prefix);
+    if (prefix) strcat(command, prefix);
     if (nDigitsMaxT == 1) strcat(command, "%%d.jpeg");
     else sprintf(&command[strlen(command)], "%%%d%dd.jpeg", 0, nDigitsMaxT);
     sprintf(&command[strlen(command)], " -c:v libx264 -pix_fmt yuv420p %s",
@@ -92,15 +94,26 @@ void save_video(char *prefix, char *outputName, unsigned startPoint,
     system(command);
 
     if (startPoint != 0) {
+        if (prefix) strcat(vidListName, prefix);
+        strcat(vidListName, "videos.txt");
+        if (stat(vidListName, &buffer) == -1) {
+            if (!(vidList = fopen(vidListName, "w")))
+                fprintf(stderr, "Error opening %s\n", vidListName);
+            else {
+                fprintf(vidList, "file '%s'\nfile '%s'\n",
+                        frames[0], frames[1]);
+                fclose(vidList);
+            }
+        }
+
         if (rename(outputName, frames[0]) != 0)
             fprintf(stderr, "%s couldn't be renamed to %s\n",
                     outputName, frames[0]);
+
         memset(command, '\0', 250);
         strcat(command, "ffmpeg -y -v quiet -f concat -safe 0 ");
-        sprintf(&command[strlen(command)],
-                "-i <(echo \"file '$PWD/%s'\"; echo \"file '$PWD/%s'\") ",
-                frames[0], frames[1]);
-        sprintf(&command[strlen(command)], "-c copy %s", outputName);
+        sprintf(&command[strlen(command)], "-i %s -c copy %s",
+                vidListName, outputName);
         system(command);
         if (remove(frames[0]) != 0)
             fprintf(stderr, "%s couldn't be deleted\n", frames[0]);
