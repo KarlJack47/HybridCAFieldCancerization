@@ -275,8 +275,8 @@ struct GUI {
                         break;
                     }
             }
-            reset_terminal_mode(&oldt);
             fflush(stdout);
+            reset_terminal_mode(&oldt);
             if (excise && exciseBefore != excise) {
                 printf("Excision mode is activated.\n");
                 printf("Pick circle center location (0-%d 0-%d): ",
