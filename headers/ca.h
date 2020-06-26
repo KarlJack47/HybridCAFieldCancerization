@@ -141,9 +141,9 @@ struct CA {
             CudaSafeCall(cudaFree(centerY));
         }
         if (outNames != NULL && prefixes != NULL) {
-            for (i = 0; i < nCarcin+2; i++) {
+            for (i = 0; i < maxNCarcin+2; i++) {
                 free(outNames[i]); outNames[i] = NULL;
-                if (i < nCarcin+1) { free(prefixes[i]); prefixes[i] = NULL; }
+                if (i < maxNCarcin+1) { free(prefixes[i]); prefixes[i] = NULL; }
             }
             free(outNames); outNames = NULL;
             free(prefixes); prefixes = NULL;
@@ -228,15 +228,15 @@ struct CA {
         stateColors[EMPTY] = dim3(255, 255, 255); // white
         CudaSafeCall(cudaMallocManaged((void**)&geneColors, nGenes*sizeof(dim3)));
 
-        prefixes = (char**)malloc((nCarcin+1)*sizeof(char*));
-        outNames = (char**)malloc((nCarcin+2)*sizeof(char*));
+        prefixes = (char**)malloc((maxNCarcin+1)*sizeof(char*));
+        outNames = (char**)malloc((maxNCarcin+2)*sizeof(char*));
         prefixes[0] = (char*)calloc(7, 1);
         strcat(prefixes[0], "genes_");
         outNames[0] = (char*)calloc(11, 1);
         strcat(outNames[0], "out_ca.mp4");
         outNames[1] = (char*)calloc(14, 1);
         strcat(outNames[1], "out_genes.mp4");
-        for (i = 0; i < nCarcin; i++) {
+        for (i = 0; i < maxNCarcin; i++) {
             prefixes[i+1] = (char*)calloc(15, 1);
             sprintf(prefixes[i+1], "carcin%d_", i);
             outNames[i+2] = (char*)calloc(25, 1);
