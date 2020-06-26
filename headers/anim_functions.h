@@ -397,7 +397,7 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
                               bool windowsShouldClose)
 {
     unsigned videoFramerate = 24;
-    int startPoint = ticks - videoFramerate;
+    long int startPoint = (int) (ticks - videoFramerate);
     unsigned carcinIdx;
 
     if (start && !windowsShouldClose) {
@@ -416,6 +416,8 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
             startPoint = 0;
             videoFramerate = 1;
         }
+        if (ticks == ca->maxT && ticks > videoFramerate)
+            startPoint = (int) (ticks - ticks % videoFramerate);
         #pragma omp parallel sections num_threads(3)
         {
             #pragma omp section
