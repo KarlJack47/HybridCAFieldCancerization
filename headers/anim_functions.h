@@ -398,7 +398,8 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
 {
     unsigned videoFramerate = 24;
     long int startPoint = (int) (ticks - videoFramerate);
-    unsigned carcinIdx;
+    unsigned carcinIdx, i;
+    char *vidListName= NULL; struct stat buffer;
 
     if (start && !windowsShouldClose) {
         ca->startStep = clock();
@@ -450,6 +451,16 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
         ca->end = clock();
         printf("It took %f seconds to run the %d time steps.\n",
                (double) (ca->end - ca->start) / CLOCKS_PER_SEC, ticks);
+        for (i = 0; i < ca->maxNCarcin+2; i++) {
+            vidListName = (char*)calloc((i == ca->maxNCarcin+1 ? 0
+                                         : strlen(ca->prefixes[i])) + 11, 1);
+            if (i != ca->maxNCarcin+1) strcat(vidListName, ca->prefixes[i]);
+            strcat(vidListName, "videos.txt");
+            if (stat(vidListName, &buffer) == -1) continue;
+            if (remove(vidListName) != 0)
+                fprintf(stderr, "Error removing %s.\n", vidListName);
+            free(vidListName); vidListName = NULL;
+        }
     }
 }
 
