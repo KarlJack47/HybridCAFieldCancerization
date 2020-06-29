@@ -177,7 +177,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             }
 
             update_states<<< blocks, threads, 0, streams[0] >>>(
-                ca->newGrid, ca->gridSize, ca->nGenes
+                ca->newGrid, ca->gridSize, ca->nGenes, ticks
             );
             CudaCheckError();
 

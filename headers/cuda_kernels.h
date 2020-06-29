@@ -462,18 +462,19 @@ __global__ void rule(Cell *newG, Cell *prevG, unsigned gSize,
     free(rndIdx); rndIdx = NULL;
 }
 
-__global__ void update_states(Cell *G, unsigned gSize, unsigned nGenes)
+__global__ void update_states(Cell *G, unsigned gSize,
+                              unsigned nGenes, unsigned t)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned idx = x * gSize + y;
-	unsigned i;
-    // Instead one could look at certain needing to be positively mutated
-	unsigned minMut = 2;
-	unsigned numMut = 0;
+	unsigned i, minMut = 2, numMut = 0;
+	double chanceCSCForm = 0.01;
+	curandState_t rndState;
 
 	if (!(x < gSize && y < gSize)) return;
 
+    // Can a CSC go back to MSC if not enough mutations?
     if (G[idx].state == CSC || G[idx].state == TC || G[idx].state == EMPTY)
         return;
 
@@ -491,6 +492,11 @@ __global__ void update_states(Cell *G, unsigned gSize, unsigned nGenes)
         G[idx].change_state(MNC);
     else if (numMut == minMut && G[idx].state == SC)
         G[idx].change_state(MSC);
+    else if (numMut == minMut && G[idx].state == MSC) {
+        curand_init((unsigned long long) clock(), idx+t, 0, &rndState);
+        if (curand_uniform_double(&rndState) <= chanceCSCForm)
+            G[idx].change_state(CSC);
+    }
 }
 
 __global__ void tumour_excision(Cell *newG, unsigned gSize, unsigned nGenes)

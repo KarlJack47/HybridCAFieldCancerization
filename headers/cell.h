@@ -9,14 +9,13 @@ struct CellParams {
 
     effect *upregPhenoMap, *downregPhenoMap;
     double *phenoInit;
-    ca_state *stateMutMap, *prolifMutMap, *diffMutMap;
+    ca_state *diffMap;
     gene_type *geneType;
     gene_related *geneRelations;
 
     CellParams(unsigned nStates, unsigned nGenes, double alpha,
                effect *upregphenomap, effect *downregphenomap,
-               ca_state *statemutmap, ca_state *prolifmutmap,
-               ca_state *diffmutmap, gene_type *genetype,
+               ca_state *diffmap, gene_type *genetype,
                gene_related *generelations, double *phenoinit=NULL)
     : nPheno(4), nNeigh(8), phenoIncr(1e-6), exprAdjMaxIncr(1.0/sqrt(alpha)),
       mutThresh(0.1), CSCGeneIdx(RB), chanceMove(0.25), chanceKill(0.4),
@@ -32,14 +31,14 @@ struct CellParams {
             phenoInit[MNC * nPheno + PROLIF] = 0.024000;
             phenoInit[ SC * nPheno + PROLIF] = 0.013600;
             phenoInit[MSC * nPheno + PROLIF] = 0.006800;
-            phenoInit[CSC * nPheno + PROLIF] = 0.001250;
-            phenoInit[ TC * nPheno + PROLIF] = 0.001250;
+            phenoInit[CSC * nPheno + PROLIF] = 0.000625;
+            phenoInit[ TC * nPheno + PROLIF] = 0.000625;
             phenoInit[ NC * nPheno +  QUIES] = 0.966000;
             phenoInit[MNC * nPheno +  QUIES] = 0.971000;
             phenoInit[ SC * nPheno +  QUIES] = 0.956400;
             phenoInit[MSC * nPheno +  QUIES] = 0.965700;
-            phenoInit[CSC * nPheno +  QUIES] = 0.991250;
-            phenoInit[ TC * nPheno +  QUIES] = 0.997500;
+            phenoInit[CSC * nPheno +  QUIES] = 0.991875;
+            phenoInit[ TC * nPheno +  QUIES] = 0.992500;
             phenoInit[ NC * nPheno +   APOP] = 0.010000;
             phenoInit[MNC * nPheno +   APOP] = 0.005000;
             phenoInit[ SC * nPheno +   APOP] = 0.005000;
@@ -61,15 +60,9 @@ struct CellParams {
         CudaSafeCall(cudaMallocManaged((void**)&downregPhenoMap,
                                         nGenes*nPheno*eff));
         memcpy(downregPhenoMap, downregphenomap, nGenes*nPheno*eff);
-        CudaSafeCall(cudaMallocManaged((void**)&stateMutMap,
-                                       (nStates-1)*nGenes*st));
-        memcpy(stateMutMap, statemutmap, (nStates-1)*nGenes*st);
-        CudaSafeCall(cudaMallocManaged((void**)&prolifMutMap,
-                                       (nStates-1)*nGenes*st));
-        memcpy(prolifMutMap, prolifmutmap, (nStates-1)*nGenes*st);
-        CudaSafeCall(cudaMallocManaged((void**)&diffMutMap,
-                                       (nStates-1)*(nGenes+1)*st));
-        memcpy(diffMutMap, diffmutmap, (nStates-1)*(nGenes+1)*st);
+        CudaSafeCall(cudaMallocManaged((void**)&diffMap,
+                                       (nStates-4)*st));
+        memcpy(diffMap, diffmap, (nStates-4)*st);
         CudaSafeCall(cudaMallocManaged((void**)&geneType,
                                        nGenes*gType));
         memcpy(geneType, genetype, nGenes*gType);
@@ -89,14 +82,8 @@ struct CellParams {
         if (phenoInit != NULL) {
             CudaSafeCall(cudaFree(phenoInit)); phenoInit = NULL;
         }
-        if (stateMutMap != NULL) {
-            CudaSafeCall(cudaFree(stateMutMap)); stateMutMap = NULL;
-        }
-        if (prolifMutMap != NULL) {
-            CudaSafeCall(cudaFree(prolifMutMap)); prolifMutMap = NULL;
-        }
-        if (diffMutMap != NULL) {
-            CudaSafeCall(cudaFree(diffMutMap)); diffMutMap = NULL;
+        if (diffMap != NULL) {
+            CudaSafeCall(cudaFree(diffMap)); diffMap = NULL;
         }
         if (geneType != NULL) {
             CudaSafeCall(cudaFree(geneType)); geneType = NULL;
@@ -124,14 +111,8 @@ struct CellParams {
         CudaSafeCall(cudaMemPrefetchAsync(phenoInit,
                                           nStates*nPheno*dbl,
                                           dev, *stream));
-        CudaSafeCall(cudaMemPrefetchAsync(stateMutMap,
-                                          (nStates-1)*nGenes*st,
-                                          dev, *stream));
-        CudaSafeCall(cudaMemPrefetchAsync(prolifMutMap,
-                                          (nStates-1)*nGenes*st,
-                                          dev, *stream));
-        CudaSafeCall(cudaMemPrefetchAsync(diffMutMap,
-                                          (nStates-1)*(nGenes+1)*st,
+        CudaSafeCall(cudaMemPrefetchAsync(diffMap,
+                                          (nStates-4)*st,
                                           dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(geneType, nGenes*gType,
                                           dev, *stream));
@@ -442,7 +423,6 @@ struct Cell {
                                unsigned gSize, unsigned nGenes)
     {
         ca_state newState = ERROR;
-        gene m;
         curandState_t localState;
 
         if (state != CSC && state != TC && c->state != EMPTY)
@@ -456,24 +436,12 @@ struct Cell {
 
         localState = *rndState;
 
-        m = (gene) ((unsigned) ceil(curand_uniform_double(&localState)
-          * (double) nGenes) % nGenes);
-
         if ((state == CSC && c->state != EMPTY
           && curand_uniform_double(&localState) <= params->chanceKill)
          || (state == TC && c->state != EMPTY
           && curand_uniform_double(&localState) <= params->chanceKill)
           || c->state == EMPTY) {
-            if (!positively_mutated(m)) newState = state;
-            else {
-                if (curand_uniform_double(&localState) <= 0.5) {
-                    change_state(params->stateMutMap[state*nGenes+m]);
-                    newState = params->prolifMutMap[state*nGenes+m];
-                } else {
-                    newState = params->prolifMutMap[state*nGenes+m];
-                    change_state(params->stateMutMap[state*nGenes+m]);
-                }
-            }
+            newState = state;
             if (c->state != EMPTY && (state == CSC || state == TC)) {
                 printf("(%d, %d, %d) killed by (%d, %d, %d) via proliferation\n",
                        c->location / gSize, c->location % gSize, c->state,
@@ -495,8 +463,10 @@ struct Cell {
                                  unsigned gSize, unsigned nGenes)
     {
         ca_state newState = ERROR;
-        gene m;
         curandState_t localState;
+
+        if (state != SC && state != MSC && state != CSC)
+            return -1;
 
         if (state != CSC && c->state != EMPTY)
             return -2;
@@ -507,24 +477,10 @@ struct Cell {
 
         localState = *rndState;
 
-        m = (gene) ((unsigned) ceil(curand_uniform_double(&localState)
-          * (double) nGenes) % nGenes);
-
         if ((state == CSC && c->state != EMPTY
            && curand_uniform_double(&localState) <= params->chanceKill)
          || c->state == EMPTY) {
-            if (!positively_mutated(m))
-                newState = params->diffMutMap[state*(nGenes+1)];
-            else {
-                if (curand_uniform_double(&localState) <= 0.5) {
-                    change_state(params->stateMutMap[state*nGenes+m]);
-                    newState = params->diffMutMap[state*(nGenes+1)+(m+1)];
-                } else {
-                    newState = params->diffMutMap[state*(nGenes+1)+(m+1)];
-                    change_state(params->stateMutMap[state*nGenes+m]);
-                }
-            }
-            if (newState == -1) { *rndState = localState; return newState; }
+            newState = params->diffMap[state-2];
             if (c->state != EMPTY && state == CSC) {
                 printf("(%d, %d, %d) killed by (%d, %d, %d) via differentiation\n",
                        c->location / gSize, c->location % gSize, c->state,

@@ -47,8 +47,7 @@ int main(int argc, char *argv[])
     dim3 geneColors[nGenes];
 
     effect upregPhenoMap[nPheno*nGenes], downregPhenoMap[nPheno*nGenes];
-    ca_state stateMutMap[nGenes*(nStates-1)], prolifMutMap[nGenes*(nStates-1)], 
-             diffMutMap[(nGenes+1)*(nStates-1)];
+    ca_state diffMap[nStates-4];
     gene_type geneType[nGenes];
     gene_related geneRelations[nGenes*nGenes];
     CellParams *params = NULL;
@@ -194,31 +193,10 @@ int main(int argc, char *argv[])
             downregPhenoMap[i*nPheno+j] = (effect) -upregPhenoMap[i*nPheno+j];
         }
 
-    for (i = 0; i < nGenes; i++) {
-        stateMutMap[ NC*nGenes+i] = MNC;
-        stateMutMap[MNC*nGenes+i] = MNC;
-        stateMutMap[ SC*nGenes+i] = MSC;
-        stateMutMap[MSC*nGenes+i] = MSC;
-        stateMutMap[CSC*nGenes+i] = CSC;
-        stateMutMap[ TC*nGenes+i] =  TC;
-    }
-    for (i = 2; i < 4; i++) {
-        stateMutMap[i*nGenes+MYC] = CSC;
-        stateMutMap[i*nGenes+RAS] = CSC;
-    }
-    memcpy(prolifMutMap, stateMutMap, (ca->nStates-1)*nGenes*st);
-
-    memset(diffMutMap, ERROR, (ca->nStates-1)*(nGenes+1)*st);
-    for (i = 0; i < nGenes+1; i++) {
-        diffMutMap[ SC*(nGenes+1)+i] =  NC;
-        diffMutMap[MSC*(nGenes+1)+i] = MNC;
-        diffMutMap[CSC*(nGenes+1)+i] =  TC;
-    }
-    diffMutMap[SC*nGenes+(TP53+1)] = MNC;
-    for (i = 2; i < 4; i++) {
-        diffMutMap[i*(nGenes+1)+(MYC+1)] = CSC;
-        diffMutMap[i*(nGenes+1)+(RAS+1)] = CSC;
-    }
+    memset(diffMap, ERROR, (nStates-4)*st);
+    diffMap[ SC-2] =  NC;
+    diffMap[MSC-2] = MNC;
+    diffMap[CSC-2] =  TC;
 
     geneType[ TP53] = SUPPR; geneType[TP73] = SUPPR; geneType[    RB] = SUPPR;
     geneType[  P21] = SUPPR; geneType[TP16] = SUPPR; geneType[  EGFR] =  ONCO;
@@ -236,8 +214,7 @@ int main(int argc, char *argv[])
 
     CudaSafeCall(cudaMallocManaged((void**)&params, sizeof(CellParams)));
     *params = CellParams(ca->nStates, nGenes, alpha, upregPhenoMap,
-                         downregPhenoMap, stateMutMap, prolifMutMap,
-                         diffMutMap, geneType, geneRelations);
+                         downregPhenoMap, diffMap, geneType, geneRelations);
 
 	memset(Wx, 0, nGenes*(maxNCarcin+1)*dbl);
 	memset(Wy, 0, nGenes*nGenes*dbl);
@@ -320,7 +297,7 @@ int main(int argc, char *argv[])
         CudaSafeCall(cudaDeviceSynchronize());
 
         update_states<<< blocks, threads >>>(ca->prevGrid, ca->gridSize,
-                                             ca->nGenes);
+                                             ca->nGenes, 0);
         CudaCheckError();
         CudaSafeCall(cudaDeviceSynchronize());
 
@@ -409,7 +386,7 @@ int main(int argc, char *argv[])
         ca->centerX[0] = gridSize / 2 - 1; ca->centerY[0] = ca->centerX[0];
 
         
-    } while(k < nSim);
+    } while(k <= nSim);
 
     CudaSafeCall(cudaFree(weightStates));
     cleanup(ca, gui, params);
