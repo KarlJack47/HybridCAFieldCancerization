@@ -386,7 +386,8 @@ int main(int argc, char *argv[])
                                                     gridSize, nGenes);
         CudaCheckError();
         CudaSafeCall(cudaDeviceSynchronize());
-        
+
+        gui->windowsShouldClose = false;
         gui->display = display; ca->save = save;
         ca->perfectExcision = perfectExcision; ca->maxTTCAlive = maxTTC;
         ca->nCarcin = nCarcin;
@@ -408,8 +409,6 @@ int main(int argc, char *argv[])
         ca->exciseCount = 0;
         ca->radius[0] = gridSize;
         ca->centerX[0] = gridSize / 2 - 1; ca->centerY[0] = ca->centerX[0];
-
-        
     } while(k <= nSim);
 
     CudaSafeCall(cudaFree(weightStates));
