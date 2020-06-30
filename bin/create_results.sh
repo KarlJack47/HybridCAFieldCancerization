@@ -98,4 +98,6 @@ if [ ! -s $outFolder/stats.log ]; then
   rm $outFolder/stats.log
 fi
 
+tput el
+
 exit 0
