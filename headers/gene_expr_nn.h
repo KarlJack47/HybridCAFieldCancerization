@@ -1,8 +1,7 @@
 #ifndef __GENE_EXPR_NN_H__
 #define __GENE_EXPR_NN_H__
 
-__device__ void hid_layer_activation(unsigned idx, double *in,
-                                     double alpha, double *out)
+__device__ void activation(unsigned idx, double *in, double alpha, double *out)
 {
     /*  Computes the value of the ISQRU: f(x) = x/sqrt(1 + alpha*x^2).
         Inputs:
@@ -13,20 +12,6 @@ __device__ void hid_layer_activation(unsigned idx, double *in,
     */
 
     out[idx] = in[idx] / sqrt(1.0 + alpha * in[idx] * in[idx]);
-}
-
-__device__ void out_layer_activation(unsigned idx, double *in,
-                                     double alpha, double *out)
-{
-    /*  Computes the value of the ISQRTU: f(x) = abs(x/sqrt(1 + alpha*x^2)).
-        Inputs:
-          idx: current element being computed
-          in: array, the input array
-          alpha: controls range of output, that being (0, 1/sqrt(alpha))
-          out: array, the results of the computation are to be stored here
-    */
-
-    out[idx] = abs(in[idx] / sqrt(1.0 + alpha * in[idx] * in[idx]));
 }
 
 __device__ double* dot(unsigned idx, double *m1, double *m2, double *out,
@@ -82,11 +67,11 @@ __device__ void feedforward(double *in, double *WIn,
     memset(hid, 0, nHid*sizeof(double));
 
     for (i = 0; i < nHid; i++)
-        hid_layer_activation(i, dot(i, WIn, in, hid, nHid, nIn, 1), alpha, hid);
+        activation(i, dot(i, WIn, in, hid, nHid, nIn, 1), alpha, hid);
 
     for (i = 0; i < nOut; i++)
-        out_layer_activation(i, vec_add(i, dot(i, WOut, hid, out, nHid, nOut, 1),
-                             bOut, out), alpha, out);
+        activation(i, vec_add(i, dot(i, WOut, hid, out, nHid, nOut, 1), bOut, out),
+                   alpha, out);
 
     free(hid); hid = NULL;
 }
@@ -147,9 +132,22 @@ struct GeneExprNN {
         CudaSafeCall(cudaMemPrefetchAsync(WOut, nHid*nOut*dbl, dev, *stream));
     }
 
-    __device__ void evaluate(double *in, double *out, double *bOut)
+    __device__ void evaluate(double *in, double *out, double *bOut,
+                             double chanceUpreg, curandState_t *rndState)
     {
-        feedforward(in, WIn, WOut, bOut, out, nIn, nHid, nOut, alpha);
+        unsigned i;
+        double *WInTemp = (double*)malloc(nHid*nIn*sizeof(double));
+        curandState_t localState = *rndState;
+
+        memcpy(WInTemp, WIn, nHid*nIn*sizeof(double));
+        for (i = 0; i < nHid; i++)
+            if (curand_uniform_double(&localState) > chanceUpreg)
+                WInTemp[i*nIn+(nIn-1)] *= -1;
+
+        feedforward(in, WInTemp, WOut, bOut, out, nIn, nHid, nOut, alpha);
+
+        *rndState = localState;
+        free(WInTemp); WInTemp = NULL;
     }
 
     __device__ void mutate(double *bOut, double *geneExprs, double mutThresh)

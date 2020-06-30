@@ -619,10 +619,10 @@ struct Cell {
         if (state == EMPTY) return;
 
         for (m = 0; m < NN->nOut; m++) {
-            if (curand_uniform_double(rndState) <= params->chanceUpreg)
+            if (NNOut[m] > 0)
                 geneExprs[m*2] += NNOut[m];
-            else
-                geneExprs[m*2+1] += NNOut[m];
+            else if (NNOut[m] < 0)
+                geneExprs[m*2+1] += abs(NNOut[m]);
         }
 
         rnd = curand_uniform_double(rndState);

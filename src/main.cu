@@ -26,7 +26,7 @@ __device__ double func1(double x, double y, unsigned N)
 __device__ double func2(double x, double y, unsigned N)
 {
     double mux = (N / 2.0) - 1.0, muy = mux,
-           sigmax = (N / 10.0), sigmay = sigmax;
+           sigmax = (N / 20.0), sigmay = sigmax;
 
     return exp(-0.5 * (pow(x - mux, 2) / (sigmax * sigmax)
                      + pow(y - muy, 2) / (sigmay * sigmay)));
@@ -242,16 +242,24 @@ int main(int argc, char *argv[])
 
 	memset(Wx, 0, nGenes*(maxNCarcin+1)*dbl);
 	memset(Wy, 0, nGenes*nGenes*dbl);
-    for (i = 0; i < nGenes; i++)
-        for (j = 0; j < maxNCarcin; j++)
-            carcinMutMap[j*maxNCarcin+i] = 1.0;
+	memset(carcinMutMap, 0, maxNCarcin*nGenes*dbl);
+	carcinMutMap[  TP53] =  1.0; carcinMutMap[nGenes +   TP53] = -1.0;
+	carcinMutMap[  TP73] =  0.0; carcinMutMap[nGenes +   TP73] =  0.0;
+	carcinMutMap[    RB] =  0.0; carcinMutMap[nGenes +     RB] = -1.0;
+	carcinMutMap[   P21] =  1.0; carcinMutMap[nGenes +    P21] = -1.0;
+	carcinMutMap[  TP16] =  1.0; carcinMutMap[nGenes +   TP16] =  0.0;
+	carcinMutMap[  EGFR] =  1.0; carcinMutMap[nGenes +   EGFR] =  1.0;
+	carcinMutMap[ CCDN1] =  1.0; carcinMutMap[nGenes +  CCDN1] =  1.0;
+	carcinMutMap[   MYC] =  0.0; carcinMutMap[nGenes +    MYC] =  1.0;
+	carcinMutMap[PIK3CA] =  0.0; carcinMutMap[nGenes + PIK3CA] =  1.0;
+	carcinMutMap[   RAS] =  1.0; carcinMutMap[nGenes +    RAS] =  1.0;
     for (i = 0; i < nGenes; i++)
         for (j = 0; j < maxNCarcin+1; j++) {
             if (j == maxNCarcin) {
                 Wx[i*(maxNCarcin+1)+j] = mutRatePerMitosis;
                 continue;
             }
-            Wx[i*(maxNCarcin+1)+j] = carcinMutMap[j*maxNCarcin+i];
+            Wx[i*(maxNCarcin+1)+j] = carcinMutMap[j*nGenes+i];
         }
     Wy[  TP53 * nGenes +   TP53] =  1.0;
     Wy[  TP73 * nGenes +   TP73] =  0.1;

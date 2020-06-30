@@ -305,10 +305,11 @@ __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
             in[i] = pdes[i].soln[idx];
         else in[i] = 0.0;
     in[NN->nIn-1] = prevG[idx].age;
-    NN->evaluate(in, out, prevG[idx].bOut);
+    curand_init((unsigned long long) clock(), idx+t, 0, &rndState);
+    NN->evaluate(in, out, prevG[idx].bOut, prevG[idx].params->chanceUpreg,
+                 &rndState);
     free(in); in = NULL;
 
-    curand_init((unsigned long long) clock(), idx+t, 0, &rndState);
     prevG[idx].mutate(NN, out, &rndState);
     free(out); out = NULL;
 }
