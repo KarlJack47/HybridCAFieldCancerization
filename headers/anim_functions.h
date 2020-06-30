@@ -91,8 +91,20 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             printf("Enter a carcinogen index (0-%d): ", ca->maxNCarcin-1);
             scanf("%d", &carcinIdx);
             if (carcinIdx < ca->maxNCarcin) {
-                printf("Enter the change in time step for the influx (hours): ");
+                printf("Enter the exposure time period (hours): ");
                 scanf("%lf", &ca->pdes[carcinIdx].exposureTime);
+            }
+            printf("Do you want to enter another carcinogen index? (yes/no) ");
+            fflush(stdout);
+            scanf("%3s", answer);
+        } while(strcmp("no", answer) != 0);
+    } else if (keys[7]) {
+        do {
+            printf("Enter a carcinogen index (0-%d): ", ca->maxNCarcin-1);
+            scanf("%d", &carcinIdx);
+            if (carcinIdx < ca->maxNCarcin) {
+                printf("Enter the sensitivity function index: ");
+                scanf("%u", &ca->pdes[carcinIdx].funcIdx);
             }
             printf("Do you want to enter another carcinogen index? (yes/no) ");
             fflush(stdout);
@@ -161,6 +173,11 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             }
             CudaSafeCall(cudaFree(countData)); countData = NULL;
 
+            update_states<<< blocks, threads, 0, streams[0] >>>(
+                ca->newGrid, ca->gridSize, ca->nGenes, ticks
+            );
+            CudaCheckError();
+
             CudaSafeCall(cudaMallocManaged((void**)&numTC,
                                            sizeof(unsigned)));
             *numTC = 0;
@@ -175,11 +192,6 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 );
                 CudaCheckError();
             }
-
-            update_states<<< blocks, threads, 0, streams[0] >>>(
-                ca->newGrid, ca->gridSize, ca->nGenes, ticks
-            );
-            CudaCheckError();
 
             for (i = 0; i < ca->exciseCount+1; i++) {
                 CudaSafeCall(cudaStreamSynchronize(streamsExcise[i]));
@@ -424,24 +436,30 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
             #pragma omp section
             {
                 printf("Saving video %s.\n", ca->outNames[0]);
+                fflush(stdout);
                 save_video(NULL, ca->outNames[0], startPoint, videoFramerate);
                 printf("Finished video %s.\n", ca->outNames[0]);
+                fflush(stdout);
             }
             #pragma omp section
             {
                 printf("Saving video %s.\n", ca->outNames[1]);
+                fflush(stdout);
                 save_video(ca->prefixes[0], ca->outNames[1], startPoint,
                            videoFramerate);
                 printf("Finished video %s.\n", ca->outNames[1]);
+                fflush(stdout);
             }
             #pragma omp section
             {
                 for (carcinIdx = 0; carcinIdx < ca->maxNCarcin; carcinIdx++) {
                     if (!ca->carcinogens[carcinIdx]) continue;
                     printf("Saving video %s.\n", ca->outNames[carcinIdx+2]);
+                    fflush(stdout);
                     save_video(ca->prefixes[carcinIdx+1], ca->outNames[carcinIdx+2],
                                startPoint, videoFramerate);
                     printf("Finished video %s.\n", ca->outNames[carcinIdx+2]);
+                    fflush(stdout);
                 }
             }
         }

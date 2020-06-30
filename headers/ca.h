@@ -302,10 +302,11 @@ struct CA {
 
     void init(double *diffusion, double *influx, double *outflux, double *ic,
               double *bc, int *maxTInflux, int *maxTNoInflux,
-              double *timeInflux, bool *carcin, double *Wx, double *Wy,
-              double alpha, double bias, dim3 *genecolors, CellParams *params,
-              double *weightStates=NULL, unsigned rTC=0, unsigned cX=0,
-              unsigned cY=0)
+              double *exposureTime, bool *carcin,
+              SensitivityFunc *func, unsigned nFunc, unsigned *funcIdx,
+              double *Wx, double *Wy, double alpha, double bias,
+              dim3 *genecolors, CellParams *params, double *weightStates=NULL,
+              unsigned rTC=0, unsigned cX=0, unsigned cY=0)
     {
         unsigned i, j, k, numFinished, dev;
         int nt = omp_get_num_procs(), counts[nt] = { 0 };
@@ -365,7 +366,7 @@ struct CA {
             pdes[k] = CarcinPDE(dev, k, gridSize, diffusion[k], influx[k],
                                 outflux[k], ic[k], bc[k], maxTInflux[k],
                                 maxTNoInflux[k], cellVolume, cellCycleLen,
-                                timeInflux[k]);
+                                exposureTime[k], func, nFunc, funcIdx[k]);
             pdes[k].prefetch_memory(dev, &prefetch[k+5]);
             pdes[k].init(blockSize, &kernel[k+1]);
             if (carcin[k]) carcinogens[k] = true;

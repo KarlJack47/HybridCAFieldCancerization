@@ -16,7 +16,8 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame)
 }
 
 // Initalizes the carcinogen pde grid.
-__global__ void init_pde(double *soln, double ic, double bc, unsigned N)
+__global__ void init_pde(double *soln, double *maxVal, double ic, double bc,
+                         unsigned N, SensitivityFunc *func, unsigned funcIdx)
 {
 	unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -25,16 +26,19 @@ __global__ void init_pde(double *soln, double ic, double bc, unsigned N)
     if (!(x < N && y < N)) return;
 
     if (x == 0 || x == N-1 || y == 0 || y == N-1)
-        soln[idx] = bc;
+        soln[idx] = (*func[funcIdx])(x, y, N) * bc;
     else
-        soln[idx] = ic;
+        soln[idx] = (*func[funcIdx])(x, y, N) * ic;
+
+    atomicMax(maxVal, soln[idx]);
 }
 
 // Spacial step for the carcinogen pde.
 __global__ void pde_space_step(double *soln, double *maxVal, unsigned t,
                                unsigned N, unsigned maxIter, double bc,
                                double ic, double D, double influx,
-                               double outflux, double deltaxy, double deltat)
+                               double outflux, double deltaxy, double deltat,
+                               SensitivityFunc *func, unsigned funcIdx)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -60,9 +64,9 @@ __global__ void pde_space_step(double *soln, double *maxVal, unsigned t,
                         * sin(y * mOdd * piDivN)) / (nOdd * mOdd);
             }
         }
-        soln[idx] = (16.0 / piSquared) * sum + bc;
+        soln[idx] = (*func[funcIdx])(x, y, N) * ((16.0 / piSquared) * sum + bc);
         if (soln[idx] < 0.0) soln[idx] = 0.0;
-    } else soln[idx] = bc;
+    } else soln[idx] = (*func[funcIdx])(x, y, N) * bc;
 
     atomicMax(maxVal, soln[idx]);
 }
@@ -469,7 +473,7 @@ __global__ void update_states(Cell *G, unsigned gSize,
 	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned idx = x * gSize + y;
 	unsigned i, minMut = 2, numMut = 0;
-	double chanceCSCForm = 0.01;
+	double chanceCSCForm = 0.001;
 	curandState_t rndState;
 
 	if (!(x < gSize && y < gSize)) return;

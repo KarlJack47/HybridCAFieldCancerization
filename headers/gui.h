@@ -32,7 +32,7 @@ struct GUI {
                       unsigned,unsigned,bool);
     void (*fAnimTimerAndSaver)(void*,bool,unsigned,bool,bool);
     bool display, paused, excise, *perfectExcision, windowsShouldClose,
-         detached[nWindows-1], keys[7], *carcinogens;
+         detached[nWindows-1], keys[8], *carcinogens;
     unsigned width, height, ticks, gridSize, *nCarcin, maxNCarcin, *maxT,
              currCarcin, currContext, currCell[2], radius, centerX, centerY;
     char **carcinNames;
@@ -230,8 +230,8 @@ struct GUI {
                            unsigned,unsigned,bool),
               void(*fTimeAndSave)(void*,bool,unsigned,bool,bool))
     {
-        //                              s    e    p   c   a   b    x
-        unsigned i, idx, keyVal[7] = { 115, 101, 112, 99, 97, 98, 120 };
+        //                              s    e    p   c   a   b    x    h
+        unsigned i, idx, keyVal[8] = { 115, 101, 112, 99, 97, 98, 120, 104 };
         bool exciseBefore, displayBefore, changeMaxT;
         int xpos, ypos, key;
         struct termios oldt;
@@ -254,7 +254,7 @@ struct GUI {
         while (!windowsShouldClose) {
             exciseBefore = excise; displayBefore = display;
             changeMaxT = false;
-            for (i = 0; i < 7; i++)
+            for (i = 0; i < 8; i++)
                 keys[i] = false;
             set_terminal_mode(&oldt);
             while (kbhit()) {
@@ -269,14 +269,14 @@ struct GUI {
                     display ? display = false : display = true;
                 else if (key == 116) // t key
                     changeMaxT ? changeMaxT = false : changeMaxT = true;
-                for (i = 0; i < 7; i++)
+                for (i = 0; i < 8; i++)
                     if (key == keyVal[i]) {
                         keys[i] ? keys[i] = false : keys[i] = true;
                         break;
                     }
             }
-            fflush(stdout);
             reset_terminal_mode(&oldt);
+            fflush(stdout);
             if (excise && exciseBefore != excise) {
                 printf("Excision mode is activated.\n");
                 printf("Pick circle center location (0-%d 0-%d): ",

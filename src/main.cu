@@ -19,9 +19,24 @@ void cleanup(CA *ca, GUI *gui, CellParams *params)
     }
 }
 
+__device__ double func1(double x, double y, unsigned N)
+{
+    return (sin(x) * sin(y) + 1.0) / 2.0;
+}
+__device__ double func2(double x, double y, unsigned N)
+{
+    double mux = (N / 2.0) - 1.0, muy = mux,
+           sigmax = (N / 10.0), sigmay = sigmax;
+
+    return exp(-0.5 * (pow(x - mux, 2) / (sigmax * sigmax)
+                     + pow(y - muy, 2) / (sigmay * sigmay)));
+}
+
+__device__ SensitivityFunc pFunc[2] = { func1, func2 };
+
 int main(int argc, char *argv[])
 {
-    unsigned i = 0, j = 0, k = 0, nStates = 7, nPheno = 4, nGenes = 10,
+    unsigned i = 0, j = 0, k = 0, l = 0, nStates = 7, nPheno = 4, nGenes = 10,
              nCarcin = 1, maxNCarcin = 2, rTC = 0, cX = 0, cY = 0, nSim = 1;
     size_t dbl = sizeof(double), st = sizeof(ca_state),
            eff = sizeof(effect), gRel = sizeof(gene_related);
@@ -40,6 +55,8 @@ int main(int argc, char *argv[])
     bool carcinogens[maxNCarcin] = { false };
     int maxTInflux[maxNCarcin], maxTNoInflux[maxNCarcin];
     double exposureTime[maxNCarcin];
+    unsigned nFunc = 2, funcIdx[maxNCarcin];
+    SensitivityFunc func[nFunc];
 
     double carcinMutMap[maxNCarcin*nGenes], Wx[(maxNCarcin+1)*nGenes],
            Wy[nGenes*nGenes];
@@ -65,13 +82,17 @@ int main(int argc, char *argv[])
 
     start = omp_get_wtime();
 
+    CudaSafeCall(cudaMemcpyFromSymbol(func, pFunc,
+                                      2 * sizeof(SensitivityFunc)));
     for (i = 0; i < maxNCarcin; i++) {
        maxTInflux[i] = -1;
        maxTNoInflux[i] = -1;
        exposureTime[i] = 24;
+       funcIdx[i] = 0;
     }
 
-    while ((opt = getopt(argc, argv, ":dst:g:i:c:a:b:x:pe:n:f:")) != -1) {
+    i = 0;
+    while ((opt = getopt(argc, argv, ":dst:g:i:c:a:b:x:h:pe:n:f:")) != -1) {
         switch(opt)
         {
             case 'd':
@@ -105,6 +126,9 @@ int main(int argc, char *argv[])
                 if (k < maxNCarcin)
                     exposureTime[k++] = atoi(optarg);
                 break;
+            case 'h':
+                if (l < maxNCarcin && atoi(optarg) < nFunc)
+                    funcIdx[l++] = atoi(optarg);
             case 'p':
                 perfectExcision = true;
                 break;
@@ -286,7 +310,7 @@ int main(int argc, char *argv[])
     }
 
     ca->init(diffusion, influx, outflux, ic, bc, maxTInflux,
-             maxTNoInflux, exposureTime, carcinogens,
+             maxTNoInflux, exposureTime, carcinogens, func, nFunc, funcIdx,
              Wx, Wy, alpha, bias, geneColors,
              params, weightStates, rTC, cX, cY);
 
@@ -331,8 +355,6 @@ int main(int argc, char *argv[])
     end = omp_get_wtime();
     printf("It took %f seconds to initialize the memory.\n", end - start);
 
-    
-
     k = 1;
     do {
         sprintf(outSimDir, "%d", k); 
@@ -374,6 +396,8 @@ int main(int argc, char *argv[])
             ca->pdes[i].maxTNoInflux = maxTNoInflux[i];
             ca->pdes[i].exposureTime = exposureTime[i];
             ca->carcinogens[i] = carcinogens[i];
+            ca->pdes[i].init(ca->blockSize, NULL);
+            CudaSafeCall(cudaDeviceSynchronize());
         }
         *ca->cscFormed = false;
         for (i = 0; i < ca->exciseCount; i++) {

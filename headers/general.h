@@ -39,6 +39,7 @@ typedef enum { SUPPR, ONCO } gene_type;
 typedef enum { NO, YES } gene_related;
 typedef enum { NORTH, EAST, SOUTH, WEST,
                NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST } neigh_location;
+typedef double(*SensitivityFunc)(double,double,unsigned);
 
 #include "array_functions.h"
 #include "rnd_gen_functions.h"
