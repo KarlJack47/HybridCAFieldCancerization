@@ -31,7 +31,9 @@ struct CarcinPDE {
         deltat = cellCycleLen;
         exposureTime = exposuretime;
         maxTInflux = maxtinflux;
+        if (maxTInflux != -1) maxTInflux *= exposureTime;
         maxTNoInflux = maxtnoinflux;
+        if (maxTNoInflux != -1) maxTNoInflux *= exposureTime;
         diffusion = diff;
         influx = influxIn;
         outflux = outfluxIn;
@@ -88,17 +90,19 @@ struct CarcinPDE {
         }
     }
 
-    double set_influx(double tCurr, double maxTCurr)
+    double set_influx(double tCurr, double maxTCurr, bool influxIn=true)
     {
         double influxOut = influx;
 
         if (tCurr < maxTCurr)
             if (nCycles % 2 == 0)
-                influxOut = 0;
+                influxOut = influxIn ? 0 : influx;
+            else
+                influxOut = influxIn ? influx : 0;
         else {
             if (tCurr > maxTCurr) {
                 influxOut *= (1.0 - maxTCurr / tCurr);
-                if (nCycles % 2 == 0)
+                if (nCycles % 2 == influxIn ? 0 : 1)
                     influxOut += influx;
             }
             nCycles++;
@@ -114,11 +118,6 @@ struct CarcinPDE {
         double influxIn = influx;
         double tCurr = t * deltat, tPrev = tCurr - deltat,
                maxTCurr, maxTPrev, maxTNoCurr, maxTNoPrev;
-
-        if (maxTInflux != -1)
-            maxTInflux *= exposureTime;
-        if (maxTNoInflux != -1)
-            maxTNoInflux *= exposureTime;
 
         maxTCurr = nCycles * maxTInflux;
         maxTPrev = maxTCurr - maxTInflux;
@@ -149,7 +148,7 @@ struct CarcinPDE {
         if (maxTInflux != -1 && maxTNoInflux == -1)
             influxIn = set_influx(tCurr, maxTCurr);
         if (maxTInflux == -1 && maxTNoInflux != -1)
-            influxIn = set_influx(tCurr, maxTNoCurr);
+            influxIn = set_influx(tCurr, maxTNoCurr, false);
 
         pde_space_step<<< blocks, threads, 0, *stream >>>(
             soln, maxVal, t, N, maxIter, bc, ic, diffusion,

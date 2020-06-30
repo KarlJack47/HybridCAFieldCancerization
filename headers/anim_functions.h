@@ -69,6 +69,8 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             if (carcinIdx < ca->maxNCarcin) {
                 printf("Enter the number of time steps influx occurs: ");
                 scanf("%d", &ca->pdes[carcinIdx].maxTInflux);
+                if (ca->pdes[carcinIdx].maxTInflux != -1)
+                    ca->pdes[carcinIdx].maxTInflux *= ca->pdes[carcinIdx].exposureTime;
             }
             printf("Do you want to enter another carcinogen index? (yes/no) ");
             fflush(stdout);
@@ -81,6 +83,8 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             if (carcinIdx < ca->maxNCarcin) {
                 printf("Enter the number of time steps no influx occurs: ");
                 scanf("%d", &ca->pdes[carcinIdx].maxTNoInflux);
+                if (ca->pdes[carcinIdx].maxTNoInflux != -1)
+                    ca->pdes[carcinIdx].maxTNoInflux *= ca->pdes[carcinIdx].exposureTime;
             }
             printf("Do you want to enter another carcinogen index? (yes/no) ");
             fflush(stdout);
