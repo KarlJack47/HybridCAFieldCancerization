@@ -32,7 +32,24 @@ __device__ double func2(double x, double y, unsigned N)
                      + pow(y - muy, 2) / (sigmay * sigmay)));
 }
 
-__device__ SensitivityFunc pFunc[2] = { func1, func2 };
+__device__ double func3(double x, double y, unsigned N)
+{
+    unsigned i;
+    double sigmax = N / 20.0, sigmay = sigmax, Ndiv4 = N / 4.0, result = 0.0;
+    double mux[5] = { N / 2.0 - 1.0, Ndiv4 - sigmax - 1.0,
+                      N - Ndiv4 + sigmax - 1.0 }, muy[5];
+    mux[3] = mux[1]; mux[4] = mux[2];
+    muy[0] = mux[0]; muy[1] = mux[1]; muy[2] = mux[2];
+    muy[3] = mux[2]; muy[4] = mux[1];
+
+    for (i = 0; i < 5; i++)
+        result += exp(-0.5 * (pow(x - mux[i], 2) / (sigmax * sigmax)
+                     + pow(y - muy[i], 2) / (sigmay * sigmay)));
+
+    return result;
+}
+
+__device__ SensitivityFunc pFunc[3] = { func1, func2, func3 };
 
 int main(int argc, char *argv[])
 {
@@ -55,7 +72,7 @@ int main(int argc, char *argv[])
     bool carcinogens[maxNCarcin] = { false };
     int maxTInflux[maxNCarcin], maxTNoInflux[maxNCarcin];
     double exposureTime[maxNCarcin];
-    unsigned nFunc = 2, funcIdx[maxNCarcin];
+    unsigned nFunc = 3, funcIdx[maxNCarcin];
     SensitivityFunc func[nFunc];
 
     double carcinMutMap[maxNCarcin*nGenes], Wx[(maxNCarcin+1)*nGenes],
@@ -83,7 +100,7 @@ int main(int argc, char *argv[])
     start = omp_get_wtime();
 
     CudaSafeCall(cudaMemcpyFromSymbol(func, pFunc,
-                                      2 * sizeof(SensitivityFunc)));
+                                      nFunc * sizeof(SensitivityFunc)));
     for (i = 0; i < maxNCarcin; i++) {
        maxTInflux[i] = -1;
        maxTNoInflux[i] = -1;
