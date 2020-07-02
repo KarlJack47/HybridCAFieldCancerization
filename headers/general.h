@@ -47,7 +47,7 @@ typedef double(*SensitivityFunc)(double,double,unsigned);
 
 #include "gene_expr_nn.h"
 #include "cell.h"
-#include "carcin_pde.h"
+#include "carcin.h"
 #include "cuda_kernels.h"
 #include "gui.h"
 #include "ca.h"

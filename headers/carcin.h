@@ -1,13 +1,13 @@
-#ifndef __CARCIN_PDE_H__
-#define __CARCIN_PDE_H__
+#ifndef __CARCIN_H__
+#define __CARCIN_H__
 
-__global__ void init_pde(double*,double*,double,double,
-                         unsigned,SensitivityFunc*,unsigned);
-__global__ void pde_space_step(double*,double*,unsigned,unsigned,unsigned,
-                               double,double,double,double,double,double,
-                               double,SensitivityFunc*,unsigned);
+__global__ void init_carcin(double*,double*,double,double,unsigned,
+                            SensitivityFunc*,unsigned,unsigned,bool);
+__global__ void carcin_space_step(double*,double*,unsigned,unsigned,unsigned,
+                                  double,double,double,double,double,double,
+                                  double,SensitivityFunc*,unsigned,unsigned);
 
-struct CarcinPDE {
+struct Carcin {
     int device;
     unsigned carcinIdx, N, maxIter, t, nCycles;
     int maxTInflux, maxTNoInflux;
@@ -15,15 +15,18 @@ struct CarcinPDE {
     double deltaxy, deltat, exposureTime;
     double diffusion, ic, bc, influx, outflux;
     SensitivityFunc *func; unsigned funcIdx, nFunc;
+    unsigned type; // 0: only func[funcIdx], 1: only pde, 2: func[funcIdx] * pde
 
     double *soln, *maxVal;
 
-    CarcinPDE(int dev, unsigned idx, unsigned spaceSize, double diff,
-              double influxIn, double outfluxIn, double icIn, double bcIn,
-              int maxtinflux, int maxtnoinflux,double cellVolume,
-              double cellCycleLen, double exposuretime,
-              SensitivityFunc *funcIn, unsigned nfunc=1, unsigned funcidx=0)
+    Carcin(int dev, unsigned idx, unsigned typeIn, unsigned spaceSize,
+           double diff, double influxIn, double outfluxIn, double icIn,
+           double bcIn, int maxtinflux, int maxtnoinflux, double cellVolume,
+           double cellCycleLen, double exposuretime,
+           SensitivityFunc *funcIn, unsigned nfunc=1, unsigned funcidx=0)
     {
+        carcinIdx = idx;
+        type = typeIn;
         device = dev;
         N = spaceSize;
         nCycles = 1;
@@ -39,7 +42,6 @@ struct CarcinPDE {
         outflux = outfluxIn;
         ic = icIn;
         bc = bcIn;
-        carcinIdx = idx;
         maxIter = 100;
         t = 0;
         nFunc = nfunc;
@@ -71,8 +73,9 @@ struct CarcinPDE {
         dim3 blocks(NBLOCKS(N, blockSize), NBLOCKS(N, blockSize));
         dim3 threads(blockSize, blockSize);
 
-        init_pde<<< blocks, threads, 0, stream ? *stream : 0 >>>(
-            soln, maxVal, ic, bc, N, func, funcIdx
+        init_carcin<<< blocks, threads, 0, stream ? *stream : 0 >>>(
+            soln, maxVal, ic, bc, N, func,
+            funcIdx, type, maxTNoInflux != -1 ? true : false
         );
         CudaCheckError();
 	}
@@ -150,12 +153,12 @@ struct CarcinPDE {
         if (maxTInflux == -1 && maxTNoInflux != -1)
             influxIn = set_influx(tCurr, maxTNoCurr, false);
 
-        pde_space_step<<< blocks, threads, 0, *stream >>>(
+        carcin_space_step<<< blocks, threads, 0, *stream >>>(
             soln, maxVal, t, N, maxIter, bc, ic, diffusion,
-            influxIn, outflux, deltaxy, deltat, func, funcIdx
+            influxIn, outflux, deltaxy, deltat, func, funcIdx, type
         );
         CudaCheckError();
     }
 };
 
-#endif // __CARCIN_PDE_H__
+#endif // __CARCIN_H__
