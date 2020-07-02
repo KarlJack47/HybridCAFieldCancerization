@@ -28,7 +28,7 @@ fi
 verbose=0
 numSim=10
 options=()
-while getopts vdsn:t:g:i:c:a:b:x:h:pe: option; do
+while getopts vdsn:t:g:i:c:a:b:x:h:o:m:r:pe: option; do
   case "${option}" in
     v) verbose=1;;
     d) options+=("-d");;
@@ -44,6 +44,9 @@ while getopts vdsn:t:g:i:c:a:b:x:h:pe: option; do
     b) options+=("-b ${OPTARG}");;
     x) options+=("-x ${OPTARG}");;
     h) options+=("-h ${OPTARG}");;
+    o) options+=("-o ${OPTARG}");;
+    m) options+=("-m ${OPTARG}");;
+    r) options+=("-r ${OPTARG}");;
     p) options+=("-p");;
     e) options+=("-e ${OPTARG}");;
   esac
@@ -98,6 +101,6 @@ if [ ! -s $outFolder/stats.log ]; then
   rm $outFolder/stats.log
 fi
 
-tput el
+tput ed
 
 exit 0
