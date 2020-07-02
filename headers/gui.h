@@ -32,7 +32,7 @@ struct GUI {
                       unsigned,unsigned,bool);
     void (*fAnimTimerAndSaver)(void*,bool,unsigned,bool,bool);
     bool display, paused, excise, *perfectExcision, windowsShouldClose,
-         detached[nWindows-1], keys[8], *carcinogens;
+         detached[nWindows-1], keys[9], *activeCarcin;
     unsigned width, height, ticks, gridSize, *nCarcin, maxNCarcin, *maxT,
              currCarcin, currContext, currCell[2], radius, centerX, centerY;
     char **carcinNames;
@@ -44,13 +44,13 @@ struct GUI {
         fAnimCarcin = NULL;
         fAnimCell = NULL;
         carcinNames = NULL;
-        carcinogens = NULL;
+        activeCarcin = NULL;
     }
 
     GUI(unsigned w=1024, unsigned h=1024, void *d=NULL, bool show=true,
         bool *perfectexcision=NULL, unsigned gSize=256,
         unsigned *T=NULL, unsigned *ncarcin=NULL, unsigned maxncarcin=2,
-        bool *carcin=NULL, char **carNames=NULL)
+        bool *activecarcin=NULL, char **carNames=NULL)
     {
         unsigned i;
 
@@ -66,8 +66,7 @@ struct GUI {
         gridSize = gSize;
         maxT = T;
         nCarcin = ncarcin; maxNCarcin = maxncarcin;
-        if (carcin != NULL)
-            carcinogens = carcin;
+        if (activecarcin != NULL) activeCarcin = activecarcin;
 
         glfwSetErrorCallback(error_callback);
 
@@ -105,7 +104,7 @@ struct GUI {
         strcpy(windowName, "Carcinogens");
         if (carcinNames != NULL)
             for (i = 0; i < maxNCarcin; i++)
-                if (carcinogens[i]) {
+                if (activeCarcin[i]) {
                     strcpy(windowName, carcinNames[i]);
                     currCarcin = i;
                     break;
@@ -230,8 +229,8 @@ struct GUI {
                            unsigned,unsigned,bool),
               void(*fTimeAndSave)(void*,bool,unsigned,bool,bool))
     {
-        //                              s    e    p   c   a   b    x    h
-        unsigned i, idx, keyVal[8] = { 115, 101, 112, 99, 97, 98, 120, 104 };
+        //                              s    e    p   c   a   b    x    h    o
+        unsigned i, idx, keyVal[9] = { 115, 101, 112, 99, 97, 98, 120, 104, 111 };
         bool exciseBefore, displayBefore, changeMaxT;
         int xpos, ypos, key;
         struct termios oldt;
@@ -254,7 +253,7 @@ struct GUI {
         while (!windowsShouldClose) {
             exciseBefore = excise; displayBefore = display;
             changeMaxT = false;
-            for (i = 0; i < 8; i++)
+            for (i = 0; i < 9; i++)
                 keys[i] = false;
             set_terminal_mode(&oldt);
             while (kbhit()) {
@@ -269,7 +268,7 @@ struct GUI {
                     display ? display = false : display = true;
                 else if (key == 116) // t key
                     changeMaxT ? changeMaxT = false : changeMaxT = true;
-                for (i = 0; i < 8; i++)
+                for (i = 0; i < 9; i++)
                     if (key == keyVal[i]) {
                         keys[i] ? keys[i] = false : keys[i] = true;
                         break;
@@ -355,7 +354,7 @@ struct GUI {
 
             if (*nCarcin != 0)
                 for (i = 0; i < maxNCarcin; i++) {
-                    if (carcinogens[i] && ((paused && i == currCarcin)
+                    if (activeCarcin[i] && ((paused && i == currCarcin)
                      || !paused)) {
                         update_window(CARCIN_GRID, ticks, i, currCarcin);
                         if (paused) glfwSwapBuffers(windows[CARCIN_GRID]);
@@ -608,13 +607,13 @@ struct GUI {
                 if (action == GLFW_PRESS)
                     do
                         change_current(&gui->currCarcin, gui->maxNCarcin);
-                    while (!gui->carcinogens[gui->currCarcin]);
+                    while (!gui->activeCarcin[gui->currCarcin]);
                 break;
             case GLFW_KEY_LEFT:
                 if (action == GLFW_PRESS)
                     do
                         change_current(&gui->currCarcin, gui->maxNCarcin, false);
-                    while (!gui->carcinogens[gui->currCarcin]);
+                    while (!gui->activeCarcin[gui->currCarcin]);
                 break;
             case GLFW_KEY_A:
                 if (!gui->detached[2] && action == GLFW_PRESS)

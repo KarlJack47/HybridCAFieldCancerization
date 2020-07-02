@@ -17,7 +17,7 @@ struct CA {
     unsigned blockSize;
 
     Cell *prevGrid, *newGrid;
-    CarcinPDE *pdes;
+    Carcin *carcins;
     GeneExprNN *NN;
 
     unsigned gridSize, cellSize, dim;
@@ -30,7 +30,7 @@ struct CA {
 
     unsigned *cscFormed, *tcFormed, exciseCount, maxExcise,
              timeTCAlive, *timeTCDead;
-    bool perfectExcision, *carcinogens;
+    bool perfectExcision, *activeCarcin;
     unsigned *radius, *centerX, *centerY;
 
     clock_t start, end, startStep, endStep;
@@ -109,13 +109,13 @@ struct CA {
             CudaSafeCall(cudaFree(newGrid)); newGrid = NULL;
         }
 
-        if (pdes != NULL) {
+        if (carcins != NULL) {
             for (i = 0; i < maxNCarcin; i++)
-                pdes[i].free_resources();
-            CudaSafeCall(cudaFree(pdes)); pdes = NULL;
+                carcins[i].free_resources();
+            CudaSafeCall(cudaFree(carcins)); carcins = NULL;
         }
-        if (carcinogens != NULL) {
-            CudaSafeCall(cudaFree(carcinogens)); carcinogens = NULL;
+        if (activeCarcin != NULL) {
+            CudaSafeCall(cudaFree(activeCarcin)); activeCarcin = NULL;
         }
         if (NN != NULL) {
             NN->free_resources();
@@ -175,7 +175,7 @@ struct CA {
     {
         int i, j, numDev;
         unsigned nPheno = 4, nDigGene = num_digits(nGenes),
-                 nDigInt = 1, nDigFrac = 10;
+                 nDigInt = 2, nDigFrac = 10;
 
         CudaSafeCall(cudaGetDeviceCount(&numDev));
         for (i = numDev-1; i > -1; i--) {
@@ -189,11 +189,11 @@ struct CA {
         devId1 = 0; devId2 = 0;
         if (numDev == 2) devId2 = 1;
 
-        CudaSafeCall(cudaMallocManaged((void**)&pdes,
-                                       maxNCarcin*sizeof(CarcinPDE)));
-        CudaSafeCall(cudaMallocManaged((void**)&carcinogens,
+        CudaSafeCall(cudaMallocManaged((void**)&carcins,
+                                       maxNCarcin*sizeof(Carcin)));
+        CudaSafeCall(cudaMallocManaged((void**)&activeCarcin,
                                        maxNCarcin*sizeof(bool)));
-        memset(carcinogens, false, maxNCarcin*sizeof(bool));
+        memset(activeCarcin, false, maxNCarcin*sizeof(bool));
         CudaSafeCall(cudaMallocManaged((void**)&NN, sizeof(GeneExprNN)));
         CudaSafeCall(cudaMallocManaged((void**)&prevGrid,
                                        gridSize*gridSize*sizeof(Cell)));
@@ -278,7 +278,7 @@ struct CA {
 
         bytesPerCell = 2 * num_digits(gridSize * gridSize)
                      + num_digits(maxT + cellLifeSpan / cellCycleLen)
-                     + (nDigInt + nDigFrac + 1) * nPheno
+                     + (nDigFrac + 2) * nPheno
                      + (2 * (nDigInt + nDigFrac) + 4) * nGenes + 19;
         cellDataSize = bytesPerCell * gridSize * gridSize + 1;
         CudaSafeCall(cudaMallocManaged((void**)&cellData, cellDataSize));
@@ -300,9 +300,9 @@ struct CA {
         G[i*gridSize+j].prefetch_memory(dev, gridSize, nGenes, stream);
     }
 
-    void init(double *diffusion, double *influx, double *outflux, double *ic,
-              double *bc, int *maxTInflux, int *maxTNoInflux,
-              double *exposureTime, bool *carcin,
+    void init(unsigned *carcinType, double *diffusion, double *influx,
+              double *outflux, double *ic, double *bc, int *maxTInflux,
+              int *maxTNoInflux, double *exposureTime, bool *activecarcin,
               SensitivityFunc *func, unsigned nFunc, unsigned *funcIdx,
               double *Wx, double *Wy, double alpha, double bias,
               dim3 *genecolors, CellParams *params, double *weightStates=NULL,
@@ -363,13 +363,14 @@ struct CA {
 
         for (k = 0; k < maxNCarcin; k++) {
             dev = k % 2 == 1 ? devId1 : devId2;
-            pdes[k] = CarcinPDE(dev, k, gridSize, diffusion[k], influx[k],
-                                outflux[k], ic[k], bc[k], maxTInflux[k],
-                                maxTNoInflux[k], cellVolume, cellCycleLen,
-                                exposureTime[k], func, nFunc, funcIdx[k]);
-            pdes[k].prefetch_memory(dev, &prefetch[k+5]);
-            pdes[k].init(blockSize, &kernel[k+1]);
-            if (carcin[k]) carcinogens[k] = true;
+            carcins[k] = Carcin(dev, k, carcinType[k], gridSize, diffusion[k],
+                                influx[k], outflux[k], ic[k], bc[k],
+                                maxTInflux[k], maxTNoInflux[k], cellVolume,
+                                cellCycleLen, exposureTime[k], func, nFunc,
+                                funcIdx[k]);
+            carcins[k].prefetch_memory(dev, &prefetch[k+5]);
+            carcins[k].init(blockSize, &kernel[k+1]);
+            if (activecarcin[k]) activeCarcin[k] = true;
         }
 
         *NN = GeneExprNN(devId2, maxNCarcin+1, nGenes, alpha, bias);
@@ -386,10 +387,10 @@ struct CA {
         CudaSafeCall(cudaMemPrefetchAsync(newGrid,
                                           gridSize*gridSize*sizeof(Cell),
                                           devId2, prefetch[3]));
-        CudaSafeCall(cudaMemPrefetchAsync(pdes,
-                                          maxNCarcin*sizeof(CarcinPDE),
+        CudaSafeCall(cudaMemPrefetchAsync(carcins,
+                                          maxNCarcin*sizeof(Carcin),
                                           devId2, prefetch[4]));
-        CudaSafeCall(cudaMemPrefetchAsync(carcinogens,
+        CudaSafeCall(cudaMemPrefetchAsync(activeCarcin,
                                           maxNCarcin*sizeof(bool),
                                           devId2, prefetch[0]));
 

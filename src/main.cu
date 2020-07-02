@@ -21,9 +21,16 @@ void cleanup(CA *ca, GUI *gui, CellParams *params)
 
 __device__ double func1(double x, double y, unsigned N)
 {
-    return (sin(x) * sin(y) + 1.0) / 2.0;
+    return 1;
 }
+
 __device__ double func2(double x, double y, unsigned N)
+{
+    return 0.5 * (sin(2.0 * M_PI * x / (double) N) * cos(M_PI * y / (double) N)
+                  + 1.0);
+}
+
+__device__ double func3(double x, double y, unsigned N)
 {
     double mux = (N / 2.0) - 1.0, muy = mux,
            sigmax = (N / 20.0), sigmay = sigmax;
@@ -32,7 +39,7 @@ __device__ double func2(double x, double y, unsigned N)
                      + pow(y - muy, 2) / (sigmay * sigmay)));
 }
 
-__device__ double func3(double x, double y, unsigned N)
+__device__ double func4(double x, double y, unsigned N)
 {
     unsigned i;
     double sigmax = N / 20.0, sigmay = sigmax, Ndiv4 = N / 4.0, result = 0.0;
@@ -49,12 +56,13 @@ __device__ double func3(double x, double y, unsigned N)
     return result;
 }
 
-__device__ SensitivityFunc pFunc[3] = { func1, func2, func3 };
+__device__ SensitivityFunc pFunc[4] = { func1, func2, func3, func4 };
 
 int main(int argc, char *argv[])
 {
-    unsigned i = 0, j = 0, k = 0, l = 0, nStates = 7, nPheno = 4, nGenes = 10,
-             nCarcin = 1, maxNCarcin = 2, rTC = 0, cX = 0, cY = 0, nSim = 1;
+    unsigned i = 0, j = 0, k = 0, l = 0, m = 0,
+             nStates = 7, nPheno = 4, nGenes = 10, nCarcin = 1, maxNCarcin = 2,
+             rTC = 0, cX = 0, cY = 0, nSim = 1;
     size_t dbl = sizeof(double), st = sizeof(ca_state),
            eff = sizeof(effect), gRel = sizeof(gene_related);
 
@@ -67,14 +75,17 @@ int main(int argc, char *argv[])
     GUI *gui = (GUI*)malloc(sizeof(GUI));
 
     char **carcinNames = NULL;
+    unsigned carcinType[maxNCarcin];
     double diffusion[maxNCarcin], influx[maxNCarcin], outflux[maxNCarcin],
            ic[maxNCarcin], bc[maxNCarcin];
-    bool carcinogens[maxNCarcin] = { false };
+    bool activeCarcin[maxNCarcin];
     int maxTInflux[maxNCarcin], maxTNoInflux[maxNCarcin];
     double exposureTime[maxNCarcin];
-    unsigned nFunc = 3, funcIdx[maxNCarcin];
+    unsigned nFunc = 4, funcIdx[maxNCarcin];
     SensitivityFunc func[nFunc];
 
+    unsigned minMut = 4; // Head and Neck (2-8 depending on cancer type)
+    double chanceCSCForm = 5e-5;
     double carcinMutMap[maxNCarcin*nGenes], Wx[(maxNCarcin+1)*nGenes],
            Wy[nGenes*nGenes];
     double mutRatePerMitosis = 1e-7, alpha = 1000000.0, bias = 0.001;
@@ -102,6 +113,8 @@ int main(int argc, char *argv[])
     CudaSafeCall(cudaMemcpyFromSymbol(func, pFunc,
                                       nFunc * sizeof(SensitivityFunc)));
     for (i = 0; i < maxNCarcin; i++) {
+       carcinType[i] = 1;
+       activeCarcin[i] = false;
        maxTInflux[i] = -1;
        maxTNoInflux[i] = -1;
        exposureTime[i] = 24;
@@ -109,7 +122,7 @@ int main(int argc, char *argv[])
     }
 
     i = 0;
-    while ((opt = getopt(argc, argv, ":dst:g:i:c:a:b:x:h:pe:n:f:")) != -1) {
+    while ((opt = getopt(argc, argv, ":dst:g:i:c:a:b:x:h:o:m:r:pe:n:f:")) != -1) {
         switch(opt)
         {
             case 'd':
@@ -129,23 +142,46 @@ int main(int argc, char *argv[])
                 break;
             case 'c':
                 if (atoi(optarg) < maxNCarcin)
-                    carcinogens[atoi(optarg)] = true;
+                    activeCarcin[atoi(optarg)] = true;
                 break;
             case 'a':
-                if (i < maxNCarcin)
+                if (i < maxNCarcin) {
                     maxTInflux[i++] = atoi(optarg);
+                    if (i == maxNCarcin) i = 0;
+                }
                 break;
             case 'b':
-                if (j < maxNCarcin)
+                if (j < maxNCarcin) {
                     maxTNoInflux[j++] = atoi(optarg);
+                    if (j == maxNCarcin) j = 0;
+                }
                 break;
             case 'x':
-                if (k < maxNCarcin)
+                if (k < maxNCarcin) {
                     exposureTime[k++] = atoi(optarg);
+                    if (k == maxNCarcin) k = 0;
+                }
                 break;
             case 'h':
-                if (l < maxNCarcin && atoi(optarg) < nFunc)
+                if (l < maxNCarcin && atoi(optarg) < nFunc) {
                     funcIdx[l++] = atoi(optarg);
+                    if (l == maxNCarcin) l = 0;
+                }
+                break;
+            case 'o':
+                if (m < maxNCarcin && atoi(optarg) < 3) {
+                    carcinType[m++] = atoi(optarg);
+                    if (m == maxNCarcin) m = 0;
+                }
+                break;
+            case 'm':
+                if (atoi(optarg) > 1 && atoi(optarg) < 9)
+                    minMut = atoi(optarg);
+                break;
+            case 'r':
+                if (atof(optarg) <= 1.0)
+                    chanceCSCForm = atof(optarg);
+                break;
             case 'p':
                 perfectExcision = true;
                 break;
@@ -188,16 +224,16 @@ int main(int argc, char *argv[])
 
     if (initType == 0) {
         for (i = 0; i < maxNCarcin; i++)
-            if (carcinogens[i]) break;
-        if (i == maxNCarcin) carcinogens[0] = true;
+            if (activeCarcin[i]) break;
+        if (i == maxNCarcin) activeCarcin[0] = true;
     } else if (initType == 2) {
         nCarcin = maxNCarcin;
         for (i = 0; i < maxNCarcin; i++)
-            carcinogens[i] = true;
+            activeCarcin[i] = true;
     } else if (initType == 3) {
         nCarcin = 0;
         for (i = 0; i < maxNCarcin; i++)
-            carcinogens[i] = false;
+            activeCarcin[i] = false;
     }
 
     *ca = CA(gridSize, T, nGenes, nCarcin, maxNCarcin,
@@ -254,8 +290,9 @@ int main(int argc, char *argv[])
     geneRelations[  RAS * nGenes +    MYC] = YES;
 
     CudaSafeCall(cudaMallocManaged((void**)&params, sizeof(CellParams)));
-    *params = CellParams(ca->nStates, nGenes, alpha, upregPhenoMap,
-                         downregPhenoMap, diffMap, geneType, geneRelations);
+    *params = CellParams(ca->nStates, nGenes, minMut, chanceCSCForm, alpha, 
+                         upregPhenoMap, downregPhenoMap, diffMap, geneType, 
+                         geneRelations);
 
 	memset(Wx, 0, nGenes*(maxNCarcin+1)*dbl);
 	memset(Wy, 0, nGenes*nGenes*dbl);
@@ -334,8 +371,8 @@ int main(int argc, char *argv[])
         cY = rand() % ca->gridSize;
     }
 
-    ca->init(diffusion, influx, outflux, ic, bc, maxTInflux,
-             maxTNoInflux, exposureTime, carcinogens, func, nFunc, funcIdx,
+    ca->init(carcinType, diffusion, influx, outflux, ic, bc, maxTInflux,
+             maxTNoInflux, exposureTime, activeCarcin, func, nFunc, funcIdx,
              Wx, Wy, alpha, bias, geneColors,
              params, weightStates, rTC, cX, cY);
 
@@ -359,13 +396,13 @@ int main(int argc, char *argv[])
 
     carcinNames = (char**)malloc(maxNCarcin*sizeof(char*));
     carcinNames[0] = (char*)calloc(8, 1);
-    strcat(carcinNames[0], "Alcohol");
-    carcinNames[1] = (char*)calloc(8, 1);
-    strcat(carcinNames[1], "Tobacco");
+    strcat(carcinNames[0], "Ethanol");
+    carcinNames[1] = (char*)calloc(9, 1);
+    strcat(carcinNames[1], "Nicotine");
 
     *gui = GUI(outSize, outSize, ca, display, &ca->perfectExcision,
                gridSize, &ca->maxT, &ca->nCarcin, maxNCarcin, 
-               ca->carcinogens, carcinNames);
+               ca->activeCarcin, carcinNames);
     for (i = 0; i < maxNCarcin; i++) {
         free(carcinNames[i]); carcinNames[i] = NULL;
     }
@@ -417,12 +454,12 @@ int main(int argc, char *argv[])
         ca->perfectExcision = perfectExcision; ca->maxTTCAlive = maxTTC;
         ca->nCarcin = nCarcin;
         for (i = 0; i < maxNCarcin; i++) {
-            ca->pdes[i].t = 0; ca->pdes[i].nCycles = 1;
-            ca->pdes[i].maxTInflux = maxTInflux[i];
-            ca->pdes[i].maxTNoInflux = maxTNoInflux[i];
-            ca->pdes[i].exposureTime = exposureTime[i];
-            ca->carcinogens[i] = carcinogens[i];
-            ca->pdes[i].init(ca->blockSize, NULL);
+            ca->carcins[i].t = 0; ca->carcins[i].nCycles = 1;
+            ca->carcins[i].maxTInflux = maxTInflux[i];
+            ca->carcins[i].maxTNoInflux = maxTNoInflux[i];
+            ca->carcins[i].exposureTime = exposureTime[i];
+            ca->activeCarcin[i] = activeCarcin[i];
+            ca->carcins[i].init(ca->blockSize, NULL);
             CudaSafeCall(cudaDeviceSynchronize());
         }
         *ca->cscFormed = false;

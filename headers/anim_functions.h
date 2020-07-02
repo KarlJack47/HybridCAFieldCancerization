@@ -38,26 +38,26 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 printf("Enter a carcinogen index (0-%d): ", ca->maxNCarcin-1);
                 scanf("%d", &carcinIdx);
                 if (carcinIdx < ca->maxNCarcin) {
-                    ca->carcinogens[carcinIdx] = activate;
+                    ca->activeCarcin[carcinIdx] = activate;
                     if (activate) ca->nCarcin++;
                     else {
-                        ca->pdes[carcinIdx].t = 0;
-                        ca->pdes[carcinIdx].nCycles = 0;
+                        ca->carcins[carcinIdx].t = 0;
+                        ca->carcins[carcinIdx].nCycles = 0;
                     }
                 }
                 printf("Do you want to enter another carcinogen index? (yes/no) ");
                 fflush(stdout);
                 scanf("%3s", answer);
-            } while(strcmp("no", answer) != 0);
+            } while (strcmp("no", answer) != 0);
         } else if (ca->nCarcin > 0) {
             deactivated = 0;
             for (i = 0; i < ca->nCarcin; i++)
                 if (i < ca->maxNCarcin) {
-                    ca->carcinogens[i] = activate;
+                    ca->activeCarcin[i] = activate;
                     if (!activate) {
                         deactivated++;
-                        ca->pdes[i].t = 0;
-                        ca->pdes[i].nCycles = 0;
+                        ca->carcins[i].t = 0;
+                        ca->carcins[i].nCycles = 0;
                     }
                 } else ca->nCarcin = ca->maxNCarcin;
             if (!activate) ca->nCarcin -= deactivated;
@@ -68,52 +68,64 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             scanf("%d", &carcinIdx);
             if (carcinIdx < ca->maxNCarcin) {
                 printf("Enter the number of time steps influx occurs: ");
-                scanf("%d", &ca->pdes[carcinIdx].maxTInflux);
-                if (ca->pdes[carcinIdx].maxTInflux != -1)
-                    ca->pdes[carcinIdx].maxTInflux *= ca->pdes[carcinIdx].exposureTime;
+                scanf("%d", &ca->carcins[carcinIdx].maxTInflux);
+                if (ca->carcins[carcinIdx].maxTInflux != -1)
+                    ca->carcins[carcinIdx].maxTInflux *= ca->carcins[carcinIdx].exposureTime;
             }
             printf("Do you want to enter another carcinogen index? (yes/no) ");
             fflush(stdout);
             scanf("%3s", answer);
-        } while(strcmp("no", answer) != 0);
+        } while (strcmp("no", answer) != 0);
     } else if (keys[5]) {
         do {
             printf("Enter a carcinogen index (0-%d): ", ca->maxNCarcin-1);
             scanf("%d", &carcinIdx);
             if (carcinIdx < ca->maxNCarcin) {
                 printf("Enter the number of time steps no influx occurs: ");
-                scanf("%d", &ca->pdes[carcinIdx].maxTNoInflux);
-                if (ca->pdes[carcinIdx].maxTNoInflux != -1)
-                    ca->pdes[carcinIdx].maxTNoInflux *= ca->pdes[carcinIdx].exposureTime;
+                scanf("%d", &ca->carcins[carcinIdx].maxTNoInflux);
+                if (ca->carcins[carcinIdx].maxTNoInflux != -1)
+                    ca->carcins[carcinIdx].maxTNoInflux *= ca->carcins[carcinIdx].exposureTime;
             }
             printf("Do you want to enter another carcinogen index? (yes/no) ");
             fflush(stdout);
             scanf("%3s", answer);
-        } while(strcmp("no", answer) != 0);
+        } while (strcmp("no", answer) != 0);
     } else if (keys[6]) {
         do {
             printf("Enter a carcinogen index (0-%d): ", ca->maxNCarcin-1);
             scanf("%d", &carcinIdx);
             if (carcinIdx < ca->maxNCarcin) {
                 printf("Enter the exposure time period (hours): ");
-                scanf("%lf", &ca->pdes[carcinIdx].exposureTime);
+                scanf("%lf", &ca->carcins[carcinIdx].exposureTime);
             }
             printf("Do you want to enter another carcinogen index? (yes/no) ");
             fflush(stdout);
             scanf("%3s", answer);
-        } while(strcmp("no", answer) != 0);
+        } while (strcmp("no", answer) != 0);
     } else if (keys[7]) {
         do {
             printf("Enter a carcinogen index (0-%d): ", ca->maxNCarcin-1);
             scanf("%d", &carcinIdx);
             if (carcinIdx < ca->maxNCarcin) {
                 printf("Enter the sensitivity function index: ");
-                scanf("%u", &ca->pdes[carcinIdx].funcIdx);
+                scanf("%u", &ca->carcins[carcinIdx].funcIdx);
             }
             printf("Do you want to enter another carcinogen index? (yes/no) ");
             fflush(stdout);
             scanf("%3s", answer);
-        } while(strcmp("no", answer) != 0);
+        } while (strcmp("no", answer) != 0);
+    } else if (keys[8]) {
+        do {
+            printf("Enter a carcinogen index (0-%d): ", ca->maxNCarcin-1);
+            scanf("%d", &carcinIdx);
+            if (carcinIdx < ca->maxNCarcin) {
+                printf("Enter the carcinogen function type (0-2): ");
+                scanf("%u", &ca->carcins[carcinIdx].type);
+            }
+            printf("Do you want to enter another carcinogen index? (yes/no) ");
+            fflush(stdout);
+            scanf("%3s", answer);
+        } while (strcmp("no", answer) != 0);
     }
 
     if (ticks <= ca->maxT) {
@@ -129,15 +141,15 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
         } else if (!paused) {
             mutate_grid<<< blocks, threads, 0, streams[0] >>>(
                 ca->prevGrid, ca->gridSize, ca->NN,
-                ca->pdes, ca->carcinogens, ticks
+                ca->carcins, ca->activeCarcin, ticks
             );
             CudaCheckError();
             CudaSafeCall(cudaStreamSynchronize(streams[0]));
 
             if (ca->nCarcin != 0)
                 for (i = 0; i < ca->maxNCarcin; i++)
-                    if (ca->carcinogens[i])
-                        ca->pdes[i].time_step(ca->blockSize, &streams[i+2]);
+                    if (ca->activeCarcin[i])
+                        ca->carcins[i].time_step(ca->blockSize, &streams[i+2]);
 
             cells_gpu_to_gpu_cpy<<< blocks, threads, 0, streams[0] >>>(
                 ca->newGrid, ca->prevGrid, ca->gridSize, ca->nGenes
@@ -155,6 +167,11 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
             rule<<< blocks, threads, 0, streams[0] >>>(
                 ca->newGrid, ca->prevGrid, ca->gridSize,
                 ca->nGenes, ticks, countData, true
+            );
+            CudaCheckError();
+
+            update_states<<< blocks, threads, 0, streams[0] >>>(
+                ca->newGrid, ca->gridSize, ca->nGenes, ticks
             );
             CudaCheckError();
             CudaSafeCall(cudaStreamSynchronize(streams[0]));
@@ -176,11 +193,6 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 }
             }
             CudaSafeCall(cudaFree(countData)); countData = NULL;
-
-            update_states<<< blocks, threads, 0, streams[0] >>>(
-                ca->newGrid, ca->gridSize, ca->nGenes, ticks
-            );
-            CudaCheckError();
 
             CudaSafeCall(cudaMallocManaged((void**)&numTC,
                                            sizeof(unsigned)));
@@ -332,7 +344,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
 
         if (!paused && ca->nCarcin > 0)
             for (i = 0; i < ca->maxNCarcin; i++)
-                if (ca->carcinogens[i]) ca->pdes[i].t++;
+                if (ca->activeCarcin[i]) ca->carcins[i].t++;
 
         if (ca->save && !paused
          && ticks % ca->framerate == 0)
@@ -378,7 +390,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, unsigned dim, CA *ca,
     if ((display || ca->save)
      && ticks % ca->framerate == 0) {
         display_carcin<<< blocks, threads >>>(
-            outputBitmap, &ca->pdes[carcinIdx],
+            outputBitmap, &ca->carcins[carcinIdx],
             ca->gridSize, ca->cellSize, dim
         );
         CudaCheckError();
@@ -457,7 +469,7 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
             #pragma omp section
             {
                 for (carcinIdx = 0; carcinIdx < ca->maxNCarcin; carcinIdx++) {
-                    if (!ca->carcinogens[carcinIdx]) continue;
+                    if (!ca->activeCarcin[carcinIdx]) continue;
                     printf("Saving video %s.\n", ca->outNames[carcinIdx+2]);
                     fflush(stdout);
                     save_video(ca->prefixes[carcinIdx+1], ca->outNames[carcinIdx+2],

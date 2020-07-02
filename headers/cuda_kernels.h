@@ -16,8 +16,9 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame)
 }
 
 // Initalizes the carcinogen pde grid.
-__global__ void init_pde(double *soln, double *maxVal, double ic, double bc,
-                         unsigned N, SensitivityFunc *func, unsigned funcIdx)
+__global__ void init_carcin(double *soln, double *maxVal, double ic, double bc,
+                            unsigned N, SensitivityFunc *func, unsigned funcIdx,
+                            unsigned type, bool noInflux=false)
 {
 	unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -25,31 +26,47 @@ __global__ void init_pde(double *soln, double *maxVal, double ic, double bc,
 
     if (!(x < N && y < N)) return;
 
+    if (type == 0) {
+        noInflux ? soln[idx] = 0.0 : soln[idx] = (*func[funcIdx])(x, y, N);
+        atomicMax(maxVal, soln[idx]);
+        return;
+    } else if (type == 1) funcIdx = 0;
+
     if (x == 0 || x == N-1 || y == 0 || y == N-1)
-        soln[idx] = (*func[funcIdx])(x, y, N) * bc;
+        noInflux ? soln[idx] = 0.0 : soln[idx] = (*func[funcIdx])(x, y, N) * bc;
     else
-        soln[idx] = (*func[funcIdx])(x, y, N) * ic;
+        noInflux ? soln[idx] = 0.0 : soln[idx] = (*func[funcIdx])(x, y, N) * ic;
 
     atomicMax(maxVal, soln[idx]);
 }
 
 // Spacial step for the carcinogen pde.
-__global__ void pde_space_step(double *soln, double *maxVal, unsigned t,
-                               unsigned N, unsigned maxIter, double bc,
-                               double ic, double D, double influx,
-                               double outflux, double deltaxy, double deltat,
-                               SensitivityFunc *func, unsigned funcIdx)
+__global__ void carcin_space_step(double *soln, double *maxVal, unsigned t,
+                                  unsigned N, unsigned maxIter, double bc,
+                                  double ic, double D, double influx,
+                                  double outflux, double deltaxy, double deltat,
+                                  SensitivityFunc *func, unsigned funcIdx,
+                                  unsigned type)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
     unsigned idx = x * N + y;
     unsigned n, m;
-    double piDivN = M_PI / (double) N, piSquared = M_PI * M_PI,
-           srcTerm = influx - outflux,
-           icMinBc = ic - bc, NSquared = deltaxy * deltaxy * N * N,
-           Dt = D * t * deltat, sum, nOdd, mOdd, lambda, expResult;
+    double piDivN, piSquared, srcTerm, icMinBc, NSquared,
+           Dt, sum, nOdd, mOdd, lambda, expResult;
 
     if (!(x < N && y < N)) return;
+
+    if (type == 0) {
+        influx == 0.0 ? soln[idx] = 0.0 : soln[idx] = (*func[funcIdx])(x, y, N);
+        atomicMax(maxVal, soln[idx]);
+        return;
+    } else if (type == 1) funcIdx = 0;
+
+    piDivN = M_PI / (double) N; piSquared = M_PI * M_PI;
+    srcTerm = influx - outflux; icMinBc = ic - bc;
+    NSquared = deltaxy * deltaxy * N * N;
+    Dt = D * t * deltat;
 
     if (!(x == 0 || x == N-1 || y == 0 || y == N-1)) {
         sum = 0.0;
@@ -73,7 +90,7 @@ __global__ void pde_space_step(double *soln, double *maxVal, unsigned t,
 
 // CA related kernels
 __global__ void cells_gpu_to_gpu_cpy(Cell *dst, Cell *src, unsigned gSize,
-                                      unsigned nGenes)
+                                     unsigned nGenes)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -202,7 +219,7 @@ __global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
     unsigned i, dataIdx = idx * bytesPerCell;
     unsigned nDigGSize = num_digits(gSize * gSize),
              nDigAge = num_digits(maxT + cellLifeSpan / cellCycleLen),
-             nDigInt = 1, nDigFrac = 10, nDigDoub = nDigInt + nDigFrac + 1;
+             nDigInt = 2, nDigFrac = 10, nDigDoub = nDigInt + nDigFrac + 1;
     size_t numChar;
 
     if (!(x < gSize && y < gSize)) return;
@@ -217,16 +234,16 @@ __global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
     cellData[dataIdx++] = ',';
 
     num_to_string_with_padding(newG[idx].phenotype[PROLIF],
-                               nDigDoub, cellData, &dataIdx, true);
+                               nDigDoub-1, cellData, &dataIdx, true);
     cellData[dataIdx++] = ',';
     num_to_string_with_padding(newG[idx].phenotype[QUIES],
-                               nDigDoub, cellData, &dataIdx, true);
+                               nDigDoub-1, cellData, &dataIdx, true);
     cellData[dataIdx++] = ',';
     num_to_string_with_padding(newG[idx].phenotype[APOP],
-                               nDigDoub, cellData, &dataIdx, true);
+                               nDigDoub-1, cellData, &dataIdx, true);
     cellData[dataIdx++] = ',';
     num_to_string_with_padding(newG[idx].phenotype[DIFF],
-                               nDigDoub, cellData, &dataIdx, true);
+                               nDigDoub-1, cellData, &dataIdx, true);
     cellData[dataIdx++] = ',';
 
     cellData[dataIdx++] = '[';
@@ -277,14 +294,14 @@ __global__ void collect_data(Cell *G, unsigned *counts,
     if (G[idx].state == EMPTY) return;
 
     for (i = 0; i < nGenes; i++)
-        if (G[idx].positively_mutated((gene) i)) {
+        if (G[idx].positively_mutated((gene) i) == 1) {
             atomicAdd(&counts[i+7], 1);
             atomicAdd(&counts[G[idx].state*nGenes+nGenes+7+i], 1);
         }
 }
 
 __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
-                            CarcinPDE *pdes, bool *carcinogens, unsigned t)
+                            Carcin *carcins, bool *activeCarcin, unsigned t)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -301,8 +318,8 @@ __global__ void mutate_grid(Cell *prevG, unsigned gSize, GeneExprNN *NN,
     out = (double*)malloc(NN->nOut*sizeof(double));
     memset(out, 0, NN->nOut*sizeof(double));
     for (i = 0; i < NN->nIn-1; i++)
-        if (carcinogens[i])
-            in[i] = pdes[i].soln[idx];
+        if (activeCarcin[i])
+            in[i] = carcins[i].soln[idx];
         else in[i] = 0.0;
     in[NN->nIn-1] = prevG[idx].age;
     curand_init((unsigned long long) clock(), idx+t, 0, &rndState);
@@ -473,8 +490,7 @@ __global__ void update_states(Cell *G, unsigned gSize,
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned idx = x * gSize + y;
-	unsigned i, minMut = 2, numMut = 0;
-	double chanceCSCForm = 0.001;
+	unsigned i, numMut = 0;
 	curandState_t rndState;
 
 	if (!(x < gSize && y < gSize)) return;
@@ -484,22 +500,22 @@ __global__ void update_states(Cell *G, unsigned gSize,
         return;
 
     for (i = 0; i < nGenes; i++) {
-        if (G[idx].positively_mutated((gene) i))
+        if (G[idx].positively_mutated((gene) i) == 1)
             numMut++;
-        if (numMut == minMut) break;
+        if (numMut == G[idx].params->minMut) break;
     }
 
-    if (numMut != minMut && G[idx].state == MNC)
+    if (numMut != G[idx].params->minMut && G[idx].state == MNC)
         G[idx].change_state(NC);
-    else if (numMut != minMut && G[idx].state == MSC)
+    else if (numMut != G[idx].params->minMut && G[idx].state == MSC)
         G[idx].change_state(SC);
-    else if (numMut == minMut && G[idx].state == NC)
+    else if (numMut == G[idx].params->minMut && G[idx].state == NC)
         G[idx].change_state(MNC);
-    else if (numMut == minMut && G[idx].state == SC)
+    else if (numMut == G[idx].params->minMut && G[idx].state == SC)
         G[idx].change_state(MSC);
-    else if (numMut == minMut && G[idx].state == MSC) {
+    else if (numMut == G[idx].params->minMut && G[idx].state == MSC) {
         curand_init((unsigned long long) clock(), idx+t, 0, &rndState);
-        if (curand_uniform_double(&rndState) <= chanceCSCForm)
+        if (curand_uniform_double(&rndState) <= G[idx].params->chanceCSCForm)
             G[idx].change_state(CSC);
     }
 }
@@ -676,9 +692,9 @@ __global__ void display_genes(uchar4 *optr, Cell *G, unsigned gSize,
     if (!(x < gSize && y < gSize)) return;
 
     for (i = 0; i < nGenes; i++) {
-        if (!G[idx].positively_mutated((gene) i)) continue;
+        if (!(G[idx].positively_mutated((gene) i) == 1)) continue;
 
-        if (!G[idx].positively_mutated(M)) {
+        if (!(G[idx].positively_mutated(M) == 1)) {
             M = (gene) i;
             continue;
         }
@@ -688,8 +704,8 @@ __global__ void display_genes(uchar4 *optr, Cell *G, unsigned gSize,
 			M = (gene) i;
     }
 
-    if (G[idx].state != 0 && G[idx].state != 2 && G[idx].state != 6
-     && G[idx].positively_mutated(M)) {
+    if (G[idx].state != NC && G[idx].state != SC && G[idx].state != EMPTY
+     && G[idx].positively_mutated(M) == 1) {
         color.x = geneColors[M].x;
         color.y = geneColors[M].y;
         color.z = geneColors[M].z;
@@ -704,7 +720,7 @@ __global__ void display_genes(uchar4 *optr, Cell *G, unsigned gSize,
         }
 }
 
-__global__ void display_carcin(uchar4 *optr, CarcinPDE *pde,
+__global__ void display_carcin(uchar4 *optr, Carcin *carcin,
                                unsigned gSize, unsigned cellSize,
                                unsigned dim)
 {
@@ -717,9 +733,9 @@ __global__ void display_carcin(uchar4 *optr, CarcinPDE *pde,
 
     if (!(x < gSize && y < gSize)) return;
 
-    carcinCon = pde->soln[idx];
-    if (*pde->maxVal != 0.0 && *pde->maxVal < 0.11)
-        carcinCon /= *pde->maxVal;
+    carcinCon = carcin->soln[idx];
+    if (*carcin->maxVal != 0.0 && *carcin->maxVal < 0.11)
+        carcinCon /= *carcin->maxVal;
 
     for (i = optrOffset; i < optrOffset + cellSize; i++)
         for (j = i; j < i + cellSize * dim; j += dim) {
