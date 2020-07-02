@@ -2,9 +2,10 @@
 #define __CELL_H__
 
 struct CellParams {
-    unsigned nPheno, nNeigh;
+    unsigned nPheno, nNeigh, minMut;
     double mutThresh, phenoIncr, exprAdjMaxIncr;
-    double chanceMove, chanceKill, chanceUpreg, chancePhenoMut, chanceExprAdj;
+    double chanceMove, chanceKill, chanceUpreg, chancePhenoMut, chanceExprAdj,
+           chanceCSCForm;
     gene CSCGeneIdx;
 
     effect *upregPhenoMap, *downregPhenoMap;
@@ -13,13 +14,14 @@ struct CellParams {
     gene_type *geneType;
     gene_related *geneRelations;
 
-    CellParams(unsigned nStates, unsigned nGenes, double alpha,
-               effect *upregphenomap, effect *downregphenomap,
-               ca_state *diffmap, gene_type *genetype,
+    CellParams(unsigned nStates, unsigned nGenes, unsigned minmut,
+               double chancecscform, double alpha, effect *upregphenomap,
+               effect *downregphenomap, ca_state *diffmap, gene_type *genetype,
                gene_related *generelations, double *phenoinit=NULL)
     : nPheno(4), nNeigh(8), phenoIncr(1e-6), exprAdjMaxIncr(1.0/sqrt(alpha)),
-      mutThresh(0.1), CSCGeneIdx(RB), chanceMove(0.25), chanceKill(0.4),
-      chanceUpreg(0.5), chancePhenoMut(1.0), chanceExprAdj(1.0)
+      mutThresh(0.1), minMut(minmut), chanceCSCForm(chancecscform), CSCGeneIdx(RB),
+      chanceMove(0.25), chanceKill(0.4), chanceUpreg(0.5), chancePhenoMut(1.0),
+      chanceExprAdj(1.0)
     {
         size_t dbl = sizeof(double), eff = sizeof(effect),
                st = sizeof(ca_state), gType = sizeof(gene_type),
@@ -29,14 +31,14 @@ struct CellParams {
         if (phenoinit == NULL) {
             phenoInit[ NC * nPheno + PROLIF] = 0.024000;
             phenoInit[MNC * nPheno + PROLIF] = 0.024000;
-            phenoInit[ SC * nPheno + PROLIF] = 0.013600;
-            phenoInit[MSC * nPheno + PROLIF] = 0.006800;
+            phenoInit[ SC * nPheno + PROLIF] = 0.013000;
+            phenoInit[MSC * nPheno + PROLIF] = 0.006500;
             phenoInit[CSC * nPheno + PROLIF] = 0.000625;
             phenoInit[ TC * nPheno + PROLIF] = 0.000625;
             phenoInit[ NC * nPheno +  QUIES] = 0.966000;
             phenoInit[MNC * nPheno +  QUIES] = 0.971000;
-            phenoInit[ SC * nPheno +  QUIES] = 0.956400;
-            phenoInit[MSC * nPheno +  QUIES] = 0.965700;
+            phenoInit[ SC * nPheno +  QUIES] = 0.957000;
+            phenoInit[MSC * nPheno +  QUIES] = 0.966000;
             phenoInit[CSC * nPheno +  QUIES] = 0.991875;
             phenoInit[ TC * nPheno +  QUIES] = 0.992500;
             phenoInit[ NC * nPheno +   APOP] = 0.010000;
@@ -406,17 +408,23 @@ struct Cell {
         }
     }
 
-    __device__ bool positively_mutated(gene M)
+    __device__ unsigned positively_mutated(gene M)
     {
         double geneExpr = geneExprs[M*2] - geneExprs[M*2+1];
 
-        if ((params->geneType[M] == SUPPR && geneExpr < 0.0
-          && geneExprs[M*2+1] >= params->mutThresh)
-         || (params->geneType[M] == ONCO  && geneExpr > 0.0
-          && geneExprs[M*2] >= params->mutThresh))
-            return true;
+        if (geneExpr < 0.0 && geneExprs[M*2+1] >= params->mutThresh) {
+            if (params->geneType[M] == SUPPR)
+                return 1;
+            return 2; // down-regulated
+        }
 
-        return false;
+        if (geneExpr > 0.0 && geneExprs[M*2] >= params->mutThresh) {
+            if (params->geneType[M] == ONCO)
+                return 1;
+            return 3; // up-regulated
+        }
+
+        return 0;
     }
 
     __device__ int proliferate(Cell *c, curandState_t *rndState,
@@ -431,7 +439,7 @@ struct Cell {
          && (c->state == TC || c->state == CSC))
             return -2;
 
-        if (state == CSC && !positively_mutated(params->CSCGeneIdx))
+        if (state == CSC && !(positively_mutated(params->CSCGeneIdx) == 1))
             return -1;
 
         localState = *rndState;
@@ -472,7 +480,7 @@ struct Cell {
             return -2;
         if (state == CSC && (c->state == CSC || c->state == TC))
             return -2;
-        if (state == CSC && !positively_mutated(params->CSCGeneIdx))
+        if (state == CSC && !(positively_mutated(params->CSCGeneIdx) == 1))
             return -1;
 
         localState = *rndState;
@@ -583,27 +591,52 @@ struct Cell {
                                         unsigned nGenes)
 	{
 	    unsigned m;
-        double incr = params->exprAdjMaxIncr;
-        bool posMut = positively_mutated(M), posMutm;
+        double incr = params->exprAdjMaxIncr, factor, maxFactor = 2.5;
+        int posMut = positively_mutated(M), posMutm;
         curandState_t localState = *rndState;
 
         for (m = 0; m < nGenes; m++) {
             if (curand_uniform_double(&localState) > params->chanceExprAdj)
                 continue;
+            if (m == M) continue;
             posMutm = positively_mutated((gene) m);
-            if ((posMut && posMutm) || (!posMut && !posMutm))
-                continue;
-            incr *= curand_uniform_double(&localState);
+            if (posMut == 1 && posMutm == 1) continue;
             if (params->geneRelations[M*nGenes+m] == YES) {
-                if (posMut) {
-                    if (params->geneType[m] == SUPPR) geneExprs[m*2+1] += incr;
-                    else geneExprs[m*2] += incr;
-                } else {
+                factor = curand_uniform_double(&localState);
+                if (posMut == 1) {
+                    /*if (location == 32639)
+                        printf("posMut: %d, (%g, %g), %d, (%g, %g),  %d, %d, %g\n",
+                               M, geneExprs[M*2], geneExprs[M*2+1], m,
+                               geneExprs[m*2], geneExprs[m*2+1], posMut,
+                               posMutm, incr * factor);*/
                     if (params->geneType[m] == SUPPR)
-                        geneExprs[m*2+1] = max(0.0, geneExprs[m*2+1] - incr);
+                        geneExprs[m*2+1] += incr * factor;
+                    else geneExprs[m*2] += incr * factor;
+                } else if (posMutm == 1) {
+                    /*if (location == 32639)
+                        printf("posMutm: %d, (%g, %g), %d, (%g, %g), %d, %d, %g\n",
+                               M, geneExprs[M*2], geneExprs[M*2+1], m,
+                               geneExprs[m*2], geneExprs[m*2+1], posMut,
+                               posMutm, incr * factor);*/
+                    if (params->geneType[m] == SUPPR)
+                        geneExprs[m*2] += incr * factor * maxFactor;
                     else
-                        geneExprs[m*2] = max(0.0, geneExprs[m*2] - incr);
-                }
+                        geneExprs[m*2+1] += incr * factor * maxFactor;
+                } else if (posMutm == 2) {
+                    /*if (location == 32639)
+                        printf("posMutm = 2: %d, (%g, %g), %d, (%g, %g), %d, %d, %g\n",
+                               M, geneExprs[M*2], geneExprs[M*2+1], m,
+                               geneExprs[m*2], geneExprs[m*2+1], posMut,
+                               posMutm, incr * factor);*/
+                    geneExprs[m*2] += incr * factor * maxFactor;
+                } else if (posMutm == 3) {
+                    /*if (location == 32639)
+                        printf("posMutm = 3: %d, (%g, %g), %d, (%g, %g), %d, %d, %g\n",
+                               M, geneExprs[M*2], geneExprs[M*2+1], m,
+                               geneExprs[m*2], geneExprs[m*2+1], posMut,
+                               posMutm, incr * factor);*/
+                    geneExprs[m*2+1] += incr * factor * maxFactor;
+               }
             }
         }
 
