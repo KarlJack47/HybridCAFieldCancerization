@@ -5,7 +5,7 @@ if [ ! $# -eq 1 ]; then
 fi
 
 input=$1/*/*.txt
-totalSim=$(grep "The CA will run for" $input | uniq | wc -l)
+totalSim=$(grep "Starting simulation" $input | uniq | wc -l)
 delim='/'
 delim1='('
 posSimNum=2
@@ -42,7 +42,6 @@ for i in {0..2}; do
             if [ $j -eq $totalVals ]; then
                 break;
             fi
-            #limit=$((2*$j+$j))
             limit=$((2*$j))
             simInfo=(${simInfo[@]:0:$limit} 1 ${simInfo[@]:$limit})
         done
