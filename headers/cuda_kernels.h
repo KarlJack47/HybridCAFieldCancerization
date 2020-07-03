@@ -17,8 +17,8 @@ __global__ void copy_frame(uchar4 *optr, unsigned char *frame)
 
 // Initalizes the carcinogen pde grid.
 __global__ void init_carcin(double *soln, double *maxVal, double ic, double bc,
-                            unsigned N, SensitivityFunc *func, unsigned funcIdx,
-                            unsigned type, bool noInflux=false)
+                            double srcTerm, unsigned N, SensitivityFunc *func,
+                            unsigned funcIdx, unsigned type, bool noInflux=false)
 {
 	unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
 	unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -27,15 +27,18 @@ __global__ void init_carcin(double *soln, double *maxVal, double ic, double bc,
     if (!(x < N && y < N)) return;
 
     if (type == 0) {
-        noInflux ? soln[idx] = 0.0 : soln[idx] = (*func[funcIdx])(x, y, N);
+        noInflux ? soln[idx] = 0.0
+                 : soln[idx] = (*func[funcIdx])(x, y, srcTerm, N);
         atomicMax(maxVal, soln[idx]);
         return;
-    } else if (type == 1) funcIdx = 0;
+    }
 
     if (x == 0 || x == N-1 || y == 0 || y == N-1)
-        noInflux ? soln[idx] = 0.0 : soln[idx] = (*func[funcIdx])(x, y, N) * bc;
+        noInflux ? soln[idx] = 0.0
+                 : soln[idx] = (*func[funcIdx])(x, y, 1.0, N) * bc;
     else
-        noInflux ? soln[idx] = 0.0 : soln[idx] = (*func[funcIdx])(x, y, N) * ic;
+        noInflux ? soln[idx] = 0.0
+                 : soln[idx] = (*func[funcIdx])(x, y, 1.0, N) * ic;
 
     atomicMax(maxVal, soln[idx]);
 }
@@ -43,8 +46,8 @@ __global__ void init_carcin(double *soln, double *maxVal, double ic, double bc,
 // Spacial step for the carcinogen pde.
 __global__ void carcin_space_step(double *soln, double *maxVal, unsigned t,
                                   unsigned N, unsigned maxIter, double bc,
-                                  double ic, double D, double influx,
-                                  double outflux, double deltaxy, double deltat,
+                                  double ic, double D, double srcTerm,
+                                  double deltaxy, double deltat,
                                   SensitivityFunc *func, unsigned funcIdx,
                                   unsigned type)
 {
@@ -52,20 +55,20 @@ __global__ void carcin_space_step(double *soln, double *maxVal, unsigned t,
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
     unsigned idx = x * N + y;
     unsigned n, m;
-    double piDivN, piSquared, srcTerm, icMinBc, NSquared,
+    double piDivN, piSquared, icMinBc, NSquared,
            Dt, sum, nOdd, mOdd, lambda, expResult;
 
     if (!(x < N && y < N)) return;
 
     if (type == 0) {
-        influx == 0.0 ? soln[idx] = 0.0 : soln[idx] = (*func[funcIdx])(x, y, N);
+        srcTerm <= 0.0 ? soln[idx] = 0.0
+                       : soln[idx] = (*func[funcIdx])(x, y, srcTerm, N);
         atomicMax(maxVal, soln[idx]);
         return;
-    } else if (type == 1) funcIdx = 0;
+    }
 
     piDivN = M_PI / (double) N; piSquared = M_PI * M_PI;
-    srcTerm = influx - outflux; icMinBc = ic - bc;
-    NSquared = deltaxy * deltaxy * N * N;
+    icMinBc = ic - bc; NSquared = deltaxy * deltaxy * N * N;
     Dt = D * t * deltat;
 
     if (!(x == 0 || x == N-1 || y == 0 || y == N-1)) {
@@ -81,9 +84,10 @@ __global__ void carcin_space_step(double *soln, double *maxVal, unsigned t,
                         * sin(y * mOdd * piDivN)) / (nOdd * mOdd);
             }
         }
-        soln[idx] = (*func[funcIdx])(x, y, N) * ((16.0 / piSquared) * sum + bc);
+        soln[idx] = (*func[funcIdx])(x, y, 1.0, N) * ((16.0 / piSquared) * sum
+                                                      + bc);
         if (soln[idx] < 0.0) soln[idx] = 0.0;
-    } else soln[idx] = (*func[funcIdx])(x, y, N) * bc;
+    } else soln[idx] = (*func[funcIdx])(x, y, 1.0, N) * bc;
 
     atomicMax(maxVal, soln[idx]);
 }

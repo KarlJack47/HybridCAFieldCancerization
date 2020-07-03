@@ -19,27 +19,27 @@ void cleanup(CA *ca, GUI *gui, CellParams *params)
     }
 }
 
-__device__ double func1(double x, double y, unsigned N)
+__device__ double func1(double x, double y, double factor, unsigned N)
 {
     return 1;
 }
 
-__device__ double func2(double x, double y, unsigned N)
+__device__ double func2(double x, double y, double factor, unsigned N)
 {
     return 0.5 * (sin(2.0 * M_PI * x / (double) N) * cos(M_PI * y / (double) N)
-                  + 1.0);
+                  + 1.0) * factor;
 }
 
-__device__ double func3(double x, double y, unsigned N)
+__device__ double func3(double x, double y, double factor, unsigned N)
 {
     double mux = (N / 2.0) - 1.0, muy = mux,
            sigmax = (N / 20.0), sigmay = sigmax;
 
     return exp(-0.5 * (pow(x - mux, 2) / (sigmax * sigmax)
-                     + pow(y - muy, 2) / (sigmay * sigmay)));
+                     + pow(y - muy, 2) / (sigmay * sigmay))) * factor;
 }
 
-__device__ double func4(double x, double y, unsigned N)
+__device__ double func4(double x, double y, double factor, unsigned N)
 {
     unsigned i;
     double sigmax = N / 20.0, sigmay = sigmax, Ndiv4 = N / 4.0, result = 0.0;
@@ -53,7 +53,7 @@ __device__ double func4(double x, double y, unsigned N)
         result += exp(-0.5 * (pow(x - mux[i], 2) / (sigmax * sigmax)
                      + pow(y - muy[i], 2) / (sigmay * sigmay)));
 
-    return result;
+    return result * factor;
 }
 
 __device__ SensitivityFunc pFunc[4] = { func1, func2, func3, func4 };

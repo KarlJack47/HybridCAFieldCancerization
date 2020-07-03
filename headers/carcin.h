@@ -1,10 +1,10 @@
 #ifndef __CARCIN_H__
 #define __CARCIN_H__
 
-__global__ void init_carcin(double*,double*,double,double,unsigned,
+__global__ void init_carcin(double*,double*,double,double,double,unsigned,
                             SensitivityFunc*,unsigned,unsigned,bool);
 __global__ void carcin_space_step(double*,double*,unsigned,unsigned,unsigned,
-                                  double,double,double,double,double,double,
+                                  double,double,double,double,double,
                                   double,SensitivityFunc*,unsigned,unsigned);
 
 struct Carcin {
@@ -74,8 +74,8 @@ struct Carcin {
         dim3 threads(blockSize, blockSize);
 
         init_carcin<<< blocks, threads, 0, stream ? *stream : 0 >>>(
-            soln, maxVal, ic, bc, N, func,
-            funcIdx, type, maxTNoInflux != -1 ? true : false
+            soln, maxVal, ic, bc, influx - outflux, N, func,
+            type == 1 ? 0 : funcIdx, type, maxTNoInflux != -1 ? true : false
         );
         CudaCheckError();
 	}
@@ -155,7 +155,8 @@ struct Carcin {
 
         carcin_space_step<<< blocks, threads, 0, *stream >>>(
             soln, maxVal, t, N, maxIter, bc, ic, diffusion,
-            influxIn, outflux, deltaxy, deltat, func, funcIdx, type
+            influxIn - outflux, deltaxy, deltat, func,
+            type == 1 ? 0 : funcIdx, type
         );
         CudaCheckError();
     }
