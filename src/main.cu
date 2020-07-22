@@ -217,11 +217,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("The CA will run for %d timesteps on a grid of size %dx%d,",
-           T, gridSize, gridSize);
-    printf(" init type %d, perfectExcision %d, max time TC alive %d.\n",
-           initType, perfectExcision, maxTTC); 
-
     if (initType == 0) {
         for (i = 0; i < maxNCarcin; i++)
             if (activeCarcin[i]) break;
@@ -235,6 +230,22 @@ int main(int argc, char *argv[])
         for (i = 0; i < maxNCarcin; i++)
             activeCarcin[i] = false;
     }
+
+    printf("The CA will run %d times for %d timesteps on a grid of size %dx%d,",
+           nSim, T, gridSize, gridSize);
+    printf(" init type %d, perfectExcision %d, max time TC alive %d,",
+           initType, perfectExcision, maxTTC);
+    printf(" number of carcinogens %d", nCarcin);
+    for (i = 0; i < maxNCarcin; i++) {
+        if (!activeCarcin[i]) continue; 
+        printf(", carcin type (%d, %d), exposure time (%d, %g),",
+               i, carcinType[i], i, exposureTime[i]);
+        printf(" time influx (%d, %d), time no influx (%d, %d),",
+               i, maxTInflux[i], i, maxTNoInflux[i]);
+        printf(" function index (%d, %d)", i, funcIdx[i]);
+    }
+    printf(", chance CSC Form %g, minimum number of mutations %d\n",
+           chanceCSCForm, minMut);
 
     *ca = CA(gridSize, T, nGenes, nCarcin, maxNCarcin,
              save, outSize, maxTTC, perfectExcision);
