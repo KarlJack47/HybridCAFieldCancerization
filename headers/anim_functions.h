@@ -9,7 +9,8 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
     unsigned i, j, carcinIdx, deactivated, *numTC, *countData, *rTC, numCells;
     int *tcX, *tcY;
     bool excisionPerformed = false, activate = false;
-    char answer[9] = { '\0' };
+    char answer[9] = { '\0' }, fname[50] = { '\0' };
+    double *phenoSum, denom;
     dim3 blocks(NBLOCKS(ca->gridSize, ca->blockSize),
                 NBLOCKS(ca->gridSize, ca->blockSize));
     dim3 threads(ca->blockSize, ca->blockSize);
@@ -129,15 +130,18 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
     }
 
     if (ticks <= ca->maxT) {
-        if (ticks == 0 && (display || ca->save)) {
-            display_ca<<< blocks, threads, 0, streams[0] >>>(
-                outputBitmap, ca->newGrid, ca->gridSize,
-                ca->cellSize, dim, ca->stateColors
-            );
-            CudaCheckError();
+        if (ticks == 0) {
+            if (display || ca->save) {
+                display_ca<<< blocks, threads, 0, streams[0] >>>(
+                    outputBitmap, ca->newGrid, ca->gridSize,
+                    ca->cellSize, dim, ca->stateColors
+                );
+                CudaCheckError();
+            }
             if (!paused)
                 save_cell_data_to_file(ca, ticks, blocks, threads, &streams[1]);
             CudaSafeCall(cudaStreamSynchronize(streams[0]));
+            CudaSafeCall(cudaStreamSynchronize(streams[1]));
         } else if (!paused) {
             mutate_grid<<< blocks, threads, 0, streams[0] >>>(
                 ca->prevGrid, ca->gridSize, ca->NN,
@@ -270,6 +274,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                         ca->newGrid, ca->gridSize, ca->nGenes
                     );
                     CudaCheckError();
+                    CudaSafeCall(cudaStreamSynchronize(streams[0]));
 
                     excisionPerformed = true;
                     ca->timeTCAlive = 0;
@@ -282,6 +287,16 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 }
             }
             CudaSafeCall(cudaFree(numTC)); numTC = NULL;
+
+            *ca->nLineage = 0; *ca->nLineageCells = 0;
+            memset(ca->cellLineage, 0, ca->gridSize*ca->gridSize*sizeof(unsigned));
+            memset(ca->stateInLineage, 0,
+                   (ca->nStates-1)*ca->gridSize*ca->gridSize*sizeof(bool));
+            update_cell_lineage<<< blocks, threads, 0, streams[1] >>>(
+                ca->newGrid, ca->cellLineage, ca->stateInLineage,
+                ca->nLineage, ca->nLineageCells, ca->gridSize
+            );
+            CudaCheckError();
 
             save_cell_data_to_file(ca, ticks, blocks, threads, &streams[0]);
 
@@ -297,6 +312,7 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
 
             if ((display || ca->save)
              && ticks % ca->framerate == 0) {
+                CudaSafeCall(cudaStreamSynchronize(streams[1]));
                 display_ca<<< blocks, threads, 0, streams[0] >>>(
                     outputBitmap, ca->newGrid, ca->gridSize,
                     ca->cellSize, dim, ca->stateColors);
@@ -309,8 +325,11 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                                            (ca->nStates+ca->nStates*ca->nGenes)*sizeof(unsigned)));
             memset(countData, 0,
                    (ca->nStates+ca->nStates*ca->nGenes)*sizeof(unsigned));
+            CudaSafeCall(cudaMallocManaged((void**)&phenoSum,
+                                           4*ca->nStates*sizeof(double)));
+            memset(phenoSum, 0, 4*ca->nStates*sizeof(double));
             collect_data<<< blocks, threads, 0, streams[0] >>>(
-                ca->newGrid, countData, ca->gridSize, ca->nGenes
+                ca->newGrid, countData, phenoSum, ca->gridSize, ca->nGenes
             );
             CudaCheckError();
             CudaSafeCall(cudaStreamSynchronize(streams[0]));
@@ -318,6 +337,21 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
                 save_count_data(ca->countFiles[i], ca->headerCount, ticks,
                                 countData[i], ca->stateColors[i].x,
                                 ca->stateColors[i].y, ca->stateColors[i].z);
+                for (j = 0; j < 4; j++) {
+                    if (j == 3 && (i == NC || i == MNC || i == TC)) continue;
+                    sprintf(fname, "chancePheno%d_State%d.data", j, i);
+                    denom = countData[i];
+                    if (i == 6) {
+                        denom = ca->gridSize * ca->gridSize - countData[EMPTY];
+                        if (j == 3) denom -= (countData[NC] + countData[MNC]
+                                              + countData[TC]);
+                    }
+                    save_count_data(fname, NULL, ticks,
+                                    (i != 6 && countData[i] == 0) ? 0 :
+                                     phenoSum[i*4+j] / denom,
+                                    ca->stateColors[i].x, ca->stateColors[i].y,
+                                    ca->stateColors[i].z);
+                }
                 for (j = 0; j < ca->nGenes; j++) {
                     if (i == EMPTY) continue;
                     save_count_data(ca->countFiles[i*ca->nGenes+(3*ca->nStates+ca->nGenes+11)+j],
@@ -337,10 +371,14 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
              || countData[CSC] + countData[TC] + countData[EMPTY] == numCells)
                 *windowsShouldClose = true;
             CudaSafeCall(cudaFree(countData)); countData = NULL;
+            CudaSafeCall(cudaFree(phenoSum)); phenoSum = NULL;
         }
 
         for (i = 0; i < ca->maxNCarcin+2; i++)
             CudaSafeCall(cudaStreamSynchronize(streams[i]));
+
+        if (!paused) printf("Number of cell Lineages: %u\n", *ca->nLineage);
+        if (!paused) printf("Number of cells in lineages: %u\n", *ca->nLineageCells);
 
         if (!paused && ca->nCarcin > 0)
             for (i = 0; i < ca->maxNCarcin; i++)
@@ -356,27 +394,69 @@ void anim_gpu_ca(uchar4* outputBitmap, unsigned dim, CA *ca,
         CudaSafeCall(cudaStreamDestroy(streams[i]));
 }
 
-void anim_gpu_genes(uchar4* outputBitmap, unsigned dim, CA *ca,
-                    unsigned ticks, bool display, bool paused)
+void anim_gpu_lineage(uchar4* outputBitmap, unsigned dim, CA *ca, unsigned idx,
+                      unsigned stateIdx, unsigned ticks, bool display, bool paused)
 {
     dim3 blocks(NBLOCKS(ca->gridSize, ca->blockSize),
                 NBLOCKS(ca->gridSize, ca->blockSize));
     dim3 threads(ca->blockSize, ca->blockSize);
+    unsigned i;
+    char fname[15] = { '\0' };
+
+    if (idx == 2) {
+        if (!paused)
+            printf("Top Ten Cell Lineage Sizes for %u: [", stateIdx);
+        for (i = 0; i < 10; i++) {
+            ca->maxLineages[i] = 0;
+            max_lineage<<< blocks, threads >>>(
+                ca->newGrid, ca->cellLineage, ca->maxLineages,
+                i, stateIdx, ca->gridSize
+            );
+            CudaCheckError();
+            CudaSafeCall(cudaDeviceSynchronize());
+            if (!paused) printf(" %u", ca->maxLineages[i]);
+        }
+        if (!paused) printf(" ]\n");
+    }
 
     if ((display || ca->save)
      && ticks % ca->framerate == 0) {
-        display_genes<<< blocks, threads >>>(
-            outputBitmap, ca->newGrid, ca->gridSize, ca->cellSize, dim,
-            ca->NN->nOut, ca->geneColors
+        if (idx == 0)
+            display_genes<<< blocks, threads >>>(
+                outputBitmap, ca->newGrid, ca->gridSize, ca->cellSize, dim,
+                ca->NN->nOut, ca->geneColors
+            );
+        else if (idx == 2)
+            display_maxLineages<<< blocks, threads >>>(
+                outputBitmap, ca->newGrid, ca->cellLineage, ca->stateInLineage,
+                ca->maxLineages, stateIdx, ca->gridSize, ca->cellSize, dim,
+                ca->lineageColors
+            );
+        CudaCheckError();
+        CudaSafeCall(cudaDeviceSynchronize());
+    }
+
+    if (idx == 1 && !paused) {
+        memset(ca->percentageCounts, 0, 10*sizeof(unsigned));
+        display_heatmap<<< blocks, threads >>>(
+            outputBitmap, ca->newGrid, ca->cellLineage,
+            ca->nLineageCells, ca->percentageCounts,
+            ca->gridSize, ca->cellSize, dim, ca->heatmap
         );
         CudaCheckError();
         CudaSafeCall(cudaDeviceSynchronize());
+        for (i = 0; i < 10; i++) {
+            sprintf(fname, "%d-%d%%.data", i == 0 ? i*10 : i * 10 + 1, (i + 1) * 10);
+            save_count_data(fname, NULL, ticks, ca->percentageCounts[i],
+                            ca->heatmap[i].x, ca->heatmap[i].y, ca->heatmap[i].z);
+        }
     }
 
     if (ca->save && ticks <= ca->maxT && !paused
      && ticks % ca->framerate == 0)
         save_image(outputBitmap, dim, ca->blockSize,
-                   ca->prefixes[0], ticks, ca->devId2);
+                   ca->prefixes[idx == 2 ? idx+stateIdx : idx],
+                   ticks, ca->devId2);
 }
 
 void anim_gpu_carcin(uchar4* outputBitmap, unsigned dim, CA *ca,
@@ -400,7 +480,7 @@ void anim_gpu_carcin(uchar4* outputBitmap, unsigned dim, CA *ca,
     if (ca->save && ticks <= ca->maxT && !paused
      && ticks % ca->framerate == 0)
         save_image(outputBitmap, dim, ca->blockSize,
-                   ca->prefixes[carcinIdx+1], ticks, ca->devId2);
+                   ca->prefixes[carcinIdx+9], ticks, ca->devId2);
 
 }
 
@@ -447,35 +527,55 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
         }
         if (ticks == ca->maxT && ticks > videoFramerate)
             startPoint = (int) (ticks - ticks % videoFramerate);
-        #pragma omp parallel sections num_threads(3)
+        #pragma omp parallel sections num_threads(5)
         {
             #pragma omp section
             {
+                fflush(stdout);
                 printf("Saving video %s.\n", ca->outNames[0]);
-                fflush(stdout);
                 save_video(NULL, ca->outNames[0], startPoint, videoFramerate);
-                printf("Finished video %s.\n", ca->outNames[0]);
                 fflush(stdout);
+                printf("Finished video %s.\n", ca->outNames[0]);
             }
             #pragma omp section
             {
-                printf("Saving video %s.\n", ca->outNames[1]);
                 fflush(stdout);
+                printf("Saving video %s.\n", ca->outNames[1]);
                 save_video(ca->prefixes[0], ca->outNames[1], startPoint,
                            videoFramerate);
-                printf("Finished video %s.\n", ca->outNames[1]);
                 fflush(stdout);
+                printf("Finished video %s.\n", ca->outNames[1]);
+            }
+            #pragma omp section
+            {
+                fflush(stdout);
+                printf("Saving video %s.\n", ca->outNames[2]);
+                save_video(ca->prefixes[1], ca->outNames[2], startPoint,
+                           videoFramerate);
+                fflush(stdout);
+                printf("Finished video %s.\n", ca->outNames[2]);
+            }
+            #pragma omp section
+            {
+                for (i = 0; i < ca->nStates; i++) {
+                    fflush(stdout);
+                    printf("Saving video %s.\n", ca->outNames[i+3]);
+                    save_video(ca->prefixes[i+2], ca->outNames[i+3], startPoint,
+                               videoFramerate);
+                    fflush(stdout);
+                    printf("Finished video %s.\n", ca->outNames[i+3]);
+                }
             }
             #pragma omp section
             {
                 for (carcinIdx = 0; carcinIdx < ca->maxNCarcin; carcinIdx++) {
                     if (!ca->activeCarcin[carcinIdx]) continue;
-                    printf("Saving video %s.\n", ca->outNames[carcinIdx+2]);
                     fflush(stdout);
-                    save_video(ca->prefixes[carcinIdx+1], ca->outNames[carcinIdx+2],
+                    printf("Saving video %s.\n", ca->outNames[carcinIdx+4]);
+                    save_video(ca->prefixes[carcinIdx+3], ca->outNames[carcinIdx+4],
                                startPoint, videoFramerate);
-                    printf("Finished video %s.\n", ca->outNames[carcinIdx+2]);
                     fflush(stdout);
+                    printf("Finished video %s.\n", ca->outNames[carcinIdx+4]);
                 }
             }
         }
@@ -485,10 +585,11 @@ void anim_gpu_timer_and_saver(CA *ca, bool start, unsigned ticks, bool paused,
         ca->end = clock();
         printf("It took %f seconds to run the %d time steps.\n",
                (double) (ca->end - ca->start) / CLOCKS_PER_SEC, ticks);
-        for (i = 0; i < ca->maxNCarcin+2; i++) {
-            vidListName = (char*)calloc((i == ca->maxNCarcin+1 ? 0
+        if (!ca->save) return;
+        for (i = 0; i < ca->maxNCarcin+10; i++) {
+            vidListName = (char*)calloc((i == ca->maxNCarcin+9 ? 0
                                          : strlen(ca->prefixes[i])) + 11, 1);
-            if (i != ca->maxNCarcin+1) strcat(vidListName, ca->prefixes[i]);
+            if (i != ca->maxNCarcin+9) strcat(vidListName, ca->prefixes[i]);
             strcat(vidListName, "videos.txt");
             if (stat(vidListName, &buffer) == -1) continue;
             if (remove(vidListName) != 0)

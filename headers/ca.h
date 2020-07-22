@@ -4,8 +4,8 @@
 struct CA;
 void anim_gpu_ca(uchar4*,unsigned,CA*,unsigned,bool,bool,bool,
                  unsigned,unsigned,unsigned,bool*,bool*);
-void anim_gpu_genes(uchar4*,unsigned,CA*,
-                    unsigned,bool,bool);
+void anim_gpu_lineage(uchar4*,unsigned,CA*,unsigned,
+                      unsigned,unsigned,bool,bool);
 void anim_gpu_carcin(uchar4*,unsigned,CA*,unsigned,
                      unsigned,bool,bool);
 void anim_gpu_cell(uchar4*,unsigned,CA*,
@@ -29,14 +29,15 @@ struct CA {
     double cellVolume, cellCycleLen, cellLifeSpan;
 
     unsigned *cscFormed, *tcFormed, exciseCount, maxExcise,
-             timeTCAlive, *timeTCDead;
-    bool perfectExcision, *activeCarcin;
+             timeTCAlive, *timeTCDead, *cellLineage, *nLineage, *nLineageCells,
+             *maxLineages, *percentageCounts;
+    bool perfectExcision, *activeCarcin, *stateInLineage;
     unsigned *radius, *centerX, *centerY;
 
     clock_t start, end, startStep, endStep;
 
     unsigned framerate;
-    dim3 *stateColors, *geneColors;
+    dim3 *stateColors, *geneColors, *heatmap, *lineageColors;
     bool save;
     char **prefixes, **outNames, *headerCount, **countFiles,
          *headerCellData, *cellData;
@@ -129,21 +130,39 @@ struct CA {
             CudaSafeCall(cudaFree(tcFormed)); tcFormed = NULL;
         }
         if (timeTCDead != NULL) {
-            CudaSafeCall(cudaFree(timeTCDead));
+            CudaSafeCall(cudaFree(timeTCDead)); timeTCDead = NULL;
         }
         if (radius != NULL) {
-            CudaSafeCall(cudaFree(radius));
+            CudaSafeCall(cudaFree(radius)); radius = NULL;
         }
         if (centerX != NULL) {
-            CudaSafeCall(cudaFree(centerX));
+            CudaSafeCall(cudaFree(centerX)); centerX = NULL;
         }
         if (centerY != NULL) {
-            CudaSafeCall(cudaFree(centerY));
+            CudaSafeCall(cudaFree(centerY)); centerY = NULL;
+        }
+        if (cellLineage != NULL) {
+            CudaSafeCall(cudaFree(cellLineage)); cellLineage = NULL;
+        }
+        if (stateInLineage != NULL) {
+            CudaSafeCall(cudaFree(stateInLineage)); stateInLineage = NULL;
+        }
+        if (nLineage != NULL) {
+            CudaSafeCall(cudaFree(nLineage)); nLineage = NULL;
+        }
+        if (nLineageCells != NULL) {
+            CudaSafeCall(cudaFree(nLineageCells)); nLineageCells = NULL;
+        }
+        if (maxLineages != NULL) {
+            CudaSafeCall(cudaFree(maxLineages)); maxLineages = NULL;
+        }
+        if (percentageCounts != NULL) {
+            CudaSafeCall(cudaFree(percentageCounts)); percentageCounts = NULL;
         }
         if (outNames != NULL && prefixes != NULL) {
-            for (i = 0; i < maxNCarcin+2; i++) {
+            for (i = 0; i < maxNCarcin+10; i++) {
                 free(outNames[i]); outNames[i] = NULL;
-                if (i < maxNCarcin+1) { free(prefixes[i]); prefixes[i] = NULL; }
+                if (i < maxNCarcin+9) { free(prefixes[i]); prefixes[i] = NULL; }
             }
             free(outNames); outNames = NULL;
             free(prefixes); prefixes = NULL;
@@ -168,6 +187,12 @@ struct CA {
         }
         if (geneColors != NULL) {
             CudaSafeCall(cudaFree(geneColors)); geneColors = NULL;
+        }
+        if (heatmap != NULL) {
+            CudaSafeCall(cudaFree(heatmap)); heatmap = NULL;
+        }
+        if (lineageColors != NULL) {
+            CudaSafeCall(cudaFree(lineageColors)); lineageColors = NULL;
         }
     }
 
@@ -217,30 +242,76 @@ struct CA {
         memset(radius, 0, (maxExcise+1)*sizeof(unsigned));
         radius[0] = gridSize;
         centerX[0] = gridSize / 2 - 1; centerY[0] = centerX[0];
+        CudaSafeCall(cudaMallocManaged((void**)&cellLineage,
+                                       gridSize*gridSize*sizeof(unsigned)));
+        memset(cellLineage, 0, gridSize*gridSize*sizeof(unsigned));
+        CudaSafeCall(cudaMallocManaged((void**)&stateInLineage,
+                                       (nStates-1)*gridSize*gridSize*sizeof(bool)));
+        memset(stateInLineage, false, (nStates-1)*gridSize*gridSize*sizeof(bool));
+        CudaSafeCall(cudaMallocManaged((void**)&nLineage, sizeof(unsigned)));
+        *nLineage = 0;
+        CudaSafeCall(cudaMallocManaged((void**)&nLineageCells, sizeof(unsigned)));
+        *nLineageCells = 0;
+        CudaSafeCall(cudaMallocManaged((void**)&maxLineages, 10*sizeof(unsigned)));
+        CudaSafeCall(cudaMallocManaged((void**)&percentageCounts, 10*sizeof(unsigned)));
 
         CudaSafeCall(cudaMallocManaged((void**)&stateColors, nStates*sizeof(dim3)));
-        stateColors[   NC] = dim3(  0,   0,   0); // black
-        stateColors[  MNC] = dim3( 87, 207,   0); // green
-        stateColors[   SC] = dim3(244, 131,   0); // orange
-        stateColors[  MSC] = dim3(  0,   0, 255); // blue
-        stateColors[  CSC] = dim3( 89,  35, 112); // purple
-        stateColors[   TC] = dim3(255,   0,   0); // red
+        stateColors[   NC] = dim3(146, 111,  98); // brown
+        stateColors[  MNC] = dim3( 50, 200, 118); // green
+        stateColors[   SC] = dim3(  0,  84, 147); // blue
+        stateColors[  MSC] = dim3(240, 200,   0); // yellow
+        stateColors[  CSC] = dim3(200,  62, 255); // purple
+        stateColors[   TC] = dim3(255,  61,  62); // red
         stateColors[EMPTY] = dim3(255, 255, 255); // white
         CudaSafeCall(cudaMallocManaged((void**)&geneColors, nGenes*sizeof(dim3)));
+        CudaSafeCall(cudaMallocManaged((void**)&heatmap, 10*sizeof(dim3)));
+        heatmap[0] = dim3(255,   0,   0); // 0-10%
+        heatmap[1] = dim3(255, 104, 104); // 11-20%
+        heatmap[2] = dim3(255, 153, 153); // 21-30%
+        heatmap[3] = dim3(255, 195, 195); // 31-40%
+        heatmap[4] = dim3(255, 234, 234); // 41-50%
+        heatmap[5] = dim3(231, 255, 231); // 51-60%
+        heatmap[6] = dim3(214, 255, 214); // 61-70%
+        heatmap[7] = dim3(187, 255, 187); // 71-80%
+        heatmap[8] = dim3(145, 255, 145); // 81-90%
+        heatmap[9] = dim3(  0, 255,   0); // 91-100%
+        CudaSafeCall(cudaMallocManaged((void**)&lineageColors, 10*sizeof(dim3)));
+        lineageColors[0] = dim3(221, 219,   0);
+        lineageColors[1] = dim3(107, 221,   0);
+        lineageColors[2] = dim3(  0, 203, 152);
+        lineageColors[3] = dim3(  0, 181, 179);
+        lineageColors[4] = dim3(  0, 159, 197);
+        lineageColors[5] = dim3( 75, 121, 255);
+        lineageColors[6] = dim3(193,   0, 230);
+        lineageColors[7] = dim3(188,   0, 143);
+        lineageColors[8] = dim3(172,   0,  55);
+        lineageColors[9] = dim3(105,  60,   0);
 
-        prefixes = (char**)malloc((maxNCarcin+1)*sizeof(char*));
-        outNames = (char**)malloc((maxNCarcin+2)*sizeof(char*));
+        prefixes = (char**)malloc((maxNCarcin+9)*sizeof(char*));
+        outNames = (char**)malloc((maxNCarcin+10)*sizeof(char*));
         prefixes[0] = (char*)calloc(7, 1);
         strcat(prefixes[0], "genes_");
+        prefixes[1] = (char*)calloc(9, 1);
+        strcat(prefixes[1], "heatmap_");
+        for (i = 0; i < nStates; i++) {
+            prefixes[i+2] = (char*)calloc(6, 1);
+            sprintf(prefixes[i+2], "max%d_", i);
+        }
         outNames[0] = (char*)calloc(11, 1);
         strcat(outNames[0], "out_ca.mp4");
         outNames[1] = (char*)calloc(14, 1);
         strcat(outNames[1], "out_genes.mp4");
+        outNames[2] = (char*)calloc(16, 1);
+        strcat(outNames[2], "out_heatmap.mp4");
+        for (i = 0; i < nStates; i++) {
+            outNames[i+3] = (char*)calloc(13, 1);
+            sprintf(outNames[i+3], "out_max%d.mp4", i);
+        }
         for (i = 0; i < maxNCarcin; i++) {
-            prefixes[i+1] = (char*)calloc(15, 1);
-            sprintf(prefixes[i+1], "carcin%d_", i);
-            outNames[i+2] = (char*)calloc(25, 1);
-            sprintf(outNames[i+2], "out_carcin%d.mp4", i);
+            prefixes[i+9] = (char*)calloc(15, 1);
+            sprintf(prefixes[i+9], "carcin%d_", i);
+            outNames[i+10] = (char*)calloc(25, 1);
+            sprintf(outNames[i+10], "out_carcin%d.mp4", i);
         }
 
         countFiles = (char**)malloc((4*nStates+nStates*nGenes+4)*sizeof(char*));
@@ -276,17 +347,17 @@ struct CA {
         headerCount = (char*)calloc(53, 1);
         strcat(headerCount, "# t\tcount\tcolour (2^16*red+2^8*blue+green)\n");
 
-        bytesPerCell = 2 * num_digits(gridSize * gridSize)
+        bytesPerCell = 3 * num_digits(gridSize * gridSize)
                      + num_digits(maxT + cellLifeSpan / cellCycleLen)
                      + (nDigFrac + 2) * nPheno
-                     + (2 * (nDigInt + nDigFrac) + 4) * nGenes + 19;
+                     + (2 * (nDigInt + nDigFrac) + 4) * nGenes + 20;
         cellDataSize = bytesPerCell * gridSize * gridSize + 1;
         CudaSafeCall(cudaMallocManaged((void**)&cellData, cellDataSize));
         cellData[cellDataSize-1] = '\0';
         headerCellData = (char*)calloc(93, 1);
         strcat(headerCellData, "# idx,state,age,prolif,quies,apop,diff");
         strcat(headerCellData, ",[geneExprs],chosenPheno,chosenCell");
-        strcat(headerCellData, ",actionDone,excised\n");
+        strcat(headerCellData, ",actionDone,excised,lineage\n");
 	}
 
     void init_grid_cell(Cell *G, unsigned i, unsigned j, int dev,
@@ -387,40 +458,58 @@ struct CA {
         CudaSafeCall(cudaMemPrefetchAsync(newGrid,
                                           gridSize*gridSize*sizeof(Cell),
                                           devId2, prefetch[3]));
+        CudaSafeCall(cudaMemPrefetchAsync(cellLineage,
+                                          gridSize*gridSize*sizeof(unsigned),
+                                          devId2, prefetch[4]));
+        CudaSafeCall(cudaMemPrefetchAsync(stateInLineage,
+                                          (nStates-1)*gridSize*gridSize*sizeof(bool),
+                                          devId2, prefetch[0]));
+        CudaSafeCall(cudaMemPrefetchAsync(maxLineages,
+                                          10*sizeof(unsigned),
+                                          devId2, prefetch[1]));
+        CudaSafeCall(cudaMemPrefetchAsync(percentageCounts,
+                                          10*sizeof(unsigned),
+                                          devId2, prefetch[2]));
         CudaSafeCall(cudaMemPrefetchAsync(carcins,
                                           maxNCarcin*sizeof(Carcin),
-                                          devId2, prefetch[4]));
+                                          devId2, prefetch[3]));
         CudaSafeCall(cudaMemPrefetchAsync(activeCarcin,
                                           maxNCarcin*sizeof(bool),
-                                          devId2, prefetch[0]));
+                                          devId2, prefetch[4]));
 
         CudaSafeCall(cudaMemPrefetchAsync(NN,
                                           sizeof(GeneExprNN),
-                                          devId2, prefetch[1]));
+                                          devId2, prefetch[0]));
         CudaSafeCall(cudaMemPrefetchAsync(tcFormed,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[2]));
+                                          devId1, prefetch[1]));
         CudaSafeCall(cudaMemPrefetchAsync(timeTCDead,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[3]));
+                                          devId1, prefetch[2]));
         CudaSafeCall(cudaMemPrefetchAsync(radius,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[4]));
+                                          devId1, prefetch[3]));
         CudaSafeCall(cudaMemPrefetchAsync(centerX,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[0]));
+                                          devId1, prefetch[4]));
         CudaSafeCall(cudaMemPrefetchAsync(centerY,
                                           (maxExcise+1)*sizeof(unsigned),
-                                          devId1, prefetch[1]));
+                                          devId1, prefetch[0]));
         CudaSafeCall(cudaMemPrefetchAsync(stateColors,
                                           nStates*sizeof(dim3),
-                                          devId1, prefetch[2]));
+                                          devId1, prefetch[1]));
         CudaSafeCall(cudaMemPrefetchAsync(geneColors,
                                           nGenes*sizeof(dim3),
+                                          devId1, prefetch[2]));
+        CudaSafeCall(cudaMemPrefetchAsync(heatmap,
+                                          10*sizeof(dim3),
                                           devId1, prefetch[3]));
+        CudaSafeCall(cudaMemPrefetchAsync(lineageColors,
+                                          10*sizeof(dim3),
+                                          devId1, prefetch[4]));
         CudaSafeCall(cudaMemPrefetchAsync(cellData,
                                           cellDataSize,
-                                          devId2, prefetch[4]));
+                                          devId2, prefetch[0]));
 
         for (i = 0; i < maxNCarcin+5; i++) {
             CudaSafeCall(cudaStreamSynchronize(prefetch[i]));
@@ -437,8 +526,8 @@ struct CA {
         framerate = frameRate;
         gui->anim((void (*)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
                             unsigned,unsigned,unsigned,bool*,bool*))anim_gpu_ca,
-                  (void (*)(uchar4*,unsigned,void*,
-                            unsigned,bool,bool))anim_gpu_genes,
+                  (void (*)(uchar4*,unsigned,void*,unsigned,
+                            unsigned,unsigned,bool,bool))anim_gpu_lineage,
                   (void (*)(uchar4*,unsigned,void*,unsigned,
                             unsigned,bool,bool))anim_gpu_carcin,
                   (void (*)(uchar4*,unsigned,void*,

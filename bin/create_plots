@@ -4,6 +4,7 @@ set xlabel 'time (10 hours)'
 
 states = "NC MNC SC MSC CSC TC Empty" 
 phenotypes = "Proliferating Quiescent Apoptotic Differentiating"
+phenotypes1 = "Proliferation Quiescence Apoptosis Differentiation"
 genes = "TP53 TP73 RB P21 TP16 EGFR CCDN1 MYC PIK3CA RAS"
 
 do for [i=1:7] {
@@ -15,6 +16,22 @@ do for [i=1:7] {
   } else {
       plot sprintf("numState%d.data", i-1) u 1:2:3 with points pt 1 lc rgb var
   }
+  do for [j=1:4] {
+    if (j == 4 && (i == 1 || i == 2 || i == 6)) { continue }
+    if (i != 7) {
+      set title 'Average Chance of '.word(phenotypes1, j).' for '.word(states, i)
+      set output 'chance'.word(phenotypes1, j).'_'.word(states, i).'.png'
+    } else {
+      set title 'Average Chance of '.word(phenotypes1, j).' for All Cell Types'
+      set output 'chance'.word(phenotypes1, j).'_all.png'
+    }
+    set ylabel 'Average Change of '.word(phenotypes1, j)
+    if (i == 7) {
+        plot sprintf("chancePheno%d_State%d.data", j-1, i-1) u 1:2:3 with points pt 1 lc rgb 'black'
+    } else {
+        plot sprintf("chancePheno%d_State%d.data", j-1, i-1) u 1:2:3 with points pt 1 lc rgb var
+    }
+  }
   if (i == 7) { continue }
   do for [j=1:4] {
     if (j == 4 && (i == 1 || i == 2 || i == 6)) { continue }
@@ -25,7 +42,7 @@ do for [i=1:7] {
   }
   do for [j=1:10] {
     set title 'Number of '.word(states, i).' with a Positive Mutation in '.word(genes, j)
-    set ylabel '# Cells with Positive Mutation in '.word(genes, i)
+    set ylabel '# Cells with Positive Mutation in '.word(genes, j)
     set output 'num'.word(genes, j).'_'.word(states, i).'.png'
     plot sprintf("numGene%d_State%d.data", j-1, i-1) u 1:2:3 with points pt 1 lc rgb var
   } 

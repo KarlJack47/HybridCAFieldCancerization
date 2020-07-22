@@ -105,6 +105,7 @@ __global__ void cells_gpu_to_gpu_cpy(Cell *dst, Cell *src, unsigned gSize,
 
     dst[idx].state = src[idx].state;
     dst[idx].age = src[idx].age;
+    dst[idx].lineage = src[idx].lineage;
 
     for (i = 0; i < src[idx].params->nPheno; i++)
         dst[idx].phenotype[i] = src[idx].phenotype[i];
@@ -273,29 +274,78 @@ __global__ void save_cell_data(Cell *prevG, Cell *newG, char *cellData,
     cellData[dataIdx++] = ',';
 
     num_to_string(newG[idx].excised, &numChar, cellData, &dataIdx);
+    cellData[dataIdx++] = ',';
+
+    num_to_string_with_padding(newG[idx].lineage, nDigGSize,
+                               cellData, &dataIdx);
 
     cellData[dataIdx] = '\n';
 }
 
-__global__ void collect_data(Cell *G, unsigned *counts,
+__global__ void update_cell_lineage(Cell *newG, unsigned *cellLineage,
+                                    bool *stateInLineage, unsigned *nLineage,
+                                    unsigned *nLineageCells, unsigned gSize)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    unsigned result;
+    int64_t lineage;
+
+    if (!(x < gSize && y < gSize)) return;
+
+    lineage = newG[idx].lineage;
+
+    if (lineage != -1 && ((result = atomicAdd(&cellLineage[lineage-1], 1)) == 0
+     || result != 0))
+    {
+        if (result == 0) atomicAdd(nLineage, 1);
+        lineage -= 1;
+        stateInLineage[lineage*6+newG[idx].state] = true;
+        atomicAdd(nLineageCells, 1);
+    }
+}
+
+__global__ void max_lineage(Cell *G, unsigned *cellLineage, unsigned *max,
+                            unsigned maxIdx, unsigned stateIdx,
+                            unsigned gSize)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    int64_t lineage;
+    unsigned i;
+
+    if (!(x < gSize && y < gSize)) return;
+
+    if (stateIdx != EMPTY && G[idx].state != stateIdx) return;
+
+    if ((lineage = G[idx].lineage) == -1) return;
+
+    for (i = 0; i < maxIdx; i++)
+        if (cellLineage[lineage-1] == max[i]) return;
+
+    atomicMax(&max[maxIdx], cellLineage[lineage-1]);
+}
+
+__global__ void collect_data(Cell *G, unsigned *counts, double *phenoSum,
                              unsigned gSize, unsigned nGenes)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
-    unsigned y = threadIdx.x + blockIdx.y * blockDim.y;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
     unsigned idx = x * gSize + y;
     unsigned i;
 
     if (!(x < gSize && y < gSize)) return;
 
-    if      (G[idx].state ==    NC) atomicAdd(&counts[   NC], 1);
-    else if (G[idx].state ==   MNC) atomicAdd(&counts[  MNC], 1);
-    else if (G[idx].state ==    SC) atomicAdd(&counts[   SC], 1);
-    else if (G[idx].state ==   MSC) atomicAdd(&counts[  MSC], 1);
-    else if (G[idx].state ==   CSC) atomicAdd(&counts[  CSC], 1);
-    else if (G[idx].state ==    TC) atomicAdd(&counts[   TC], 1);
-    else if (G[idx].state == EMPTY) atomicAdd(&counts[EMPTY], 1);
+    atomicAdd(&counts[G[idx].state], 1);
 
     if (G[idx].state == EMPTY) return;
+
+    for (i = 0; i < 4; i++) {
+        atomicAdd(&phenoSum[G[idx].state*4+i], G[idx].phenotype[i]);
+        atomicAdd(&phenoSum[EMPTY*4+i], G[idx].phenotype[i]);
+    }
 
     for (i = 0; i < nGenes; i++)
         if (G[idx].positively_mutated((gene) i) == 1) {
@@ -661,24 +711,31 @@ __global__ void check_CSC_or_TC_formed(Cell *newG, Cell *prevG, unsigned gSize,
     }
 }
 
+__device__ void display_cell(uchar4 *optr, unsigned x, unsigned y, dim3 color,
+                             unsigned cellSize, unsigned dim)
+{
+    unsigned idx = x * cellSize + y * cellSize * dim;
+    unsigned i, j;
+
+    for (i = idx; i < idx + cellSize; i++)
+        for (j = i; j < i + cellSize * dim; j+= dim) {
+            optr[j].x = color.x;
+            optr[j].y = color.y;
+            optr[j].z = color.z;
+            optr[j].w = 255;
+        }
+}
+
 __global__ void display_ca(uchar4 *optr, Cell *grid, unsigned gSize,
                            unsigned cellSize, unsigned dim, dim3 *stateColors)
 {
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
 	unsigned idx = x * gSize + y;
-    unsigned optrOffset = x * cellSize + y * cellSize * dim;
-	unsigned i, j;
 
 	if (!(x < gSize && y < gSize)) return;
 
-    for (i = optrOffset; i < optrOffset + cellSize; i++)
-        for (j = i; j < i + cellSize * dim; j += dim) {
-            optr[j].x = stateColors[grid[idx].state].x;
-            optr[j].y = stateColors[grid[idx].state].y;
-            optr[j].z = stateColors[grid[idx].state].z;
-            optr[j].w = 255;
-        }
+    display_cell(optr, x, y, stateColors[grid[idx].state], cellSize, dim);
 }
 
 __global__ void display_genes(uchar4 *optr, Cell *G, unsigned gSize,
@@ -688,8 +745,7 @@ __global__ void display_genes(uchar4 *optr, Cell *G, unsigned gSize,
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
     unsigned idx = x * gSize + y;
-    unsigned optrOffset = x * cellSize + y * cellSize * dim;
-    unsigned i, j;
+    unsigned i;
     gene M = (gene) 0;
     dim3 color(255, 255, 255);
 
@@ -715,13 +771,98 @@ __global__ void display_genes(uchar4 *optr, Cell *G, unsigned gSize,
         color.z = geneColors[M].z;
     }
 
-    for (i = optrOffset; i < optrOffset + cellSize; i++)
-        for (j = i; j < i + cellSize * dim; j += dim) {
-            optr[j].x = color.x;
-            optr[j].y = color.y;
-            optr[j].z = color.z;
-            optr[j].w = 255;
+    display_cell(optr, x, y, color, cellSize, dim);
+}
+
+__global__ void display_heatmap(uchar4 *optr, Cell *G, unsigned *cellLineage,
+                                unsigned *nLineageCells,
+                                unsigned *percentageCounts, unsigned gSize,
+                                unsigned cellSize, unsigned dim, dim3 *heatmap)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    unsigned i;
+    int64_t lineage;
+    double limit = 0, result = 0;
+    dim3 color = heatmap[0];
+
+    if (!(x < gSize && y < gSize)) return;
+
+    lineage = G[idx].lineage;
+
+    if (*nLineageCells != 0 || lineage != -1)
+        result = cellLineage[lineage-1] / (double) *nLineageCells;
+    for (i = 0; i < 10; i++) {
+        limit += 0.1;
+        if (result <= limit) {
+            color = heatmap[i];
+            atomicAdd(&percentageCounts[i], 1);
+            break;
         }
+    }
+
+    display_cell(optr, x, y, color, cellSize, dim);
+}
+
+__global__ void display_lineage(uchar4 *optr, Cell *G, int64_t lineage,
+                                unsigned stateIdx, unsigned gSize,
+                                unsigned cellSize, unsigned dim,
+                                dim3 lineageColor)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    dim3 color(128, 128, 128);
+
+    if (!(x < gSize && y < gSize)) return;
+
+    if (G[idx].state == EMPTY || G[idx].lineage == -1) return;
+
+    if (G[idx].lineage != lineage) return;
+
+    if (stateIdx == EMPTY || G[idx].state == stateIdx)
+        color = lineageColor;
+
+    display_cell(optr, x, y, color, cellSize, dim);
+}
+
+__global__ void display_maxLineages(uchar4 *optr, Cell *G,
+                                    unsigned *cellLineage, bool *stateInLineage,
+                                    unsigned *maxLineages, unsigned stateIdx,
+                                    unsigned gSize, unsigned cellSize,
+                                    unsigned dim, dim3 *lineageColors)
+{
+    unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned idx = x * gSize + y;
+    unsigned i;
+    int64_t lineage;
+    dim3 color(255, 255, 255);
+
+    if (!(x < gSize && y < gSize)) return;
+
+    if (G[idx].state != EMPTY) color = dim3(185, 185, 185);
+
+    lineage = G[idx].lineage;
+    if (lineage == -1 || maxLineages[0] == 0) {
+        display_cell(optr, x, y, color, cellSize, dim);
+        return;
+    }
+    lineage -= 1;
+
+    for (i = 0; i < 10; i++) {
+        if (maxLineages[i] == 0) break;
+        if (cellLineage[lineage] == maxLineages[i]) {
+            if (stateIdx == EMPTY || G[idx].state == stateIdx)
+               color = lineageColors[i];
+            else if (stateInLineage[lineage*6+stateIdx])
+               color = dim3(128, 128, 128);
+            break;
+        }
+    }
+
+    display_cell(optr, x, y, color, cellSize, dim);
 }
 
 __global__ void display_carcin(uchar4 *optr, Carcin *carcin,
@@ -731,9 +872,7 @@ __global__ void display_carcin(uchar4 *optr, Carcin *carcin,
     unsigned x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned y = threadIdx.y + blockIdx.y * blockDim.y;
     unsigned idx = x * gSize + y;
-    unsigned optrOffset = x * cellSize + y * cellSize * dim;
-    unsigned i, j;
-    double carcinCon;
+    double carcinCon, colorVal;
 
     if (!(x < gSize && y < gSize)) return;
 
@@ -741,13 +880,8 @@ __global__ void display_carcin(uchar4 *optr, Carcin *carcin,
     if (*carcin->maxVal != 0.0 && *carcin->maxVal < 0.11)
         carcinCon /= *carcin->maxVal;
 
-    for (i = optrOffset; i < optrOffset + cellSize; i++)
-        for (j = i; j < i + cellSize * dim; j += dim) {
-            optr[j].x = ceil(min(255.0, 255.0*carcinCon));
-            optr[j].y = ceil(min(255.0, 255.0*carcinCon));
-            optr[j].z = ceil(min(255.0, 255.0*carcinCon));
-            optr[j].w = 255;
-        }
+    colorVal = ceil(min(255.0, 255.0*carcinCon));
+    display_cell(optr, x, y, dim3(colorVal, colorVal, colorVal), cellSize, dim);
 }
 
 __global__ void display_cell_data(uchar4 *optr, Cell *G, unsigned cellIdx,

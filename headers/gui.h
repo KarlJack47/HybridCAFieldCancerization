@@ -16,7 +16,7 @@ static void error_callback(int error, const char* description)
 }
 
 struct GUI {
-    const static unsigned nWindows = 4;
+    const static unsigned nWindows = 4, nLineageWindows = 3;
     GLFWwindow *windows[nWindows];
     GLuint bufferObjs[nWindows];
     cudaGraphicsResource *resrcs[nWindows];
@@ -24,8 +24,8 @@ struct GUI {
     void *dataBlock;
     void (*fAnimCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
                     unsigned, unsigned,unsigned,bool*,bool*);
-    void (*fAnimGenes)(uchar4*,unsigned,void*,
-                       unsigned,bool,bool);
+    void (*fAnimLineage)(uchar4*,unsigned,void*,unsigned,
+                         unsigned,unsigned,bool,bool);
     void (*fAnimCarcin)(uchar4*,unsigned,void*,unsigned,
                         unsigned,bool,bool);
     void (*fAnimCell)(uchar4*,unsigned,void*,
@@ -33,14 +33,15 @@ struct GUI {
     void (*fAnimTimerAndSaver)(void*,bool,unsigned,bool,bool);
     bool display, paused, excise, *perfectExcision, windowsShouldClose,
          detached[nWindows-1], keys[9], *activeCarcin;
-    unsigned width, height, ticks, gridSize, *nCarcin, maxNCarcin, *maxT,
-             currCarcin, currContext, currCell[2], radius, centerX, centerY;
-    char **carcinNames;
+    unsigned width, height, ticks, gridSize, *maxT, currLineage, currState,
+             *nCarcin, maxNCarcin, currCarcin, currContext,
+             currCell[2], radius, centerX, centerY;
+    char lineageWindowNames[nLineageWindows][25], **carcinNames;
 
     GUI()
     {
         fAnimCA = NULL;
-        fAnimGenes = NULL;
+        fAnimLineage = NULL;
         fAnimCarcin = NULL;
         fAnimCell = NULL;
         carcinNames = NULL;
@@ -73,6 +74,11 @@ struct GUI {
         if (!glfwInit())
             return;
 
+        for (i = 0; i < nLineageWindows; i++)
+            memset(lineageWindowNames[i], '\0', 20);
+        strcpy(lineageWindowNames[0], "Gene Families");
+        strcpy(lineageWindowNames[1], "Lineage Heatmap");
+        strcpy(lineageWindowNames[2], "Top Ten Lineages Overall");
         if (carNames != NULL) {
             carcinNames = (char**)malloc(maxNCarcin*sizeof(char*));
             for (i = 0; i < maxNCarcin; i++) {
@@ -93,9 +99,9 @@ struct GUI {
                       &key_ca, &mouse_button_ca);
         if (!windows[CA_GRID]) return;
 
-        strcpy(windowName, "Gene Families");
-        create_window(GENE_INFO, width, height, windowName, &key_genes, NULL);
-        if (!windows[GENE_INFO]) return;
+        create_window(LINEAGE_INFO, width, height,
+                      lineageWindowNames[0], &key_lineage, NULL);
+        if (!windows[LINEAGE_INFO]) return;
 
         strcpy(windowName, "Cell (0, 0)");
         create_window(CELL_INFO, width, height, windowName, &key_cell, NULL);
@@ -189,7 +195,8 @@ struct GUI {
     }
 
     void update_window(unsigned windowIdx, unsigned ticks,
-                       unsigned idx=0, unsigned curr=0)
+                       unsigned idx1=0, unsigned curr1=0,
+                       unsigned idx2=0, unsigned curr2=0)
     {
         CudaSafeCall(cudaGraphicsMapResources(1, &resrcs[windowIdx], NULL));
         CudaSafeCall(cudaGraphicsResourceGetMappedPointer((void**)&devPtrs[windowIdx],
@@ -200,54 +207,63 @@ struct GUI {
             fAnimCA(devPtrs[windowIdx], width, dataBlock, ticks, display,
                     paused, excise, radius, centerX, centerY,
                     &windowsShouldClose, keys);
-        else if (windowIdx == GENE_INFO)
-            fAnimGenes(devPtrs[windowIdx], width, dataBlock, ticks, display,
-                       paused);
+        else if (windowIdx == LINEAGE_INFO)
+            fAnimLineage(devPtrs[windowIdx], width, dataBlock, idx1, idx2,
+                         ticks, display, paused);
         else if (windowIdx == CELL_INFO)
-            fAnimCell(devPtrs[windowIdx], width, dataBlock, idx, ticks,
+            fAnimCell(devPtrs[windowIdx], width, dataBlock, idx1, ticks,
                       display);
         else if (windowIdx == CARCIN_GRID)
-            fAnimCarcin(devPtrs[windowIdx], width, dataBlock, idx, ticks,
+            fAnimCarcin(devPtrs[windowIdx], width, dataBlock, idx1, ticks,
                         display, paused);
 
         CudaSafeCall(cudaGraphicsUnmapResources(1, &resrcs[windowIdx], NULL));
 
         if (display && (currContext == windowIdx
-         || (windowIdx != 0 && detached[windowIdx-1]))) {
-            if (idx == curr)
+         || (windowIdx != CA_GRID && detached[windowIdx-1])))
+            if (idx1 == curr1 && idx2 == curr2)
                 draw(windowIdx, width, height);
-        }
     }
 
     void anim(void(*fCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
                          unsigned,unsigned,unsigned,bool*,bool*),
-              void(*fGenes)(uchar4*,unsigned,void*,
-                            unsigned,bool,bool),
+              void(*fLineage)(uchar4*,unsigned,void*,unsigned,
+                              unsigned,unsigned,bool,bool),
               void(*fCarcin)(uchar4*,unsigned,void*,unsigned,
                              unsigned,bool,bool),
               void(*fCell)(uchar4*,unsigned,void*,
                            unsigned,unsigned,bool),
               void(*fTimeAndSave)(void*,bool,unsigned,bool,bool))
     {
-        //                              s    e    p   c   a   b    x    h    o
-        unsigned i, idx, keyVal[9] = { 115, 101, 112, 99, 97, 98, 120, 104, 111 };
+        unsigned i, j, idx,
+        //                      s    e    p   c   a   b    x    h    o
+                 keyVal[9] = { 115, 101, 112, 99, 97, 98, 120, 104, 111 };
         bool exciseBefore, displayBefore, changeMaxT;
         int xpos, ypos, key;
         struct termios oldt;
-        char cellName[18] = { '\0' };
+        char cellName[18] = { '\0' }, stateNames[7][8] = { { '\0' } };
         GUI **gui = get_gui_ptr();
 
         *gui = this;
         fAnimCA = fCA;
-        fAnimGenes = fGenes;
+        fAnimLineage = fLineage;
         fAnimCarcin = fCarcin;
         fAnimCell = fCell;
         fAnimTimerAndSaver = fTimeAndSave;
         currCell[0] = 0; currCell[1] = 0;
-        currContext = 0;
+        currContext = 0; currLineage = 0; currState = 6;
+        for (i = 0; i < maxNCarcin; i++)
+            if (activeCarcin[i]) {
+                currCarcin = i;
+                break;
+            }
         detached[0] = false; detached[1] = false; detached[2] = false;
         windowsShouldClose = false;
         ticks = 0;
+        strcpy(stateNames[0], "for NC"); strcpy(stateNames[1], "for MNC");
+        strcpy(stateNames[2], "for SC"); strcpy(stateNames[3], "for MSC");
+        strcpy(stateNames[4], "for CSC"); strcpy(stateNames[5], "for TC");
+        strcpy(stateNames[6], "Overall");
         if (display) show_window(windows[0]);
 
         while (!windowsShouldClose) {
@@ -298,10 +314,10 @@ struct GUI {
             }
 
             if (glfwWindowShouldClose(windows[CA_GRID])
-             || glfwWindowShouldClose(windows[GENE_INFO])
+             || glfwWindowShouldClose(windows[LINEAGE_INFO])
              || glfwWindowShouldClose(windows[CELL_INFO])
              || (nCarcin != 0 && glfwWindowShouldClose(windows[CARCIN_GRID]))) {
-                idx = GENE_INFO;
+                idx = LINEAGE_INFO;
                 if (glfwWindowShouldClose(windows[CELL_INFO])) idx = CELL_INFO;
                 else if (nCarcin != 0 && glfwWindowShouldClose(windows[CARCIN_GRID]))
                     idx = CARCIN_GRID;
@@ -325,13 +341,19 @@ struct GUI {
 
             if (display) glfwPollEvents();
 
+            if (display && (detached[0] || currContext == LINEAGE_INFO)) {
+                if (currLineage == 2)
+                    sprintf(lineageWindowNames[2], "Top Ten Lineages %s",
+                            stateNames[currState]);
+                glfwSetWindowTitle(windows[LINEAGE_INFO],
+                                   lineageWindowNames[currLineage]);
+            }
             if (display && (detached[1] || currContext == CELL_INFO)) {
                 memset(cellName, '\0', 18);
                 sprintf(cellName, "Cell (%d, %d)",
                         currCell[0], currCell[1]);
                 glfwSetWindowTitle(windows[CELL_INFO], cellName);
             }
-
             if (display && (detached[2] || currContext == CARCIN_GRID))
                 glfwSetWindowTitle(windows[CARCIN_GRID], carcinNames[currCarcin]);
 
@@ -342,8 +364,16 @@ struct GUI {
             update_window(CA_GRID, ticks);
             if (paused) glfwSwapBuffers(windows[CA_GRID]);
 
-            update_window(GENE_INFO, ticks);
-            if (paused) glfwSwapBuffers(windows[GENE_INFO]);
+            for (i = 0; i < nLineageWindows; i++) {
+                for (j = 0; j < 7; j++) {
+                    if ((paused && i == currLineage) || !paused) {
+                        update_window(LINEAGE_INFO, ticks, i, currLineage,
+                                      i == 2 ? j : currState, currState);
+                        if (paused) glfwSwapBuffers(windows[LINEAGE_INFO]);
+                    }
+                    if (i != 2) break;
+                }
+            }
 
             if (display && (detached[1] || currContext == CELL_INFO)) {
                 update_window(CELL_INFO, ticks,
@@ -477,8 +507,8 @@ struct GUI {
         }
     }
 
-    static void key_genes(GLFWwindow *window, int key,
-                          int scancode, int action, int mods)
+    static void key_lineage(GLFWwindow *window, int key,
+                            int scancode, int action, int mods)
     {
         GUI *gui = *(get_gui_ptr());
         unsigned n = 4;
@@ -496,6 +526,50 @@ struct GUI {
                     if (gui->paused) gui->paused = false;
                     else gui->paused = true;
                 }
+                break;
+            case GLFW_KEY_UP:
+                if (action == GLFW_PRESS)
+                    change_current(&gui->currState, 7);
+                break;
+            case GLFW_KEY_DOWN:
+                if (action == GLFW_PRESS)
+                    change_current(&gui->currState, 7, false);
+                break;
+            case GLFW_KEY_0:
+                if (action == GLFW_PRESS)
+                    gui->currState = 0;
+                break;
+            case GLFW_KEY_1:
+                if (action == GLFW_PRESS)
+                    gui->currState = 1;
+                break;
+            case GLFW_KEY_2:
+                if (action == GLFW_PRESS)
+                    gui->currState = 2;
+                break;
+            case GLFW_KEY_3:
+                if (action == GLFW_PRESS)
+                    gui->currState = 3;
+                break;
+            case GLFW_KEY_4:
+                if (action == GLFW_PRESS)
+                    gui->currState = 4;
+                break;
+            case GLFW_KEY_5:
+                if (action == GLFW_PRESS)
+                    gui->currState = 5;
+                break;
+            case GLFW_KEY_6:
+                if (action == GLFW_PRESS)
+                    gui->currState = 6;
+                break;
+            case GLFW_KEY_RIGHT:
+                if (action == GLFW_PRESS)
+                    change_current(&gui->currLineage, gui->nLineageWindows);
+                break;
+            case GLFW_KEY_LEFT:
+                if (action == GLFW_PRESS)
+                    change_current(&gui->currLineage, gui->nLineageWindows, false);
                 break;
             case GLFW_KEY_A:
                 if (!gui->detached[0] && action == GLFW_PRESS)
@@ -614,6 +688,55 @@ struct GUI {
                     do
                         change_current(&gui->currCarcin, gui->maxNCarcin, false);
                     while (!gui->activeCarcin[gui->currCarcin]);
+                break;
+            case GLFW_KEY_0:
+                if (action == GLFW_PRESS && gui->activeCarcin[0])
+                    gui->currCarcin = 0;
+                break;
+            case GLFW_KEY_1:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 1
+                 && gui->activeCarcin[1])
+                    gui->currCarcin = 1;
+                break;
+            case GLFW_KEY_2:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 2
+                 && gui->activeCarcin[2])
+                    gui->currCarcin = 2;
+                break;
+            case GLFW_KEY_3:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 3
+                 && gui->activeCarcin[3])
+                    gui->currCarcin = 3;
+                break;
+            case GLFW_KEY_4:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 4
+                 && gui->activeCarcin[4])
+                    gui->currCarcin = 4;
+                break;
+            case GLFW_KEY_5:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 5
+                 && gui->activeCarcin[5])
+                    gui->currCarcin = 5;
+                break;
+            case GLFW_KEY_6:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 6
+                 && gui->activeCarcin[6])
+                    gui->currCarcin = 6;
+                break;
+            case GLFW_KEY_7:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 7
+                 && gui->activeCarcin[7])
+                    gui->currCarcin = 7;
+                break;
+            case GLFW_KEY_8:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 8
+                 && gui->activeCarcin[8])
+                    gui->currCarcin = 8;
+                break;
+            case GLFW_KEY_9:
+                if (action == GLFW_PRESS && gui->maxNCarcin > 9
+                 && gui->activeCarcin[9])
+                    gui->currCarcin = 9;
                 break;
             case GLFW_KEY_A:
                 if (!gui->detached[2] && action == GLFW_PRESS)

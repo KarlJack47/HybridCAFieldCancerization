@@ -31,7 +31,7 @@
     (n % nThreads == 0 ? n / nThreads : n / nThreads + 1)
 
 typedef enum { POS=1, NEG=-1, NONE=0 } effect;
-typedef enum { CA_GRID, GENE_INFO, CELL_INFO, CARCIN_GRID } gui_window;
+typedef enum { CA_GRID, LINEAGE_INFO, CELL_INFO, CARCIN_GRID } gui_window;
 typedef enum { NC, MNC, SC, MSC, CSC, TC, EMPTY, ERROR=-1 } ca_state;
 typedef enum { PROLIF, QUIES, APOP, DIFF } cell_phenotype;
 typedef enum { TP53, TP73, RB, P21, TP16, EGFR, CCDN1, MYC, PIK3CA, RAS } gene;
