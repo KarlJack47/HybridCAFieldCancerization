@@ -122,7 +122,8 @@ void save_video(char *prefix, char *outputName, unsigned startPoint,
     }
 }
 
-int compress_and_save_data(char *fname, char *header, char *input, size_t bytes) {
+int compress_and_save_data(const char *fname, const char *header,
+                           char *input, size_t bytes) {
     FILE *fptr;
     char *data = input; size_t dataSize = bytes - 1;
     size_t headerSize = strlen(header);
@@ -192,8 +193,8 @@ void save_cell_data_to_file(CA *ca, unsigned t, dim3 blocks,
     free(fName); fName = NULL;
 }
 
-int save_count_data(char *fname, char *header, double t, double count,
-                    unsigned red, unsigned green, unsigned blue)
+int save_count_data(const char *fname, const char *header, double t,
+                    double count, unsigned red, unsigned green, unsigned blue)
 {
     FILE *fptr;
 
