@@ -31,14 +31,14 @@ struct CellParams {
         if (phenoinit == NULL) {
             phenoInit[ NC * nPheno + PROLIF] = 0.024000;
             phenoInit[MNC * nPheno + PROLIF] = 0.024000;
-            phenoInit[ SC * nPheno + PROLIF] = 0.013000;
-            phenoInit[MSC * nPheno + PROLIF] = 0.006500;
+            phenoInit[ SC * nPheno + PROLIF] = 0.014000;
+            phenoInit[MSC * nPheno + PROLIF] = 0.007000;
             phenoInit[CSC * nPheno + PROLIF] = 0.000625;
             phenoInit[ TC * nPheno + PROLIF] = 0.000625;
             phenoInit[ NC * nPheno +  QUIES] = 0.966000;
             phenoInit[MNC * nPheno +  QUIES] = 0.971000;
-            phenoInit[ SC * nPheno +  QUIES] = 0.957000;
-            phenoInit[MSC * nPheno +  QUIES] = 0.966000;
+            phenoInit[ SC * nPheno +  QUIES] = 0.956000;
+            phenoInit[MSC * nPheno +  QUIES] = 0.966550;
             phenoInit[CSC * nPheno +  QUIES] = 0.991875;
             phenoInit[ TC * nPheno +  QUIES] = 0.992500;
             phenoInit[ NC * nPheno +   APOP] = 0.010000;
@@ -133,6 +133,7 @@ struct Cell {
     double *bOut;
 
     int chosenPheno, chosenCell;
+    int64_t lineage;
     bool cellRebirth, moved;
     unsigned *inUse, *actionDone, *actionApplied, excised;
 
@@ -235,6 +236,7 @@ struct Cell {
         CudaSafeCall(cudaMallocManaged((void**)&actionDone, unsgn));
         *actionDone = 0;
         excised = 0;
+        lineage = -1;
     }
 
     void free_resources(void)
@@ -459,6 +461,10 @@ struct Cell {
             c->change_state(newState);
             copy_mutations(c, nGenes);
 
+            if (lineage == -1) {
+                c->lineage = location + 1;
+                lineage = c->lineage;
+            } else c->lineage = lineage;
             c->age = 0; age = 0;
         }
 
@@ -498,6 +504,10 @@ struct Cell {
             c->change_state(newState);
             copy_mutations(c, nGenes);
 
+            if (lineage == -1) {
+                c->lineage = location + 1;
+                lineage = c->lineage;
+            } else c->lineage = lineage;
             c->age = 0; age = 0;
         }
 
@@ -532,6 +542,7 @@ struct Cell {
                 c->change_state(state);
                 copy_mutations(c, nGenes);
                 c->age = age;
+                c->lineage = lineage;
                 apoptosis(nGenes);
             }
         }
@@ -554,6 +565,7 @@ struct Cell {
 			bOut[i] = 0.0;
         }
         age = 0;
+        lineage = -1;
     }
 
     __device__ void phenotype_mutate(gene M, curandState_t *rndState)
@@ -591,7 +603,7 @@ struct Cell {
                                         unsigned nGenes)
 	{
 	    unsigned m;
-        double incr = params->exprAdjMaxIncr, factor, maxFactor = 2.5;
+        double incr = params->exprAdjMaxIncr, factor, maxFactor = 1.5;
         int posMut = positively_mutated(M), posMutm;
         curandState_t localState = *rndState;
 
@@ -604,39 +616,18 @@ struct Cell {
             if (params->geneRelations[M*nGenes+m] == YES) {
                 factor = curand_uniform_double(&localState);
                 if (posMut == 1) {
-                    /*if (location == 32639)
-                        printf("posMut: %d, (%g, %g), %d, (%g, %g),  %d, %d, %g\n",
-                               M, geneExprs[M*2], geneExprs[M*2+1], m,
-                               geneExprs[m*2], geneExprs[m*2+1], posMut,
-                               posMutm, incr * factor);*/
                     if (params->geneType[m] == SUPPR)
                         geneExprs[m*2+1] += incr * factor;
                     else geneExprs[m*2] += incr * factor;
                 } else if (posMutm == 1) {
-                    /*if (location == 32639)
-                        printf("posMutm: %d, (%g, %g), %d, (%g, %g), %d, %d, %g\n",
-                               M, geneExprs[M*2], geneExprs[M*2+1], m,
-                               geneExprs[m*2], geneExprs[m*2+1], posMut,
-                               posMutm, incr * factor);*/
                     if (params->geneType[m] == SUPPR)
                         geneExprs[m*2] += incr * factor * maxFactor;
                     else
                         geneExprs[m*2+1] += incr * factor * maxFactor;
-                } else if (posMutm == 2) {
-                    /*if (location == 32639)
-                        printf("posMutm = 2: %d, (%g, %g), %d, (%g, %g), %d, %d, %g\n",
-                               M, geneExprs[M*2], geneExprs[M*2+1], m,
-                               geneExprs[m*2], geneExprs[m*2+1], posMut,
-                               posMutm, incr * factor);*/
+                } else if (posMutm == 2)
                     geneExprs[m*2] += incr * factor * maxFactor;
-                } else if (posMutm == 3) {
-                    /*if (location == 32639)
-                        printf("posMutm = 3: %d, (%g, %g), %d, (%g, %g), %d, %d, %g\n",
-                               M, geneExprs[M*2], geneExprs[M*2+1], m,
-                               geneExprs[m*2], geneExprs[m*2+1], posMut,
-                               posMutm, incr * factor);*/
+                else if (posMutm == 3)
                     geneExprs[m*2+1] += incr * factor * maxFactor;
-               }
             }
         }
 
@@ -653,9 +644,10 @@ struct Cell {
 
         for (m = 0; m < NN->nOut; m++) {
             if (NNOut[m] > 0)
-                geneExprs[m*2] += NNOut[m];
+                geneExprs[m*2] += curand_uniform_double(rndState) * NNOut[m];
             else if (NNOut[m] < 0)
-                geneExprs[m*2+1] += abs(NNOut[m]);
+                geneExprs[m*2+1] += curand_uniform_double(rndState)
+                                  * abs(NNOut[m]);
         }
 
         rnd = curand_uniform_double(rndState);
