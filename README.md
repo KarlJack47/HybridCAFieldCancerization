@@ -13,6 +13,12 @@ of tongue carcinomas.
 
 # Compile
 To compile the program run the bin/compile.sh bash script in the directory you want the program.
+The program depends on the following non-system libraries:
+1. omp
+2. cuda
+3. curand
+4. turbojpeg
+5. lz4frame
 
 # Running Simulations
 Results for the thesis were generated using bin/simulations.sh.
