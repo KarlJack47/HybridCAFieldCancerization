@@ -1,0 +1,17 @@
+\providecommand{\main}{../..}
+\documentclass[\main/thesis.tex]{subfiles}
+
+\begin{document}
+
+\chapter{Model}
+
+\section{Model Overview}
+
+Here we develop a hybrid cellular automaton (CA) model for the cancer field effect. The CA is hybrid since its rule depends on the output of other mathematical objects. In this case the mathematical objects are partial differential equations (PDE) and neural networks (NN). The PDE model spreads one or more carcinogen(s) within the domain of the CA. The NN is used to compute the change in gene expression of the genes under consideration for each cell with respect to the amount of carcinogen at the cell's location and age of the cell. The CA includes states that are used to represent the following biological cell types: normal tissue cells (NTC), mutated normal tissue cells (MNTC), normal stem cells (NSC), mutated normal stem cells (MNSC), cancer stem cells (CSC), and tumour cells (TC). Evolution of the model occurs in the following basic steps:
+\begin{enumerate}
+	\item Carcinogens spread via a reaction diffusion PDE or a given function.
+	\item Changes in gene expressions resulting from carcinogenic exposure and age of the cell are computed by the NN causing gene mutations to occur.
+	\item The state of each cell is updated using the CA rule, which includes spatial translocation, genetic mutations, phenotypic drift, mitosis, cell death through the process of apoptosis, and dedifferentiation. 
+\end{enumerate}
+
+\end{document}

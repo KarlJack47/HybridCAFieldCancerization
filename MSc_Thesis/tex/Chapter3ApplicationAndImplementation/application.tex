@@ -1,0 +1,268 @@
+\providecommand{\main}{../..}
+\documentclass[\main/thesis.tex]{subfiles}
+
+\begin{document}
+
+\section{Application}
+As mentioned we will be using HNSCC of the tongue for our particular case study. Ethanol (indexed as 1) and tobacco are the most commonly associated carcinogens to HNSCC, thus we consider these in this chapter. Recall that we are substituting nicotine (indexed as 2) to represent the carcinogens of tobacco. We will be considering ten genes in our model that are correlated with HNSCC of the tongue.
+
+\subsection{Carcinogen Parameters}
+For each carcinogen there are two required parameters, the diffusion coefficient and the influx of the carcinogen. Since the length of each time-step in the CA is based upon the length of the cell cycle, which is typically in the magnitude of hours, then our time unit will be in hours. 
+
+First let us look at the diffusion coefficients which are computed using the Reddy-Doraiswamy equation \cite{Reddy} which is given by
+\begin{equation}
+D {=} 
+\begin{cases}
+  10 {\times} 10^{-8} \frac{M^{\frac{1}{2}} T}{\mu V_1^{\frac{1}{3}} V_2^{\frac{1}{3}}}, & \frac{V_2}{V_1} {\le} 1.5 \\ \\
+  8.5 {\times} 10^{-8} \frac{M^{\frac{1}{2}} T}{\mu (V_1 V_2)^{\frac{1}{3}}}, & \frac{V_2}{V_1} > 1.5
+\end{cases},
+\label{eq:Reddy-Doraiswamy}
+\end{equation}
+where $M$ is the molar mass of the solvent, $T$ is the absolute temperature, $\mu$ is the solvent viscosity, $V_1$ is the molar volume of the solute, and $V_2$ is the molar volume of the solvent. We assume the solvent is water for which the molecular weight is $M {=} 18.01528 g/\text{mol}$. We will use normal body temperature of $37^o C$ which is equivalent to $310.15 K$, so that $T {=} 310.15 K$. We will compute the viscosity of the solvent using the equation
+\begin{equation}
+\mu {=} 2.4152{\times}10^{-5} \text{Pa} s \exp\left(\frac{4742.8 \text{J}/\text{mol}}{R(T-139.86 \text{K})}\right),
+\label{eq:ViscosityRelationship}
+\end{equation}
+where $R {=} 8.31441 \text{J}/(\text{mol K})$ is the gas constant \cite{FogelSon}.
+Using \eqref{eq:ViscosityRelationship} we determine that the viscosity of water at body temperature is
+$$\mu {=} 6.882 {\times} 10^{-4} \text{Pa} s {=} 6.882 {\times} 10^{-3} \frac{g}{cm s}.$$ 
+The molecular volumes, $V_1$ and $V_2$, will be computed using
+\begin{equation}
+    V_m {=} \frac{M}{\rho},
+    \label{eq:molarVolume}
+\end{equation}
+where $\rho$ is the mass density of the substance. 
+% State references for densities of ethanol, water, and nicotine
+Using \eqref{eq:molarVolume} we acquire the molecular volume of ethanol as
+$$V_1^e {=}  \frac{46.07 g/\text{mol}}{0.789 g/cm^3} {=} 58.39 cm^3/\text{mol}.$$
+From \eqref{eq:molarVolume} we acquire the molecular volume of nicotine as
+$$V_1^n {=} \frac{162.23 g/\text{mol}}{1.01 g/cm^3} {=} 160.624 cm^3/\text{mol}.$$
+Finally, from \eqref{eq:molarVolume} we acquire the molecular volume of water as
+$$V_2 {=} \frac{18.01528}{0.997 g/cm^3} {=} 18.07 cm^3/\text{mol}.$$
+Upon inserting these values into \eqref{eq:Reddy-Doraiswamy} we acquire the diffusion coefficient as $D_e {=} 2.18{\times}10^{-2} \frac{cm^2}{h}$ for ethanol. Similarly, we acquire the diffusion coefficient of nicotine as $D_n {=} 1.56{\times}10^{-2} \frac{cm^2}{h}$.
+
+The influx of the carcinogens for each time-step may now be computed. If males consume 5 or more drinks a day and women 4 or more drinks a day then they are considered heavy drinkers \cite{niaaa.nih.gov_2021_2}. If males consume 2 drinks or less in a day and women 1 drink or less in a day, they are considered moderate drinkers \cite{niaaa.nih.gov_2021_2}. Both moderate and heavy drinkers have a higher risk of developing particular head and neck cancers \cite{Bagnardi, LoConte}. For instance it has been found that moderate drinkers have a 1.8-fold  and heavy drinkers a 5-fold higher risk of oral cavity cancer and pharynx cancer, as compared to non-drinkers \cite{Bagnardi, LoConte}. It has also been found that moderate drinkers have a 1.4-fold and heavy drinkers a 2.6-fold higher risk of developing larynx cancers, as compared to non-drinkers \cite{Bagnardi, LoConte}. A standard alcoholic beverage contains $14$g of pure alcohol \cite{niaaa.nih.gov_2021_1}, so a moderate drinking male would be consuming $28$g or less a day and a female $14$g or less a day. Similarly, a heavy drinking male would be consuming $70$g or more a day and a female $56$g or more per day. Let us consider a heavy drinker and take the average amount per day between males and females to obtain $63$g per day. If we consider that a person is typically awake 15.65 hours a day than that means they would be consuming $4.026 \frac{g}{h}$ of alcohol. Only about $5\%$ of the alcohol is absorbed in the mouth \cite{proserve.aglc.ca}, therefore we can assume that the tongue absorbs about $0.201 \frac{g}{h}$. The average volume of the tongue is $79.5 cm^3$ \cite{Liégeois} so the concentration per hour of alcohol absorbed by the tongue is $2.532{\times}10^{-3} \frac{g}{cm^3 h}$. Since most of the ethanol is metabolized by the liver and none of it is metabolized by the oral cavity, then we set the outflux to be $0 \frac{g}{cm^3 h}$. 
+
+% Add references for two packs a day and typical number of cigarettes per pack
+An individual that smokes two packs a day is more likely to develop cancer \cite{merckmanuals.com_2021}, we assume a typical pack contains 20 cigarettes so that they smoke 40 cigarettes a day. Most cigarettes contain $1.45{\times}10^{\minus 3} g$ of nicotine, so again assuming a person is awake 15.65 hours a day, we determine that the person consumes $3.71{\times}10^{\minus 3} \frac{g}{h}$. Now we use the decay formula of nicotine given by:
+\begin{equation}
+    \overline{g}(x, t) {=} \overline{g}_0 {+} x \left( \frac{1}{2} \right)^{\frac{2t}{3}},
+    \label{eq:nicotineDecay}
+\end{equation}
+where $t$ is time, $\overline{g}_0$ is the initial amount of nicotine, and $x$ is the accumulative amount of nicotine. Using equation \eqref{eq:nicotineDecay} as an iterator until equilibrium is reached, we calculate that the amount of nicotine that is left in the body after decay has occurred is $1.543{\times}10^{\minus 4} g$. Therefore, considering the initial consumption and remaining amount the body metabolizes $3.70{\times}10^{\minus 3} \frac{g}{h}$ of nicotine. 
+% Add reference
+Since only $15\%$ of nicotine is metabolized by saliva then $5.55{\times}10^{\minus 4} \frac{g}{h}$ is metabolized in the oral cavity. Thus, again using the volume of the tongue of $79.5cm^3$, we obtain the influx of nicotine as $7.01{\times}10^{-6} \frac{g}{cm^3 h}$, assuming $15\%$ is absorbed in the oral cavity, and the outflux of nicotine is $6.98{\times}10^{-6} \frac{g}{cm^3 h}$. Thus $F_c^e {=} 2.009 {\times} 10^{\minus 3} \frac{g}{cm^3 h}$ and $F_c^n {=} 3.00 {\times}10^{\minus 8} \frac{g}{cm^3 h}$.
+
+We set the characteristic length as $x_c {=} N 1.45{\times}10^{-3} cm$, where \newline $1.45{\times}10^{-3} cm$ is the size of an epithelial cell \cite{bionumbers.hms.harvard.edu_2022}. We let the boundary and initial conditions be zero. 
+% Add solution of PDE from chapter 2 considering the fact it can be simplified, 
+% since everything is constant.
+
+\subsection{Gene Expression Neural Network Parameters}
+The four main parameters for the gene expression neural network are the two weight matrices, activation function parameter, and the mutation bias. The weight matrix associated with the input of the neural network \eqref{eq:geneExprNN_HiddenLayer} is given by:
+\begin{align}
+\Tilde{\alpha}(\boldsymbol{x}, t, z) &{=}
+\begin{cases}
+  1, &z \le 0.5\\
+  \minus 1, &z > 0.5
+\end{cases},\\
+W_X(\boldsymbol{x}, t) &{=}
+\begin{bmatrix}
+	1 & \minus 1 & \Tilde{\alpha}(\boldsymbol{x}, t, z_1) 10^{\minus 7} \\
+	0 & 0 & \Tilde{\alpha}(\boldsymbol{x}, t, z_2) 10^{\minus 7} \\
+	0 & \minus 1 & \Tilde{\alpha}(\boldsymbol{x}, t, z_3) 10^{\minus 7} \\
+	1 & \minus 1 & \Tilde{\alpha}(\boldsymbol{x}, t, z_4) 10^{\minus 7} \\
+	1 & 0 & \Tilde{\alpha}(\boldsymbol{x}, t, z_5) 10^{\minus 7} \\
+	1 & 1 & \Tilde{\alpha}(\boldsymbol{x}, t, z_6) 10^{\minus 7} \\
+	1 & 1 & \Tilde{\alpha}(\boldsymbol{x}, t, z_7) 10^{\minus 7} \\
+	0 & 1 & \Tilde{\alpha}(\boldsymbol{x}, t, z_8) 10^{\minus 7} \\
+	0 & 1 & \Tilde{\alpha}(\boldsymbol{x}, t, z_9) 10^{\minus 7} \\
+	1 & 1 & \Tilde{\alpha}(\boldsymbol{x}, t, z_{10}) 10^{\minus 7} \\	
+\end{bmatrix},
+\label{param:Wx}
+\end{align}
+where $z_i {\sim} U(0, 1), i{=}1, ..., 10$.  
+As insufficient data was unavailable we assumed that each carcinogen has a weight of 1, $\minus 1$, or 0 for each gene depending on how the carcinogen effects that gene. For example since ethanol tends to upregulate TP53 then $W_X^{11} {=} 1$.
+We assume that each gene has the same mutation rate which causes the last column in $W_X$, that is associated with mutations caused by replication errors due to cell age, to have one value. The mutation rate was chosen based upon the human genomic mutation rate being approximately $2.5{\times}10^{\minus 8}$ per base per generation \cite{Nachman}. 
+The weight matrix associated with the output of the neural network \eqref{eq:geneExprNN_OutputLayer} is given by:
+\begin{equation}
+W_Y {=}
+\begin{bmatrix}
+	1.00 & 0 & 0.01 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+	0.01 & 0.1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+	0.01 & 0 & 0.3 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+	0.01 & 0 & 0 & 0.1 & 0 & 0 & 0.01 & \minus 0.01 & 0 & 0 \\
+	0.01 & 0 & 0 & 0 & 0.1 & 0 & 0 & 0 & 0 & 0 \\
+	0.01 & 0 & 0 & 0 & 0 & 0.1 & 0 & 0 & 0 & 0 \\
+	0.01 & 0 & 0.01 & 0 & 0 & 0 & 0.2 & 0 & 0 & 0.01 \\
+	0.01 & 0 & 0 & 0 & 0 & 0 & 0 & 0.3 & 0 & 0.01 \\
+	0.01 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0.1 & 0 \\
+	0.01 & 0 & 0 & 0 & 0 & 0 & 0 & 0.01 & 0 & 0.3 \\
+\end{bmatrix}.
+\label{param:Wy}
+\end{equation}
+The main diagonal of the above matrix gives the main weights for each gene with $W_Y^{11}$ being the highest as it is TP53. Each diagonal value was given a default of 0.1 and it is increased by 0.1 for each gene it calls or is related to, so TP53 gets a value of 1 because it is assumed all the genes relate to TP53. Each column describes the relations between the other genes and the gene associated with the main diagonal value of that column, where if the gene is upregulated by the diagonal gene it gets a value of 0.01 and when it downregulates the gene it gets a value of -0.01. The magnitude of the values in the matrix were chosen by trial and error since there is not sufficient data to complete the matrix with accurate values. 
+The activation function \eqref{eq:geneExprNN_ActivationFunc} parameter is given by:
+\begin{equation}
+\nu {=} 10^6.
+\label{param:ActivationFunction}
+\end{equation}
+The value of $\nu$ results in the neural network outputting values in the range $(\frac{\minus 1}{\sqrt{\nu}}, \frac{1}{\sqrt{\nu}}) = (\minus 1{\times}10^{\minus 3}, 1{\times}10^{\minus 3})$ and was chosen so to keep the maximum amount each gene can change to a reasonable figure.
+Finally the mutation bias vector update function \eqref{eq:geneExprNN_BiasVectorUpdateFunc} parameter is given by:
+\begin{equation}
+\phi = 10^{\minus 3}.
+\label{param:MutationBias}
+\end{equation}
+The value of $\phi$ was chosen to correspond with the maximum output value of the neural network, so that when a gene is mutated, the neural network will always output the maximum value.
+
+\subsection{CA Parameters}
+
+The initial seed is set such that the domain has the following breakdown of each cell type: $64.5 \%$ normal tissue cells (NTC; green), $6.5 \%$ normal stem cells (NSC; yellow), and $29 \%$ empty cells (white). The maximum number of TAC generations is given by $\Theta {=} 2$. The chance a cell moves when it is quiescent is $0.25$. The chance a tumour cell (TC; red) or cancer stem cell (CSC; purple) randomly kills another cell during movement, proliferation, or differentiation is $0.2$. The chance that an SC or MSC becomes a CSC is $2.5{\times}10^{\minus 6}$. The chance a non stem cell becomes a stem cell through dedifferentiation is $10^{\minus 4}$. If either there are no stem cells or there are at least six empty cells in the neighbourhood of a non stem cell, then the process of dedifferentiation will be attempted. When an excision is performed the number of neighbourhoods around a TC removed is two.
+
+\begin{table}
+\centering
+\begin{tabular}{| c c c c c |}
+	\hline
+	Index & Gene & Gene-type & Regulation & Phenotypes \\
+	\hline\hline
+	1 & TP53 & tumour-suppressor & down & $\uparrow$: $p$ \\
+	 & & & & $\downarrow$: $a$, $q$ \\
+	\hline
+	2 & TP73 & tumour-suppressor & down & $\downarrow$: $a$ \\
+	\hline
+	3 & RB & tumour-suppressor & down & $\uparrow$: $p$, $d$ \\
+	 & & & & $\downarrow$: $q$ \\
+	\hline
+	4 & TP21 & tumour-suppressor & down & $\uparrow$: $p$ \\
+	\hline
+	5 & TP16 & tumour-suppressor & down & $\uparrow$: $p$ \\
+	\hline
+	6 & EGFR & oncogene & up & $\uparrow$: $p$ \\
+	\hline
+	7 & CCDN1 & oncogene & up & $\downarrow$: $a$ \\
+	\hline
+	8 & MYC & oncogene & up & $\uparrow$: $p$, $d$\\
+	 & & & & $\downarrow$: $a$ \\
+	\hline
+	9 & PIK3CA & oncogene & up & $\downarrow$: $a$ \\
+	\hline
+	10 & RAS & oncogene & up & $\uparrow$: $p$, $d$ \\
+	 & & & & $\downarrow$: $a$ \\
+	\hline
+\end{tabular}
+\caption{Provides the following properties of each gene considered in the model: index for the gene used in the various matrices and vectors required in the model, name, type of the gene, direction the gene must be regulated to become positively mutated, and how phenotypic actions are modified when the gene is positively mutated.}
+\label{table:genes}
+\end{table}
+We consider ten genes which are given in Table \ref{table:genes}. We set the mutation threshold to $\overline{M} {=} 0.1$ and the minimum number of positively mutated genes for a cell to be considered mutated to be four \cite{Anandakrishnan}. Using the last two columns of Table \ref{table:genes} and assuming each phenotypic action is modified at the same magnitude we obtain the phenotypic action increment matrices \eqref{eq:phenotypeMutateEpsilon} given by:
+\begin{equation}
+\overline{D} {=}
+\begin{bmatrix}
+	10^{\text{-}6} & \text{-}10^{\text{-}6} & \text{-}10^{\text{-}6} & 0 \\
+	0 & 0 & \text{-}10^{\text{-}6} & 0 \\
+	10^{\text{-}6} & \text{-}10^{\text{-}6} & 0 & 10^{\text{-}6} \\
+	10^{\text{-}6} & 0 & 0 & 0 \\
+	10^{\text{-}6} & 0 & 0 & 0 \\
+	\text{-}10^{\text{-}6} & 0 & 0 & 0 \\
+	0 & 0 & 10^{\text{-}6} & 0 \\
+	\text{-}10^{\text{-}6} & 0 & 10^{\text{-}6} & \text{-}10^{\text{-}6} \\
+	0 & 0 & 10^{\text{-}6} & 0 \\
+	\text{-}10^{\text{-}6} & 0 & 10^{\text{-}6} & \text{-}10^{\text{-}6} \\
+\end{bmatrix},
+\label{param:D}
+\end{equation}
+
+\begin{equation}
+    \overline{U} {=}
+\begin{bmatrix}
+	\text{-}10^{\text{-}6} & 10^{\text{-}6} & 10^{\text{-}6} & 0 \\
+	0 & 0 & 10^{\text{-}6} & 0 \\
+	\text{-}10^{\text{-}6} & 10^{\text{-}6} & 0 & \text{-}10^{\text{-}6} \\
+	\text{-}10^{\text{-}6} & 0 & 0 & 0 \\
+	\text{-}10^{\text{-}6} & 0 & 0 & 0 \\
+	10^{\text{-}6} & 0 & 0 & 0 \\
+	0 & 0 & \text{-}10^{\text{-}6} & 0 \\
+	10^{\text{-}6} & 0 & \text{-}10^{\text{-}6} & 10^{\text{-}6} \\
+	0 & 0 & \text{-}10^{\text{-}6} & 0 \\
+	10^{\text{-}6} & 0 & \text{-}10^{\text{-}6} & 10^{\text{-}6} \\
+\end{bmatrix}.
+\label{param:U}
+\end{equation}
+Using Table \ref{table:genes} we can create the gene type vector, $\boldsymbol{T}$, that is used in \eqref{eq:MutationFunc}, \eqref{eq:geneInstabilityUpdateFunction}, and \eqref{eq:GeneExpressionRatio} which is given by:
+\begin{equation}
+    \boldsymbol{T} {=}
+    \begin{bmatrix}
+        0 & 0 & 0 & 0 & 0 & 1 & 1 & 1 & 1 & 1
+    \end{bmatrix}^T,
+    \label{param:T}
+\end{equation}
+where 0 means the gene is a tumour-suppressor and 1 means it is an oncogene.
+
+\begin{table}
+	\centering
+	\begin{tabular}{| c c |}
+		\hline
+		Gene & Gene Activation's \\
+		\hline\hline
+		TP53 & TP21,TP16, RB \\
+		\hline
+		RB & TP53, CCDN1 \\
+		\hline
+		CCDN1 & TP21 \\
+		\hline
+		MYC & TP21 (de-activates), Ras \\
+		\hline
+		RAS & CCDN1, MYC \\
+		\hline
+	\end{tabular}
+	\caption{Shows which genes are activated by certain genes.}
+	\label{table:geneRelations}
+\end{table}
+Using Table \ref{table:geneRelations} we can create the gene relationship matrix, $R$, that is used in \eqref{eq:geneInstabilityUpdateFunction} which is given by:
+\begin{equation}
+    R {=}
+    \begin{bmatrix}
+        0 & 0 & 1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+        1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+        1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+        1 & 0 & 0 & 0 & 0 & 0 & 1 & 1 & 0 & 0 \\
+        1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+        1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+        1 & 0 & 1 & 0 & 0 & 0 & 0 & 0 & 0 & 1 \\
+        1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1 \\
+        1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+        1 & 0 & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 \\
+    \end{bmatrix},
+    \label{param:R}
+\end{equation}
+where 0 means the genes are not related and 1 means the genes are related.
+Note that in the above matrix we assumed that TP53 is related to all the genes. The main diagonal is zero so that genes cannot modify themselves during the genetic instability phase of the model. % Can a gene modify its' own expression?
+The chance that a gene modifies the gene expression of another or that the body tries to fix the gene expression is $0.45$. The maximum amount a gene expression can be changed during the gene instability stage is $\frac{1}{\sqrt{\nu}}$.
+
+We let 
+\begin{align}
+    \overline{a}_1 &{=} \frac{\Tilde{c}}{\overline{c}_1},\\ \nonumber\\
+    \overline{a}_2 &{=} \frac{\Tilde{c}}{\overline{c}_2}
+    \label{param:initialApoptosis}
+\end{align} 
+be the initial probabilities of apoptosis for a normal tissue cell and normal stem cell. Where $\Tilde{c}$ is the length of the cell cycle in hours, $\overline{c}_1$ is the life span of a cell, and $\overline{c}_2$ is the life span of a stem cell.
+The initial phenotype matrix that is used in equation \eqref{eq:PhenotypeTransferFunc} is given by:
+\begin{equation}
+    \Tilde{P} {=}
+    \begin{bmatrix}
+        \overline{p}_1 \overline{a}_1 & \overline{a}_1 & 1 {-} \overline{a}_1 (\overline{p}_1 {+} 1) & 0 \\ \\
+        \overline{p}_1 \overline{a}_1 & \displaystyle \frac{\overline{a}_1}{\overline{\alpha}} & 1 {-} \overline{a}_1 (\overline{\alpha}^{\minus 1} {+} \overline{p}_1) & 0 \\ \\
+        \overline{p}_2 \overline{a}_2 & \overline{a}_2 & 1 {-} \overline{a}_2 (\overline{p}_2 {+} 1) {-} \overline{d} \Tilde{d} & \overline{d} \Tilde{d} \\ \\
+        \overline{p}_2 \overline{a}_2 & \displaystyle \frac{\overline{a}_2}{\overline{\alpha}} & 1 {-} \overline{a}_2 (\overline{\alpha}^{-1} {+} \overline{p}_2) {-} \overline{d} \Tilde{d} & \overline{d} \Tilde{d} \\ \\
+        \overline{p}_2 \overline{a}_2 & \displaystyle \frac{\overline{a}_2}{5 \overline{\alpha}^2} & 1 {-} \overline{a}_2 ((5\overline{\alpha})^{\minus 2} {+} \overline{p}_2) {-} \overline{d} \Tilde{d} & \overline{d} \Tilde{d} \\ \\
+        \overline{p}_1 \overline{a}_1 & \displaystyle \frac{\overline{a}_1}{5 \overline{\alpha}^2} & 1 {-} \overline{a}_1 ((5 \overline{\alpha})^{\minus 2} {+} \overline{p}_1) & 0
+    \end{bmatrix},
+    \label{param:initialPhenotype}
+\end{equation}
+where $\overline{p}_1$ is the proliferation factor for normal tissue cell types, $\overline{p}_2$ is the proliferation factor for normal stem cell types, $\overline{\alpha}$ is the apoptotic factor, $\overline{d}$ is the differentiation factor, and $\Tilde{d}$ is the probability of differentiation occurring neglecting competition between cells. 
+The cell cycle length can range anywhere between 8 and 24 hours for the various cells in the body, since we are analyzing the tongue we will use $\Tilde{c} {=} 10 \text{h}$ \cite{Beidler}. The lifespan of a taste bud is $250{\pm}50$ hours \cite{Beidler}, so $\overline{c}_1 {=} 250 \text{h}$. The lifespan of a typical stem cell is around $25550$ hours \cite{Sieburg}, so $\overline{c}_2 {=} 25550 \text{h}$. We set $\overline{\alpha} {=} 1.625$, $\overline{p}_1 {=} 0.65$, $\overline{p}_2 {=} 14.75$, and $\overline{d} {=} 1.485$ so that equilibrium in the tissue is maintained when there are no carcinogens in the domain. Note that $\overline{p}_1$ is less than 1, since we want most of the new cells to come from TACs created by SCs, because, biologically speaking, normal tissue cells rarely proliferate. Since each TAC produces a certain number of generations, given by $\Theta$, then it will produce $2^{\Theta {+} 1} {-} 2$ new cells so we set 
+\begin{equation}
+\Tilde{d} {=} \frac{1}{2^{\Theta {+} 1} {-} 2}.
+\label{param:probabilityDiff}
+\end{equation}
+When a cell is a TAC the probability of proliferation increases by $\frac{1}{3}$, so that it will create its' $\Theta$ generations in as few time-steps as possible, assuming there is enough available space. The chance that a gene modifies the probability of a phenotypic action is given by $0.35$. The maximum value a gene can modify the phenotypic action by is $10^{\minus 6}$. 
+
+\end{document}

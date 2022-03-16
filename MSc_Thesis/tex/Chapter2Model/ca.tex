@@ -1,0 +1,1170 @@
+\providecommand{\main}{../..}
+\documentclass[\main/thesis.tex]{subfiles}
+
+\begin{document}
+
+\section{Cellular Automaton}
+As mentioned in the model overview, the six cell classes that we consider are 
+normal tissue cells (NTC), mutated normal tissue cells (MNTC), normal stem cells 
+(NSC), mutated normal stem cells (MNSC), cancer stem cells (CSC), and tumour 
+cells (TC). Each cell class is specified in the cellular automata (CA) using a 
+numerical value between 0 and 5. More precisely, we have that \newline
+0 {=} NTC, 1 {=} MNTC, 2 {=} NSC, 3 {=} MNSC, 4 {=} CSC, 5 {=} TC.
+Since biological cells can move, proliferate, differentiate, and go through 
+apoptosis then we must also introduce an empty cell class which is represented 
+by the value 6. The cell class in the CA is represented by 
+$s(\boldsymbol{x}, t) {\in} \{ 0, 1, ..., 6  \}$. Note that when visualizing the CA each 
+value of $s(\boldsymbol{x}, t)$ also has a colour associated to it. 
+Though we can choose any arbitrary colour for each cell class the colours chosen for the 
+results of the model can be seen in table \ref{table:CAStates}.
+\begin{table}[H]
+\centering	
+\begin{tabular}{|c|c|c|}
+	\hline
+	Cell class & $s(\boldsymbol{x}, t)$ & Colour \\
+	\hline
+	normal tissue cell (NTC) & 0 & \cellcolor[RGB]{146, 111, 98} brown \\
+	mutated normal tissue cell (MNTC) & 1 & \cellcolor[RGB]{50, 200, 118} green \\
+	normal stem cell (NSC) & 2 & \cellcolor[RGB]{0, 84, 147} blue \\
+	mutated normal stem cell (MNSC) & 3 & \cellcolor[RGB]{240, 200, 0} yellow \\
+	cancer stem cell (CSC) & 4 & \cellcolor[RGB]{200, 62, 255} purple \\
+	tumour cell (TC) & 5 & \cellcolor[RGB]{255, 61, 62} red \\
+	empty cell & 6 & \cellcolor[RGB]{255, 255, 255} white \\
+	\hline
+\end{tabular}
+\caption{CA cell classes}
+\label{table:CAStates} 
+\end{table}
+
+Each cell in the CA tracks the gene expression of the $G$ genes in a vector defined by
+\begin{equation}
+    \boldsymbol{E}(\boldsymbol{x}, t) {=} [ \{ e_j(\boldsymbol{x}, t) \}_{j{=}1, ..., G} ].
+    \label{eq:genExprsVector}
+\end{equation}
+The phenotype of a cell is tracked by a vector that contains probabilities for each type of phenotypic action occurring in a given time-step and is defined by
+\begin{equation}
+\boldsymbol{P}(\boldsymbol{x}, t) {=} [ p(\boldsymbol{x}, t), q(\boldsymbol{x}, t), a(\boldsymbol{x}, t), d(\boldsymbol{x}, t) ],
+\label{eq:phenotypeVector}
+\end{equation}
+where $p(\boldsymbol{x}, t)$ represents proliferation, $q(\boldsymbol{x}, t)$ represents quiescence, $a(\boldsymbol{x}, t)$ represents apoptosis, and $d(\boldsymbol{x}, t)$ represents differentiation. The probabilities are set such that $\boldsymbol{P}(\boldsymbol{x}, t)$ generates a probability distribution, so that 
+\begin{equation}
+\sum_{i{=}1}^4 P_i(\boldsymbol{x}, t) {\equiv} p(\boldsymbol{x}, t) {+} q(\boldsymbol{x}, t) {+} a(\boldsymbol{x}, t) {+} d(\boldsymbol{x}, t) {=} 1 \text{ and } P_i(\boldsymbol{x}, t) {\ge} 0, {\forall} t.
+\label{eq:phenotypeSumCondition}
+\end{equation}
+At a time-step in the CA a phenotypic action is chosen to occur by sampling from the probability distribution generated from $\boldsymbol{P}(\boldsymbol{x}, t)$. Hence, since we do not want a cell to reproduce more than once in a time-step, each time-step represents the length of a typical cell cycle for the type of tissue under consideration.
+
+When a NSC, MNSC, or CSC differentiate the resultant cell 
+initially is a transient amplifying cell (TAC) for a set number of generations, 
+$\Theta$, after which it turns respectively into a NTC, MNTC, or TC. As a result 
+of this each cell has two parameters $\overline{\tau}(\boldsymbol{x}, t) {\in} \{0, 1\}$ and
+$\overline{n}(\boldsymbol{x}, t) {\in} \{0, ..., \Theta\}$, where 
+$\overline{\tau}(\boldsymbol{x}, t)$ is a binary parameter used to determine if a cell is currently 
+a TAC or not and $\overline{n}(\boldsymbol{x}, t)$ is the number of generations a TAC cell lineage has produced. The parameters $\overline{\tau}(\boldsymbol{x}, t)$ and $\overline{n}(\boldsymbol{x}, t)$ are copied from parent to child cell and once $\overline{n}(\boldsymbol{x}, t) {=} \Theta$ then 
+$\overline{\tau}(\boldsymbol{x}, t{+}1) {=} 0$, $\overline{n}(\boldsymbol{x}, t{+}1) {=} 0$. 
+
+The final aspect of the cell that is tracked and represented in the overall cell state is the age of the cell, $\alpha(\boldsymbol{x}, t) {\in} \mathbb{N}$. The state of a cell in the CA is given by the vector
+\begin{align}
+\boldsymbol{S}(\boldsymbol{x}, t) {=} [ s(\boldsymbol{x}, t), %(\text{cell class}), 
+                                        \alpha(\boldsymbol{x}, t), %(\text{age}),
+                                        \boldsymbol{E}(\boldsymbol{x}, t), %(\text{gene expression}), \nonumber \\ 
+                                        \boldsymbol{P}(\boldsymbol{x}, t), %(\text{phenotypic action}),
+                                        \overline{\tau}(\boldsymbol{x}, t), %(\text{TAC indicator}), \label{eq:StateVector} \\
+                                        \overline{n}(\boldsymbol{x}, t) ] %(\text{\# cells a TAC lineage has produced}) ]. \nonumber
+\label{eq:StateVector}
+\end{align}
+
+The domain could theoretically be either two-dimensional or \newline three-dimensional, however for simplicity and computational purposes, the domain considered will be two-dimensional, so $\boldsymbol{x} {\in} \mathbb{R}^2$. Each cell has a neighbourhood that contains itself, the cardinal directions 
+around it, and the cells directly NE, SE, SW, and NW of the cell. In CA theory this is called the Moore neighbourhood and is mathematically defined for two-dimensional grids as
+\begin{equation}
+N^M_{(x_0, y_0)} {=} \{ (x, y) | |x {-} x_0| {\le} r, |y {-} y_0| {\le} r \},
+\label{eq:MooreNeighbourhood}
+\end{equation}
+where $r$ is the range of the Moore neighbourhood and $(x_0, y_0)$ is the cell that the neighbourhood 
+surrounds \cite{Gray}. Most commonly the Moore neighbourhood used is with $r {=} 1$ and it will be the one used in this thesis. 
+
+The boundary conditions of the grid are standard periodic boundary conditions. 
+Periodic boundaries were chosen because they are easier to work with and the size of the domain physically speaking is minuscule so they will not effect the results. We could easily also use non-periodic boundaries by dealing with edge cases.
+
+\subsection{Cell Mutation}
+A cell can become mutated through changes in both the likelihood of a phenotype 
+occurring and the gene expression. The process of these changes is described in 
+this section.
+
+\subsubsection{How Mutations Effect Gene Expression}
+The chosen $G$ genes are known genes related to the type of cancer being studied.
+Thus, each of the $G$ genes is either a tumour suppressor gene or an oncogene.
+Define the vector $\boldsymbol{T} {\in} \{ 0, 1 \}^G$, where each element, 
+$T_{j}$, represents gene $j$'s type, whereby $T_{j} {=} 0$ 
+represents a tumour suppressor gene and $T_{j} {=} 1$ represents an oncogene.
+
+A gene $j$ is positively mutated towards cancer (positively mutated) if it is mutated and either it is a tumour suppressor gene and its gene expression is downregulated, $T_j {=} 0$ and $e_j(\boldsymbol{x}, t) {\le} -\overline{M}$, or it is an oncogene and its gene expression is upregulated, $T_j {=} 1$ and $e_j(\boldsymbol{x}, t) {\ge} \overline{M}$, where $\overline{M}$ is the given threshold.
+
+At each time-step the gene expression of each gene is updated from the results 
+of the gene expression neural network. The changes in the gene expression allow 
+the gene to become mutated or even go from mutated to non mutated (normally 
+expressed). The following function is used as an indicator to determine if a gene $j$ is mutated, positively mutated or normally expressed:
+\begin{equation}
+\Psi(\boldsymbol{x}, t, j) {=} \begin{cases}
+                             0, & |e_j(\boldsymbol{x}, t)| {<} \overline{M} 
+                               (\text{{\footnotesize normally expressed}})\\
+                             1 {-} 2T_j, & e_j(\boldsymbol{x}, t) {\le} {-}\overline{M}
+                               (\text{{\footnotesize underexpressed gene}}) \\
+                             {-}2 {+} 4T_j, & e_j(\boldsymbol{x}, t) {\ge} \overline{M} 
+                               (\text{{\footnotesize overexpressed gene}})
+                        \end{cases}
+\label{eq:MutationFunc}
+\end{equation}
+Notice that when $\Psi(\boldsymbol{x}, t, j) {>} 0$ the gene $j$ is positively mutated and when $\Psi(\boldsymbol{x}, t, j) {<} 0$ it is mutated away from cancer. Further take note that if $$|\Psi(\boldsymbol{x}, t, j)| {=} 1$$ the gene $j$ is downregulated and when $$|\Psi(\boldsymbol{x}, t, j)| {=} 2$$ it is upregulated. 
+
+\subsubsection{Update Rules for Gene Expression}
+A given gene can influence the expression of another gene as follows. 
+A positively mutated gene will cause a positive mutation of a related gene. 
+A non-positively mutated gene will cause a negative mutation (mutation that regulates a gene towards normal expression) of a related gene. 
+Define the matrix $R {\in} \{ 0, 1 \}^{G{\times}G}$, where each entry, $R_{ij}$, 
+represents whether gene $i$ is related to gene $j$ with $0{=}\text{unrelated}$ 
+and $1{=}\text{related}$. Note that the matrix $R$ is not necessarily symmetric as a 
+gene $i$ might regulate gene $j$ but not vice versa. To  update gene $j$ according to formula \eqref{eq:geneInstabilityUpdateRule} below, we chose a random number $z {\sim} U(0,1)$ and an update occurs only if $z {\leq} \overline{\gamma}$ and $R_{ij} {=} 1$.
+The process of a gene $i$ changing the gene expression of another gene $j$ is 
+represented by the formula:
+\begin{align}
+&\varsigma(\boldsymbol{x}, t, i, j) {=}
+\begin{cases}
+   1, &(\Psi(\boldsymbol{x}, t, i) {>} 0 \text{ and } T_j {=} 1 
+       \text{ and } e_j(\boldsymbol{x}, t) {<} M) \text{ or }\\
+      &(\Psi(\boldsymbol{x}, t, i) {\le} 0 \text{ and } e_j(\boldsymbol{x}, t) {<} 0)\\
+  \\
+  -1, &(\Psi(\boldsymbol{x}, t, i) {>} 0 \text{ and } T_j {=} 0 
+       \text{ and } e_j(\boldsymbol{x}, t) {>} {-}M) \text{ or }\\
+      &(\Psi(\boldsymbol{x}, t, i) {\le} 0 \text{ and } e_j(\boldsymbol{x}, t) {>} 0)\\
+  \\
+  0, &\text{otherwise}
+\end{cases}, \label{eq:geneInstabilityUpdateFunction}\\
+&e_j(\boldsymbol{x}, t) {=} e_j(\boldsymbol{x}, t{-}1) {+} \varsigma(\boldsymbol{x}, t{-}1, i, j) \varepsilon,
+\label{eq:geneInstabilityUpdateRule}
+\end{align}
+where $\varepsilon {\sim} U(\varepsilon_1,\varepsilon_2)$ is a randomly chosen increment between $\varepsilon_1$ and $\varepsilon_2$.  The previous update is used by fixing a 
+gene $i$ and applying the function to all the other genes, then repeating the process on the next gene and so forth, until all the genes have been processed. In each of these steps new random numbers $z,\varepsilon$ are generated. 
+
+In addition if a gene $j$ is mutated then there is a chance that the gene 
+expression is negatively mutated, so to replicate the bodies
+attempting to revert mutated genes. The following function is applied only when 
+some random variable $z {\sim} U(0,1)$ is less than or equal to a threshold $\overline{\phi}$.
+This is represented by the gene repair function:
+\begin{align}
+e_j(\boldsymbol{x}, t) {=} e_j(\boldsymbol{x}, t{-}1) {+}
+\begin{cases}
+    \varepsilon, 
+      & |\Psi(\boldsymbol{x}, t{-}1, j)| {=} 1 \\
+    {-} \varepsilon, 
+      & |\Psi(\boldsymbol{x}, t{-}1, j)| {=} 2 \\
+\end{cases},
+\label{eq:geneExpressionFixer}
+\end{align}
+where $\varepsilon {\sim} U(\varepsilon_1, \varepsilon_2)$ is a random increment.  
+In a given time-step the previous function \eqref{eq:geneExpressionFixer} is applied once to all $G$ genes.
+
+%\begin{tikzpicture}[node distance=0.525cm]
+%\node (start) [startstop] {\scriptsize Start};
+%\node (pro1) [process, below=of start] {\scriptsize $\hat{M} {=} 1$};
+%\node (loop1) [circle, fill, inner sep=0.025cm, below=of pro1] {};
+%\node (dec1) [decision, below left=of loop1] {\scriptsize $\hat{M} {\le} G$};
+%\node (pro2) [process, below=of dec1] {\scriptsize $z_1 {\sim} Z(0, 1)$, $\varpi_1 {\sim} V(\chi, \psi)$};
+%\node (end) [startstop, below left=of dec1] {\scriptsize End};
+%\node (dec2) [decision, below right=of pro2] {\scriptsize $\Psi(\boldsymbol{x}, t{-}1, \hat{M}) {\ne} 0$ \& $z_1 {\le} \overline{\phi}$};
+%\node (dec3) [decision, below=of dec2] {\scriptsize $|\Psi(\boldsymbol{x}, t{-}1, \hat{M})| {=} 1$};
+%\node (pro3) [process, below left=of dec3] {\scriptsize $E_{\hat{M}}(\boldsymbol{x}, t) {+}{=} \varpi_1$};
+%\node (pro4) [process, below right=of dec3] {\scriptsize $E_{\hat{M}}(\boldsymbol{x}, t) {-}{=} \varpi_1$};
+%\node (pro5) [process, below right=of pro3] {\scriptsize $m {=} 1$};
+%\node (loop2) [circle, fill, inner sep=0.025cm, below=of pro5] {};
+%\node (dec4) [decision, below=of loop2] {\scriptsize $m {\le} G$};
+%\node (pro6) [process, below right=of dec4] {\scriptsize $\hat{M}{+}{+}$};
+%\node (dec5) [decision, below left=of dec4] {\scriptsize $R_{\hat{M}m} {=} 1$};
+%\node (pro7) [process, below right=of dec5] {\scriptsize $z_2 {\sim} Z(0, 1)$, $\varpi_2 {\sim} V(\chi, \psi)$};
+%\node (dec6) [decision, below=of pro7] {\scriptsize$\Psi(\boldsymbol{x}, t{-}1, \hat{M}) {>} 0$ \& $z_2 {\le} \overline{\gamma}$};
+%\node (dec7) [decision, below=of dec6] {\scriptsize $T_m {=} 0$};
+%\node (pro8) [process, below right=of dec7] {\scriptsize $E_m(\boldsymbol{x}, t) {+}{=} \varpi_2$};
+%\node (pro9) [process, below left=of dec7] {\scriptsize $E_m(\boldsymbol{x}, t) {-}{=} \varpi_2$};
+%\node (dec8) [decision, below=of dec7, yshift=-0.5cm] {\scriptsize $\Psi(\boldsymbol{x}, t{-}1, \hat{M}) {\le} 0$ \& $E_m(\boldsymbol{x}, t{-}1) {\ne} 0$ \& $z_2 {\le} \overline{\gamma}$};
+%\node (dec9) [decision, below=of dec8] {\scriptsize $E_m(\boldsymbol{x}, t{-}1) {<} 0$};
+%\node (pro10) [process, below left=of dec9] {\scriptsize $E_m(\boldsymbol{x}, t) {+}{=} \varpi_2$};
+%\node (pro11) [process, below right=of dec9] {\scriptsize $E_m(\boldsymbol{x}, t) {-}{=} \varpi_2$};
+%\node (pro12) [process, below=of dec9, yshift=-0.5cm] {\scriptsize $m{+}{+}$};
+
+%\draw [arrow] (start) -- (pro1);
+%\draw [thick] (pro1) -- (loop1);
+%\draw [arrow] (loop1) -- (dec1);
+%\draw [arrow] (dec1) -- node[anchor=north] {\scriptsize no} (end);
+%\draw [arrow] (dec1) -- node[anchor=west] {\scriptsize yes} (pro2);
+%\draw [arrow] (pro2) -- (dec2);
+%\draw [arrow] (dec2) -- node[anchor=west] {\scriptsize yes} (dec3);
+%\draw [arrow] (dec2) +(-3.6, 0) -- ++(-6.5, 0) -- node[anchor=east] {\scriptsize no} ++(0, -3.75) -- (pro5);
+%\draw [arrow] (dec3) -- node[pos=0.25, below] {\scriptsize yes} (pro3);
+%\draw [arrow] (dec3) -- node[pos=0.25, below] {\scriptsize no} (pro4);
+%\draw [arrow] (pro3) -- (pro5);
+%\draw [arrow] (pro4) -- (pro5);
+%\draw [thick] (pro5) -- (loop2);
+%\draw [arrow] (loop2) -- (dec4);
+%\draw [arrow] (dec4) -- node[pos=0.15, below] {\scriptsize yes} (dec5);
+%\draw [arrow] (dec4) -- node[pos=0.25, below] {\scriptsize no} (pro6);
+%\draw [arrow] (dec5) -- node[pos=0.25, below] {\scriptsize yes} (pro7);
+%\draw [arrow] (dec5) +(-3.6, 0) -- ++(-4, 0) -- node[anchor=east] {\scriptsize no} ++(0, -10.5) -- (pro12);
+%\draw [arrow] (pro6) +(1.85, 0) -- ++(2.25, 0) -- ++(0, 9.75) -- (loop1);
+%\draw [arrow] (pro7) -- (dec6);
+%\draw [arrow] (dec6) -- node[anchor=west] {\scriptsize yes} (dec7);
+%\draw [arrow] (dec6) +(-3.6, 0) -- ++(-6, 0) -- node[anchor=east] {\scriptsize no} ++(0, -4.2) -- (dec8);
+%\draw [arrow] (dec7) --node[pos=0.25, below] {\scriptsize no} (pro8);
+%\draw [arrow] (dec7) --node[pos=0.25, below] {\scriptsize yes} (pro9);
+%\draw [arrow] (pro8) -- (dec8);
+%\draw [arrow] (pro9) -- (dec8);
+%\draw [arrow] (dec8) --node[anchor=west] {\scriptsize yes} (dec9);
+%\draw [arrow] (dec8) +(5.2, 0) -- ++(6.125, 0) -- node[anchor=west] {\scriptsize no} ++(0, -3.8) -- (pro12);
+%\draw [arrow] (dec9) --node[pos=0.25, below] {\scriptsize yes} (pro10);
+%\draw [arrow] (dec9) --node[pos=0.25, below] {\scriptsize no} (pro11);
+%\draw [arrow] (pro10) -- (pro12);
+%\draw [arrow] (pro11) -- (pro12);
+%\draw [arrow] (pro12) +(0, -0.25) -- ++(0, -0.5) -- ++(-9, 0) -- ++(0, 13) -- (loop2);
+%\end{tikzpicture}
+
+\subsubsection{Update Rules for Phenotypic Action}
+The probability of a phenotypic action occurring can change at each time-step based upon the gene expression of a gene. When a gene is mutated it can modify the probability of a phenotypic action occurring, $P_i(\boldsymbol{x}, t)$.
+We define the matrix $\overline{U} {\in} \mathbb{R}^{4{\times}G}$, where each entry, 
+$\overline{U}_{ij}$, is an increment to the probability of phenotypic action $i$,
+$P_i(\boldsymbol{x}, t)$, under the circumstance that gene $j$ is mutated and its' 
+expression is upregulated. Similarly, we define the matrix
+$\overline{D} {\in} \mathbb{R}^{4{\times}G}$, where each entry, $\overline{D}_{ij}$, is 
+an increment to the probability of phenotype action $i$, $P_i(\boldsymbol{x}, t)$, under the circumstance that gene $j$ is mutated and its' expression is downregulated. We define updates for the phenotypic actions in \eqref{eq:phenotypeMutate} and \eqref{eq:phenotypeMutateBalance} in a way such that  the probability of a phenotypic action occurring is kept bounded between $0$ and $1$ and
+$\sum_{i{=}1}^{4} P_i(\boldsymbol{x}, t) {=} 1$. 
+
+The sum of the phenotype vector equaling one is maintained by balancing the probability of 
+each phenotype action against the probability of quiescence and quiescence equally against all the other phenotypic actions. Note that usually $\overline{U}{=}{-}\overline{D}$ since the effects of the up-regulation of a gene $j$ has the opposite effect on the phenotypic action $i$ relative to the down-regulation of the gene. For each update we choose a random sample $\varpi {\sim} U(0, 1)$ which denotes the magnitude of the change to $P_{i, k}$ based on a change in $e_j$. To ensure that updates remain between $0$ and $1$ we use the following modified expression for the increment:
+\begin{equation}
+\Xi(\epsilon, \xi) {=} \begin{cases}
+                          {-}\xi {\times} 0.99,
+                           & \xi {+} \epsilon {\le} 0 \\
+                          (1 {-} \xi) {\times} 0.99,
+                           & \xi {+} \epsilon {\ge} 1 \\
+                          \epsilon, & \text{otherwise}
+                         \end{cases},
+\label{eq:phenotypicActionBoundaryFunction}
+\end{equation}
+Given the mutated gene $j$ we change the phenotypic probability $P_i$ with the following formulas, where $\Phi$ defines the maximum increment or detriment amount:
+\begin{equation}
+\Phi(\boldsymbol{x}, t, i) =
+\begin{cases}
+  \overline{D}_{ij}, &|\Psi(\boldsymbol{x}, t, j)| = 1 \\
+  \overline{U}_{ij}, &|\Psi(\boldsymbol{x}, t, j)| = 2
+\end{cases}
+\label{eq:phenotypeMutateEpsilon}
+\end{equation}
+Then the update for $P_i$ ensures that the new probabilities remain between $0$ and $1$. 
+\begin{align}
+P_i(\boldsymbol{x}, t) &{=} P_i(\boldsymbol{x}, t{-}1) \nonumber \\ &{+}
+                           \begin{cases}
+                             \text{sgn}(\Phi(\boldsymbol{x}, t, i))
+                             \min(|\Xi(\varpi \Phi(\boldsymbol{x}, t, i),  
+                                   P_i(\boldsymbol{x}, t{-}1))|,   
+                               & , i {\ne} 2 \\
+                             \hspace{3.4cm} |\Xi({-}\varpi \Phi(\boldsymbol{x}, t, i),  
+                                             P_2(\boldsymbol{x}, t{-}1))|)\\
+                             \\
+                             \Xi(\varpi \Phi(\boldsymbol{x}, t, i), 
+                                 P_2(\boldsymbol{x}, t{-}1))
+                               & , i {=} 2
+                            \end{cases},
+\label{eq:phenotypeMutate}
+\end{align}
+These changes are balanced with changes to the other phenotype actions $k {\neq} i$ to ensure full probability. 
+\begin{align}
+P_k(\boldsymbol{x}, t) &{=} P_k(\boldsymbol{x}, t{-}1) \nonumber \\ &{-}
+                           \begin{cases}
+                              \text{sgn}(\Phi(\boldsymbol{x}, t, i))
+                              \min(|\Xi(\varpi \Phi(\boldsymbol{x}, t, i), 
+                                    P_i(\boldsymbol{x}, t{-}1))|,
+                                & , k {=} 2 \\
+                              \hspace{3.4cm} |\Xi({-}\varpi \Phi(\boldsymbol{x}, t, i),
+                                              P_k(\boldsymbol{x}, t{-}1))|)
+                             \\
+                             \\
+                             \displaystyle \frac{\Xi(\varpi \Phi(\boldsymbol{x}, t, i),
+                             	                     P_i(\boldsymbol{x}, t{-}1))
+                             	                 P_k(\boldsymbol{x}, t{-}1)}
+                                                {\sum_{l{\ne}2} P_l(\boldsymbol{x}, t{-}1)}
+                               & , k {\ne} 2
+                            \end{cases}, 
+\label{eq:phenotypeMutateBalance}
+\end{align}
+The equation \eqref{eq:phenotypeMutate} modifies a phenotypic action with 
+respect to a gene $j$, with equation \eqref{eq:phenotypeMutateBalance} balancing those changes so that the sum of the probability distribution generated by $\boldsymbol{P}(\boldsymbol{x}, t)$ remains one. Thus, to mutate a phenotypic action $i$ with respect to gene $j$, we use equation \eqref{eq:phenotypeMutate} then if $i {\ne} 2$, we are not modifying quiescence, and we use equation \eqref{eq:phenotypeMutateBalance} with $k {=} 2$, otherwise we use equation \eqref{eq:phenotypeMutateBalance} with $k {=} 1, 3, 4$. 
+Since $|\Psi(\boldsymbol{x}, t, j)| {=} 1$ means that gene $j$ is downregulated, then we know that in that case the increment for the phenotypic action $i$ with respect to gene $j$ will be $D_{ij}$. 
+Similarly, whenever $|\Psi(\boldsymbol{x}, t, j)| {=} 2$ then the increment for the phenotypic action $i$ will be $U_{ij}$. Mathematically speaking this update process is
+accomplished through a composition of applications of \eqref{eq:phenotypeMutate} and 
+\eqref{eq:phenotypeMutateBalance}.
+We define the functional $\overline{P}^j(\boldsymbol{x}, t, i)$ where $i$ is the 
+phenotypic action being modified using \eqref{eq:phenotypeMutate} and 
+\eqref{eq:phenotypeMutateBalance} with respect to gene $j$. Thus the update can be written as 
+$P_i(\boldsymbol{x}, t) = \overline{P}^1(\overline{P}^2(...\overline{P}^G(\boldsymbol{x}, t, i)))$, where in each step we re-sample random variables $z,\varpi$ as described above. 
+
+%\begin{tikzpicture}[node distance=0.6cm]
+%\node (start) [startstop] {\scriptsize $\Xi(\epsilon, \xi)$};
+%\node (dec1) [decision, below=of start] {\scriptsize $\xi {+} \epsilon {\le} 0$};
+%\node (out1) [io, below left=of dec1] {\scriptsize ${-}\xi {\times} 0.99$};
+%\node (dec2) [decision, below right=of dec1] {\scriptsize $\xi {+} \epsilon {\ge} 1$};
+%\node (out2) [io, below left=of dec2] {\scriptsize $(1 {-} \xi) {\times} 0.99$};
+%\node (out3) [io, below right=of dec2] {\scriptsize $\xi$};
+
+%\draw [arrow] (start) -- (dec1);
+%\draw [arrow] (dec1) -- node[pos=0, below] {\scriptsize yes} (out1);
+%\draw [arrow] (dec1) -- node[pos=0, below] {\scriptsize no} (dec2);
+%\draw [arrow] (dec2) -- node[pos=0, below] {\scriptsize yes} (out2);
+%\draw [arrow] (dec2) -- node[pos=0, below] {\scriptsize no} (out3);
+%\end{tikzpicture}
+
+%\begin{tikzpicture}[node distance=0.5cm]
+%\node (start) [startstop] {\scriptsize adjustPhenotype(i, $\epsilon$)};
+%\node (dec1) [decision, below=of start] {\scriptsize $i {\ne} 2$};
+%\node (pro1) [process, text width=6.45cm, below left=of dec1] {\scriptsize $P_i(\boldsymbol{x}, t) {+}{=} \frac{\epsilon}{\epsilon} \min(|\Xi(\epsilon, P_i(\boldsymbol{x}, t))|, |\Xi({-}\epsilon, P_2(\boldsymbol{x}, t))|)$};
+%\node (pro2) [process, text width=6.45cm, below=of pro1] {\scriptsize $P_2(\boldsymbol{x}, t) {-}{=} \frac{\epsilon}{\epsilon} \min(|\Xi(\epsilon, P_i(\boldsymbol{x}, t))|, |\Xi({-}\epsilon, P_2(\boldsymbol{x}, t))|)$};
+%\node (pro3) [process, text width=4.6cm, below right=of dec1] {\scriptsize $P_2(\boldsymbol{x}, t) {+}{=} \Xi(\epsilon, P_2(\boldsymbol{x}, t))$};
+%\node (pro4) [process, text width=4.6cm, below=of pro3] {\scriptsize $S {=} P_1(\boldsymbol{x}, t) {+} P_3(\boldsymbol{x}, t) {+} P_4(\boldsymbol{x}, t)$};
+%\node (pro5) [process, text width=4.6cm, below=of pro4] {\scriptsize $P_1(\boldsymbol{x}, t) {-}{=} \Xi(\epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_1(\boldsymbol{x}, t)}{S} \right)$,
+%                                                         $P_3(\boldsymbol{x}, t) {-}{=} \Xi(\epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_3(\boldsymbol{x}, t)}{S} \right)$,
+%                                                         $P_4(\boldsymbol{x}, t) {-}{=} \Xi(\epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_4(\boldsymbol{x}, t)}{S} \right)$};
+%\node (end) [startstop, below=of start, yshift=-3.95cm] {\scriptsize End};
+
+%\draw [arrow] (start) -- (dec1);
+%\draw [arrow] (dec1) -- node[pos=0.1, below] {\scriptsize yes} (pro1);
+%\draw [arrow] (dec1) -- node[pos=0.1, below] {\scriptsize no} (pro3);
+%\draw [arrow] (pro1) -- (pro2);
+%\draw [arrow] (pro3) -- (pro4);
+%\draw [arrow] (pro4) -- (pro5);
+%\draw [arrow] (pro2) -- (end);
+%\draw [arrow] (pro5) -- (end);
+%\end{tikzpicture}
+
+%\begin{tikzpicture}[node distance=0.525cm]
+%\node (start) [startstop] {\scriptsize Start};
+%\node (pro1) [process, below=of start] {\scriptsize $M {=} 1$};
+%\node (loop1) [circle, fill, inner sep=0.025cm, below=of pro1] {};
+%\node (dec1) [decision, below left=of loop1] {\scriptsize $M {\le} G$};
+%\node (end) [startstop, below left=of dec1] {\scriptsize End};
+%\node (pro2) [process, below=of dec1] {\scriptsize $i {=} 1$};
+%\node (loop2) [circle, fill, inner sep=0.025cm, below left=of pro2] {};
+%\node (dec2) [decision, below right=of loop2] {\scriptsize $i {\le} 4$};
+%\node (dec3) [decision, below left=of dec2] {\scriptsize $\Psi(\boldsymbol{x}, t, M) {=} 0$};
+%\node (pro3) [process, below right=of dec2] {\scriptsize $M{+}{+}$};
+%\node (pro4) [process, below=of dec3] {\scriptsize $\epsilon {=} \overline{D}_{iM}$};
+%\node (dec4) [decision, below=of pro4] {\scriptsize $|\Psi(\boldsymbol{x}, t, M)| {=} 2$};
+%\node (pro5) [process, below left=of dec4] {\scriptsize $\epsilon {=} \overline{U}_{iM}$};
+%\node (pro6) [process, below right=of dec4] {\scriptsize $z {\sim} Z(0, 1)$};
+%\node (dec5) [decision, below left=of pro6] {\scriptsize $z {\le} \overline{\rho}$};
+%\node (pro7) [process, below right=of dec5] {\scriptsize $\varpi {\sim} Z(0, 1)$};
+%\node (pro8) [process, below=of pro7] {\scriptsize adjustPhenotype($i$, $\epsilon \varpi$)};
+%\node (dec6) [decision, below left=of pro7] {\scriptsize $i {\ne} 2$};
+%\node (pro8) [process, text width=7.75cm, below=of dec6] {\scriptsize $P_i(\boldsymbol{x}, t) {+}{=} \text{sgn}(\varpi \epsilon) \min(|\Xi(\varpi \epsilon, P_i(\boldsymbol{x}, t))|, |\Xi({-} \varpi \epsilon, P_2(\boldsymbol{x}, t))|)$};
+%\node (pro9) [process, text width=7.75cm, below=of pro8] {\scriptsize $P_2(\boldsymbol{x}, t) {-}{=} \text{sgn}(\varpi \epsilon) \min(|\Xi(\varpi \epsilon, P_i(\boldsymbol{x}, t))|, |\Xi({-} \varpi \epsilon, P_2(\boldsymbol{x}, t))|)$};
+%\node (pro10) [process, text width=4.6cm, below right=of dec6, xshift=2.25cm] {\scriptsize $P_2(\boldsymbol{x}, t) {+}{=} \Xi(\varpi \epsilon, P_2(\boldsymbol{x}, t))$};
+%\node (pro11) [process, text width=4.6cm, below=of pro10] {\scriptsize $S {=} P_1(\boldsymbol{x}, t) {+} P_3(\boldsymbol{x}, t) {+} P_4(\boldsymbol{x}, t)$};
+%\node (pro12) [process, text width=5cm, below=of pro11] {\scriptsize $P_1(\boldsymbol{x}, t) {-}{=} \Xi(\varpi \epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_1(\boldsymbol{x}, t)}{S} \right)$,
+%	$P_3(\boldsymbol{x}, t) {-}{=} \Xi(\varpi \epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_3(\boldsymbol{x}, t)}{S} \right)$,
+%	$P_4(\boldsymbol{x}, t) {-}{=} \Xi(\varpi \epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_4(\boldsymbol{x}, t)}{S} \right)$};
+%\node (pro13) [process, below left=of pro12] {\scriptsize $i{+}{+}$};
+
+%\draw [arrow] (start) -- (pro1);
+%\draw [thick] (pro1) -- (loop1);
+%\draw [arrow] (loop1) -- (dec1);
+%\draw [arrow] (dec1) -- node[pos=0.25, below] {\scriptsize no} (end);
+%\draw [arrow] (dec1) -- node[anchor=west] {\scriptsize yes} (pro2);
+%\draw [thick] (pro2) -- (loop2);
+%\draw [arrow] (loop2) -- (dec2);
+%\draw [arrow] (dec2) -- node[pos=0.05, below] {\scriptsize yes} (dec3);
+%\draw [arrow] (dec2) -- node[pos=0.125, below] {\scriptsize no} (pro3);
+%\draw [arrow] (pro3) +(0, 0.25) -- ++(0, 4.3) -- (loop1);
+%\draw [arrow] (dec3) +(0, 0.56) -- node[pos=0.5, left] {\scriptsize yes} ++(0, 1.625) -- (loop2);
+%\draw [arrow] (dec3) -- node[anchor=west] {\scriptsize no} (pro4);
+%\draw [arrow] (pro4) -- (dec4);
+%\draw [arrow] (dec4) -- node[pos=0.05, below] {\scriptsize yes} (pro5);
+%\draw [arrow] (dec4) -- node[pos=0.125, below] {\scriptsize no} (pro6);
+%\draw [arrow] (pro5) -- (pro6);
+%\draw [arrow] (pro6) -- (dec5);
+%\draw [arrow] (dec5) -- node[pos=0.25, below] {\scriptsize yes} (pro7);
+%\draw [arrow] (dec5) +(-3.4, 0) -- ++(-4.5, 0) -- node[anchor=east] {\scriptsize no} ++(0, -5) -- (pro13);
+%\draw [arrow] (pro7) -- (dec6);
+%\draw [arrow] (dec6) -- node[anchor=west] {\scriptsize yes} (pro8);
+%\draw [arrow] (dec6) -- node[pos=0.1, below] {\scriptsize no} (pro10);
+%\draw [arrow] (pro8) -- (pro9);
+%\draw [arrow] (pro10) -- (pro11);
+%\draw [arrow] (pro11) -- (pro12);
+%\draw [arrow] (pro9) +(1.5, -0.29) -- ++(1.5, -2.52);
+%\draw [arrow] (pro12) -- (pro13);
+%\draw [arrow] (pro13) +(-1.86, 0) -- ++(-8.25, 0) -- ++(0, 13.5) -- (loop2);
+%\end{tikzpicture}
+
+\begin{lemma}
+Let $P_l(\boldsymbol{x}, t{-}1) {\in} (0, 1), l {=} 1, 2, 3, 4$ and 
+$\sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1$. If the probability $P_i$ of phenotypic action $i\in\{1,2,3,4\}$ is modified 
+using the rules \eqref{eq:phenotypeMutate} and \eqref{eq:phenotypeMutateBalance} 
+with respect to gene $j$ then we will still have $\sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) {=} 1$, 
+$\forall t {>} 0$.
+\end{lemma}
+\begin{proof}
+	Assume $\Psi(\boldsymbol{x}, t, j) {\ne} 0$ and the threshold for gene $j$ to modify the probability of 
+	phenotypic action $i$ is met, \ie, $z {\sim} Z(0, 1) {\le} \overline{\rho}$. Also since the increment 
+	being applied to the probability of phenotypic action $i$ has only two possible values related to whether 
+	$|\Psi(\boldsymbol{x}, t, j)| {=} 1$ or $|\Psi(\boldsymbol{x}, t, j)| {=} 2$, then we can assume without 
+	loss of generality that the increment is some value $\epsilon$. If $\epsilon {=} 0$ then trivially we 
+	have that $\sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) {=} 1$ since no changes will occur to 
+	$P_i(\boldsymbol{x}, t{-}1)$.
+	\begin{itemize}
+	  \item[{\bf Case 1:}] First we assume that $i {\ne} 2$ and $k {=} 2$ as we are balancing the change in 
+	                       the probability of phenotypic action $i$ with the probability of quiescence.
+	                       Further assume that $P_l(\boldsymbol{x}, t) {=} P_l(\boldsymbol{x}, t{-}1)$, 
+	                       $l {\ne} i, 2$.
+	                       \begin{itemize}
+	                       	 \item[{\bf Case A:}] Assume $\epsilon {<} 0$.
+                             \begin{itemize}
+                           	   \item[{\bf Case a:}] Assume $0 {<} P_i(\boldsymbol{x}, t{-}1) {+} \epsilon {<} 1$ 
+                           	                        and $0 {<} P_2(\boldsymbol{x}, t{-}1) {-} \epsilon {<} 1$. 
+                           	                        We have that 
+                           	                        \begin{align*}
+                           	                          &\text{sgn}(\epsilon) 
+                           	                           \min(|\Xi(\epsilon, 
+                           	                                 P_i(\boldsymbol{x}, t{-}1))|, 
+                           	                                |\Xi({-}\epsilon,
+                           	                                 P_2(\boldsymbol{x}, t{-}1))|)\\
+                           	                          &{=} \text{sgn}(\epsilon) 
+                           	                                \min(|\epsilon|,
+                           	                                     |{-}\epsilon|)
+                           	                          {=} \text{sgn}(\epsilon) 
+                           	                               |\epsilon| {=} \epsilon.
+                           	                          \tag{1}
+                           	                          \label{eq:incr1Aa}
+                           	                        \end{align*}
+                           	                        Using equation (\ref{eq:phenotypeMutate}) and considering 
+                           	                        (\ref{eq:incr1Aa}) we have that
+                           	                        \begin{align*}
+                           	                          P_i(\boldsymbol{x}, t) {=} P_i(\boldsymbol{x}, t{-}1) {+} \epsilon.
+                           	                          \tag{2}
+                           	                          \label{eq:Pi1Aa}
+                           	                        \end{align*}
+                           	                        Also using equation (\ref{eq:phenotypeMutateBalance}) and considering 
+                           	                        again (\ref{eq:incr1Aa}) we have that
+                           	                        \begin{align*}
+                           	                          P_2(\boldsymbol{x}, t) {=} P_2(\boldsymbol{x}, t{-}1) {-} \epsilon.
+                           	                          \tag{3}
+                           	                          \label{eq:P21Aa}
+                           	                        \end{align*}
+                           	                        Therefore, using equations (\ref{eq:Pi1Aa}) and (\ref{eq:P21Aa}) we have 
+                           	                        \begin{align*}
+                           	                          \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) 
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                           	                           {+} (P_i(\boldsymbol{x}, t{-}1) {+} \epsilon)
+                           	                           {+} (P_2(\boldsymbol{x}, t{-}1) {-} \epsilon) \\
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                           	                           {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x},t{-}1) 
+                           	                           {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                           	                          &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1.
+                           	                        \end{align*}
+                               \item[{\bf Case b:}] Assume $P_i(\boldsymbol{x}, t{-}1) {+} \epsilon {\le} 0$ 
+                           	                        and $0 {<} P_2(\boldsymbol{x}, t{-}1) {-} \epsilon {<} 1$. Since\\
+                           	                        $P_i(\boldsymbol{x}, t{-}1) {\le} {-}\epsilon$ we have 
+                           	                        \begin{align*}
+                           	                          &\text{sgn}(\epsilon) \min(|\Xi(\epsilon, P_i(\boldsymbol{x},t{-}1))|, 
+                           	                                                     |\Xi({-}\epsilon, 
+                           	                                                          P_2(\boldsymbol{x},t{-}1))|)
+                           	                          \\ 
+                           	                          &{=} {-} \min(|{-}0.99 P_i(\boldsymbol{x}, t{-}1)|, |{-}\epsilon|) \\
+                           	                          &{=} {-} \min(0.99 P_i(\boldsymbol{x}, t{-}1), {-}\epsilon) 
+                           	                           {=} {-} 0.99 P_i(\boldsymbol{x}, t{-}1).
+                           	                          \tag{4}
+                           	                          \label{eq:incr1Ab}
+                           	                        \end{align*}
+                           	                        Using equation (\ref{eq:phenotypeMutate}) and considering 
+                           	                        (\ref{eq:incr1Ab}) we have that
+                                                    \begin{align*}
+                           	                          P_i(\boldsymbol{x}, t) {=} P_i(\boldsymbol{x}, t{-}1)
+                           	                                                 {-} 0.99 P_i(\boldsymbol{x}, t{-}1)
+                           	                                                 {=} 0.01 P_i(\boldsymbol{x}, t{-} 1).
+                           	                          \tag{5}
+                           	                          \label{eq:Pi1Ab}
+                           	                        \end{align*}
+                           	                        Also using equation (\ref{eq:phenotypeMutateBalance}) and considering 
+                           	                        again (\ref{eq:incr1Ab}) we have that
+                           	                        \begin{align*}
+                           	                          P_2(\boldsymbol{x}, t) {=} P_2(\boldsymbol{x}, t{-}1) 
+                           	                                                 {+} 0.99 P_i(\boldsymbol{x}, t{-}1).
+                                                      \tag{6}
+                           	                          \label{eq:P21Ab}
+                           	                        \end{align*}
+                           	                        Therefore, using equations (\ref{eq:Pi1Ab}) and (\ref{eq:P21Ab}) we 
+                           	                        have 
+                           	                        \begin{align*}
+                           	                          \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) 
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                           	                           {+} 0.01 P_i(\boldsymbol{x}, t{-} 1)\\
+                           	                          &{+} (P_2(\boldsymbol{x}, t{-}1) {+} 0.99 P_i(\boldsymbol{x}, t{-}1))
+                           	                          \\
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                           	                           {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x},t{-}1) 
+                           	                           {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                           	                          &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1.
+                           	                        \end{align*}
+                               \item[{\bf Case c:}] Assume $0 {<} P_i(\boldsymbol{x}, t{-}1) {+} \epsilon {<} 1$ 
+                           	                        and $P_2(\boldsymbol{x}, t{-}1) {-} \epsilon {\ge} 1$. Since\\
+                           	                        $1 {-} P_2(\boldsymbol{x}, t{-}1) {\le} {-}\epsilon$ we have 
+                                                 	\begin{align*}
+                           	                          &\text{sgn}(\epsilon) \min(|\Xi(\epsilon,P_i(\boldsymbol{x},t{-}1))|, 
+                           	                                                     |\Xi({-}\epsilon, 
+                           	                                                          P_2(\boldsymbol{x},t{-}1))|)
+                           	                          \\ 
+                           	                          &{=} {-}\min(|\epsilon|, |0.99 (1{-}P_2(\boldsymbol{x}, t{-}1))|) \\
+                           	                          &{=} {-} \min({-}\epsilon, 0.99 (1{-}P_2(\boldsymbol{x}, t{-}1))) 
+                           	                           {=} 0.99 (P_2(\boldsymbol{x}, t{-}1) {-} 1).
+                           	                          \tag{7}
+                           	                          \label{eq:incr1Ac}
+                           	                        \end{align*}
+                           	                        Using equation (\ref{eq:phenotypeMutate}) and considering 
+                           	                        (\ref{eq:incr1Ac}) we have that
+                           	                        \begin{align*}
+                           	                          P_i(\boldsymbol{x}, t) &{=} P_i(\boldsymbol{x}, t{-}1)
+                           	                                                  {+} 0.99(P_2(\boldsymbol{x}, t{-}1) {-} 1) \\
+                           	                                                 &{=} P_i(\boldsymbol{x}, t{-}1)
+                           	                                                  {+} 0.99 P_2(\boldsymbol{x}, t{-}1)
+                           	                                                  {-} 0.99.
+                           	                          \tag{8}
+                           	                          \label{eq:Pi1Ac}
+                           	                        \end{align*}
+                           	                        Also using equation (\ref{eq:phenotypeMutateBalance}) and considering 
+                           	                        again (\ref{eq:incr1Ac}) we have that
+                           	                        \begin{align*}
+                           	                          P_2(\boldsymbol{x}, t) &{=} P_2(\boldsymbol{x}, t{-}1) 
+                           	                                                  {-} 0.99 (P_2(\boldsymbol{x}, t{-}1) {-} 1) \\
+                           	                                                 &{=} 0.01 P_2(\boldsymbol{x}, t{-}1)
+                           	                                                  {+} 0.99.
+                           	                          \tag{9}
+                           	                          \label{eq:P21Ac}
+                           	                        \end{align*}
+                           	                        Therefore, using equations (\ref{eq:Pi1Ac}) and (\ref{eq:P21Ac}) we 
+                           	                        have 
+                           	                        \begin{align*}
+                           	                          \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) 
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                           	                           {+} (P_i(\boldsymbol{x}, t{-} 1) {+} 0.99 P_2(\boldsymbol{x}, t{-}1) 
+                           	                           {-} 0.99) \\
+                           	                          &\hspace{0.25cm} {+} (0.01 P_2(\boldsymbol{x}, t{-}1) {+} 0.99) \\
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                           	                           {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                           	                          &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4}P_l(\boldsymbol{x},t{-}1) 
+                           	                           {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                           	                          &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1.
+                           	                        \end{align*}
+                               \item[{\bf Case d:}] Assume $P_i(\boldsymbol{x}, t{-}1) {+} \epsilon {\le} 0$ 
+                           	                        and $P_2(\boldsymbol{x}, t{-}1) {-} \epsilon {\ge} 1$. 
+                           	                        We compute 
+                           	                        \begin{align*}
+                           	                          &\text{sgn}(\epsilon) \min(|\Xi(\epsilon, P_i(\boldsymbol{x},t{-}1))|, 
+                                         	                                     |\Xi({-}\epsilon,
+                                         	                                          P_2(\boldsymbol{x}, t{-}1))|)
+                           	                          \\ 
+                           	                          &{=} {\minus}\min(|{\minus}0.99 P_i(\boldsymbol{x}, t{-}1)|,
+                           	                                       |0.99 (1{-}P_2(\boldsymbol{x}, t{-}1))|) \\
+                           	                          &{=} {\minus} \min(0.99 P_i(\boldsymbol{x}, t{-}1),
+                           	                                        0.99 (1{-}P_2(\boldsymbol{x}, t{-}1))).
+                           	                          \tag{10}
+                           	                          \label{eq:incr1Ad}
+                           	                        \end{align*}
+                           	                        There are two possible situations for the minimum in equation 
+                           	                        (\ref{eq:incr1Ad}) but both are similar respectively to Case b and 
+                           	                        c and so in either situation 
+                           	                        $\sum_{l{=}0}^4 P_l(\boldsymbol{x}, t) {=} 1$.
+                             \end{itemize}
+                             \item[{\bf Case B:}] Assume $\epsilon {>} 0$.
+                             \begin{itemize}
+                             	\item[{\bf Case a:}] Assume $0 {<} P_i(\boldsymbol{x}, t{-}1) {+} \epsilon {<} 1$ 
+                             	                     and $0 {<} P_2(\boldsymbol{x}, t{-}1) {-} \epsilon {<} 1$. 
+                             	                     Same as Case (1, A, a) so $\sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) {=} 1$.
+                             	\item[{\bf Case b:}] Assume $P_i(\boldsymbol{x}, t{-}1) {+} \epsilon {\ge} 1$ 
+                             	                     and $0 {<} P_2(\boldsymbol{x}, t{-}1) {-} \epsilon {<} 1$. Since\\
+                             	                     $1 {-} P_i(\boldsymbol{x}, t{-}1) {\le} \epsilon$ we have 
+                             	                     \begin{align*}
+                             	                       &\text{sgn}(\epsilon) \min(|\Xi(\epsilon,P_i(\boldsymbol{x},t{-}1))|, 
+                             	                                                  |\Xi({-}\epsilon, 
+                             	                                                       P_2(\boldsymbol{x},t{-}1))|) \\ 
+                             	                       &{=} \min(|0.99 (1{-}P_i(\boldsymbol{x}, t{-}1))|, |\epsilon|) \\
+                                             	       &{=} \min(0.99 (1{-}P_i(\boldsymbol{x}, t{-}1)), \epsilon) 
+                            	                        {=} 0.99 (1 {-} P_i(\boldsymbol{x}, t{-}1)).
+                             	                       \tag{11}
+                             	                       \label{eq:incr1Bb}
+                             	                     \end{align*}
+                             	                     Using equation (\ref{eq:phenotypeMutate}) and considering 
+                             	                     (\ref{eq:incr1Bb}) we have that
+                             	                     \begin{align*}
+                             	                       P_i(\boldsymbol{x}, t) &{=}
+                             	                       P_i(\boldsymbol{x}, t{-}1)
+                             	                       {+} 0.99 (1 {-} P_i(\boldsymbol{x}, t{-}1))\\
+                             	                       &{=} 0.01 P_i(\boldsymbol{x}, t{-} 1) {+} 0.99.
+                             	                       \tag{12}
+                             	                       \label{eq:Pi1Bb}
+                             	                     \end{align*}
+                             	                     Also using equation (\ref{eq:phenotypeMutateBalance}) and considering 
+                             	                     again (\ref{eq:incr1Bb}) we have that
+                             	                     \begin{align*}
+                             	                       P_2(\boldsymbol{x}, t) &{=} P_2(\boldsymbol{x}, t{-}1) 
+                             	                                               {-} 0.99 (1{-}P_i(\boldsymbol{x}, t{-}1))\\
+                             	                                              &{=} P_2(\boldsymbol{x}, t{-}1)
+                             	                                               {+} 0.99 P_i(\boldsymbol{x}) {-} 0.99.
+                             	                       \tag{13}
+                             	                       \label{eq:P21Bb}
+                             	                     \end{align*}
+                             	                     Therefore, using equations (\ref{eq:Pi1Bb}) and (\ref{eq:P21Bb}) we 
+                             	                     have 
+                             	                     \begin{align*}
+                             	                       \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) 
+                                           	           &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                             	                        {+} (0.01 P_i(\boldsymbol{x}, t{-} 1) {+} 0.99)\\
+                             	                       &{+} (P_2(\boldsymbol{x}, t{-}1) {+} 0.99 P_i(\boldsymbol{x}, t{-}1)
+                             	                        {-} 0.99)
+                             	                       \\
+                             	                       &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                             	                        {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                             	                       &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4}P_l(\boldsymbol{x},t{-}1) 
+                             	                        {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                             	                       &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1.
+                             	                     \end{align*}
+                             	\item[{\bf Case c:}] Assume $0 {<} P_i(\boldsymbol{x}, t{-}1) {+} \epsilon {<} 1$ 
+                             	                     and $P_2(\boldsymbol{x}, t{-}1) {-} \epsilon {\le} 0$. Since\\
+                             	                     $P_2(\boldsymbol{x}, t{-}1) {\le} \epsilon$ we have
+                             	                     \begin{align*}
+                             	                       &\text{sgn}(\epsilon) \min(|\Xi(\epsilon,P_i(\boldsymbol{x},t{-}1))|, 
+                             	                                                  |\Xi({-}\epsilon,
+                             	                                                       P_2(\boldsymbol{x},t{-}1))|)
+                             	                       \\ 
+                             	                       &{=} \min(|\epsilon|, |-0.99 P_2(\boldsymbol{x}, t{-}1)|) \\
+                             	                       &{=} \min(\epsilon, 0.99 (1{-}P_2(\boldsymbol{x}, t{-}1))) 
+                             	                        {=} 0.99 P_2(\boldsymbol{x}, t{-}1).
+                             	                       \tag{14}
+                             	                       \label{eq:incr1Bc}
+                             	                     \end{align*}
+                             	                     Using equation (\ref{eq:phenotypeMutate}) and considering 
+                             	                     (\ref{eq:incr1Bc}) we have that
+                             	                     \begin{align*}
+                             	                       P_i(\boldsymbol{x}, t) &{=} P_i(\boldsymbol{x}, t{-}1)
+                             	                        {+} 0.99 P_2(\boldsymbol{x}, t{-}1)
+                             	                       \tag{15}
+                             	                       \label{eq:Pi1Bc}
+                             	                     \end{align*}
+                             	                     Also using equation (\ref{eq:phenotypeMutateBalance}) and considering 
+                             	                     again (\ref{eq:incr1Bc}) we have that
+                             	                     \begin{align*}
+                             	                       P_2(\boldsymbol{x}, t) &{=} P_2(\boldsymbol{x}, t{-}1) 
+                             	                        {-} 0.99 P_2(\boldsymbol{x}, t{-}1) \\
+                             	                       &{=} 0.01 P_2(\boldsymbol{x}, t{-}1).
+                                       	               \tag{16}
+                             	                       \label{eq:P21Bc}
+                             	                     \end{align*}
+                             	                     Therefore, using equations (\ref{eq:Pi1Bc}) and (\ref{eq:P21Bc}) we 
+                             	                     have 
+                             	                     \begin{align*}
+                             	                       \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) 
+                             	                       &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                             	                        {+} (P_i(\boldsymbol{x}, t{-} 1) {+} 0.99 P_2(\boldsymbol{x},t{-}1)) 
+                             	                       \\
+                             	                       &\hspace{0.25cm} {+} 0.01 P_2(\boldsymbol{x}, t{-}1) \\
+                             	                       &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t)
+                             	                        {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                             	                       &{=} \underset{l {\ne} i, 2}{\sum_{l{=}1}^4}P_l(\boldsymbol{x},t{-}1) 
+                             	                        {+} P_i(\boldsymbol{x}, t{-}1) {+} P_2(\boldsymbol{x}, t{-}1) \\
+                             	                       &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1.
+                             	                     \end{align*}
+                                \item[{\bf Case d:}] Assume $P_i(\boldsymbol{x}, t{-}1) {+} \epsilon {\ge} 1$ 
+                             	                     and $P_2(\boldsymbol{x}, t{-}1) {-} \epsilon {\le} 0$. 
+                             	                     We compute 
+                             	                     \begin{align*}
+                             	                       &\text{sgn}(\epsilon) \min(|\Xi(\epsilon,P_i(\boldsymbol{x},t{-}1))|, 
+                             	                                                  |\Xi({-}\epsilon, 
+                             	                                                       P_2(\boldsymbol{x},t{-}1))|)
+                             	                       \\ 
+                             	                       &{=} \min(|0.99 (1{-}P_i(\boldsymbol{x}, t{-}1))|,
+                             	                                 |{-}0.99 P_2(\boldsymbol{x}, t{-}1)|) \\
+                             	                       &{=} \min(0.99 (1{-}P_i(\boldsymbol{x}, t{-}1)),
+                             	                                 0.99 P_2(\boldsymbol{x}, t{-}1)).
+                             	                       \tag{17}
+                             	                       \label{eq:incr1Bd}
+                             	                     \end{align*}
+                             	                     There are two possible situations for the minimum in equation 
+                             	                     (\ref{eq:incr1Bd}) but both are similar respectively to Case b and 
+                             	                     c and so in either situation 
+                                                     $\sum_{l{=}0}^4 P_l(\boldsymbol{x}, t) {=} 1$.
+                             \end{itemize}
+                           \end{itemize}
+                           \item[{\bf Case 2:}] Now assume that $i {=} 2$ and $k {=} 1, 3, 4$ as we are balancing 
+                                                modifications in the probability of quiescence equally against the
+                                                probabilities of all the other phenotypic actions.
+                           \begin{itemize}
+                             \item[{\bf Case A:}] Assume $\epsilon {<} 0$.
+                             \begin{itemize}
+                               \item[{\bf Case a:}] Assume $0 {<} P_2(\boldsymbol{x}, t{-}1) {+} \epsilon {<} 1$.
+                                                    We have that 
+                                                    \begin{align*}
+                                                      \Xi(\epsilon, P_2(\boldsymbol{x}, t{-}1)) {=} \epsilon
+                                                      \tag{18}
+                                                      \label{eq:incr2Aa}
+                                                    \end{align*}
+                                                    Using equation (\ref{eq:phenotypeMutate}) and considering 
+                                                    (\ref{eq:incr2Aa}) we have that
+                                                    \begin{align*}
+                                                      P_2(\boldsymbol{x}, t) {=} P_2(\boldsymbol{x}, t{-}1) {+} \epsilon.
+                                                      \tag{19}
+                                                      \label{eq:P22Aa}
+                                                    \end{align*}
+                                                    Also using equation (\ref{eq:phenotypeMutateBalance}) and considering 
+                                                    again (\ref{eq:incr2Aa}) we have that
+                                                    \begin{align*}
+                                                      P_k(\boldsymbol{x}, t) {=} P_k(\boldsymbol{x}, t{-}1) 
+                                                                             {-} \frac{\epsilon P_k(\boldsymbol{x}, t{-}1)}
+                                                                                      {\underset{m {\ne} 2}{\sum_{m{=}1}^4} 
+                                                                                       P_m(\boldsymbol{x}, t{-}1)},
+                                                      \tag{20}
+                                                      \label{eq:Pk2Aa} \\
+                                                      k {=} 1, 3, 4.
+                                                    \end{align*}
+                                                    Therefore, using equations (\ref{eq:P22Aa}) and (\ref{eq:Pk2Aa}) we have 
+                                                    \begin{align*}
+                                                      \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) 
+                                                      &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1)
+                                                       {-} \epsilon \underset{l {\ne} 2}{\sum_{l{=}1}^4} 
+                                                                      \frac{P_l(\boldsymbol{x}, t{-}1)}
+                                                                           {\underset{m {\ne} 2}{\sum_{m{=}1}^4} 
+                                                                           	P_m(\boldsymbol{x}, t{-}1)}
+                                                       {+} \epsilon \\
+                                                      &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1)
+                                                       {+} \epsilon \left (1 {-} \frac{\underset{l {\ne} 2}{\sum_{l{=}1}^4} 
+                                                                                 P_l(\boldsymbol{x}, t{-}1)}
+                                                                                {1 {-} P_2(\boldsymbol{x}, t{-}1)} \right) \\
+                                                      &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1)
+                                                       {+} \epsilon \left (1 {-} \frac{1 {-} P_2(\boldsymbol{x}, t{-}1)}
+                                                                                {1 {-} P_2(\boldsymbol{x}, t{-}1)} \right) \\
+                                                      &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1)
+                                                       {+} \epsilon (1 {-} 1) \\
+                                                      &{=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1.
+                                                    \end{align*}
+                               \item[{\bf Case b:}] Assume $P_2(\boldsymbol{x}, t{-}1) {+} \epsilon {\le} 0$.
+                                                    We have that 
+                                                    \begin{align*}
+                                                      \Xi(\epsilon, P_2(\boldsymbol{x}, t{-}1))
+                                                      {=} {\minus}0.99 P_2(\boldsymbol{x}, t{-}1)
+                                                      \tag{21}
+                                                      \label{eq:incr2Ab}
+                                                    \end{align*}
+                                                    Using equation (\ref{eq:phenotypeMutate}) and considering 
+                                                    (\ref{eq:incr2Ab}) we have that
+                                                    \begin{align*}
+                                                      P_2(\boldsymbol{x}, t) &{=} P_2(\boldsymbol{x}, t{-}1)
+                                                                              {-} 0.99 P_2(\boldsymbol{x}, t{-}1)\\
+                                                                             &{=} 0.01 P_2(\boldsymbol{x}, t{-}1).
+                                                      \tag{22}
+                                                      \label{eq:P22Ab}
+                                                    \end{align*}
+                                                    Also using equation (\ref{eq:phenotypeMutateBalance}) and considering 
+                                                    again (\ref{eq:incr2Ab}) we have that
+                                                    \begin{align*}
+                                                      P_k(\boldsymbol{x}, t) {=} P_k(\boldsymbol{x}, t{-}1) 
+                                                                             {+} \frac{0.99 P_2(\boldsymbol{x}, t{-}1)
+                                                                             	       P_k(\boldsymbol{x}, t{-}1)}
+                                                                                      {\underset{m {\ne} 2}{\sum_{m{=}1}^4} 
+                               	                                                       P_m(\boldsymbol{x}, t{-}1)},
+                                                      \tag{23}
+                                                      \label{eq:Pk2Ab} \\
+                                                      k {=} 1, 3, 4.
+                                                    \end{align*}
+                                                    Therefore, using equations (\ref{eq:P22Ab}) and (\ref{eq:Pk2Ab}) we have 
+                                                    \begin{align*}
+                                                      \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) 
+                                                      &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4}  
+                                                             P_l(\boldsymbol{x}, t{-}1) \\
+                                                      &{+} 0.99 P_2(\boldsymbol{x}, t{-}1)
+                                                           \underset{l {\ne} 2}{\sum_{l{=}1}^4}
+                                                           \frac{P_l(\boldsymbol{x}, t{-}1)}
+                                                                {\underset{m {\ne} 2}{\sum_{m{=}1}^4} 
+                               	                                 P_m(\boldsymbol{x}, t{-}1)}\\
+                                                      &{+} 0.01 P_2(\boldsymbol{x}, t{-}1) \\
+                                                      &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t{-}1)\\
+                                                      &{+} 0.99 P_2(\boldsymbol{x}, t{-}1)
+                                                           \frac{\underset{l {\ne} 2}{\sum_{l{=}1}^4}
+                                                                 P_l(\boldsymbol{x}, t{-}1)}
+                                                                {1 {-} P_2(\boldsymbol{x}, t{-}1)}
+                                                       {+} 0.01 P_2(\boldsymbol{x}, t{-}1) \\
+                                                      &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t{-}1)\\
+                                                      &{+} 0.99 P_2(\boldsymbol{x}, t{-}1)
+                                                          \frac{1 {-} P_2(\boldsymbol{x}, t{-}1)}
+                                                               {1 {-} P_2(\boldsymbol{x}, t{-}1)}
+                                                       {+} 0.01 P_2(\boldsymbol{x}, t{-}1) \\
+                                                      &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t{-}1)
+                                                       {+} 0.99 P_2(\boldsymbol{x}, t{-}1)
+                                                       {+} 0.01 P_2(\boldsymbol{x}, t{-}1) \\
+                                                      &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t{-}1)
+                                                       {+} P_2(\boldsymbol{x}, t{-}1)
+                                                       {=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1.
+                                                    \end{align*}
+                             \end{itemize}
+                             \item[{\bf Case B:}] Assume $\epsilon {>} 0$.
+                             \begin{itemize}
+                             	\item[{\bf Case a:}] Assume $0 {<} 
+                             	                             P_2(\boldsymbol{x}, t{-}1) {+} \epsilon 
+                             	                               {<} 1$. 
+                             	                     Same as Case (2, A, a) so 
+                             	                     $$\sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) {=} 1.$$
+                             	\item[{\bf Case b:}] Assume $P_2(\boldsymbol{x}, t{-}1) {+} \epsilon {\ge} 1$.
+                             	                     We have that 
+                             	                     \begin{align*}
+                             	                       \Xi(\epsilon, P_2(\boldsymbol{x}, t{-}1))
+                             	                       {=} 0.99 (1 {-} P_2(\boldsymbol{x}, t{-}1))
+                             	                       \tag{24}
+                             	                       \label{eq:incr2Bb}
+                             	                     \end{align*}
+                             	                     Using equation (\ref{eq:phenotypeMutate}) and considering 
+                             	                     (\ref{eq:incr2Bb}) we have that
+                             	                     \begin{align*}
+                             	                       P_2(\boldsymbol{x}, t) &{=} P_2(\boldsymbol{x}, t{-}1)
+                             	                                               {+} 0.99 (1 {-} P_2(\boldsymbol{x}, t{-}1)\\
+                             	                                              &{=} 0.01 P_2(\boldsymbol{x}, t{-}1) {+} 0.99.
+                             	                       \tag{25}
+                             	                       \label{eq:P22Bb}
+                             	                     \end{align*}
+                             	                     Also using equation (\ref{eq:phenotypeMutateBalance}) and considering 
+                             	                     again (\ref{eq:incr2Bb}) we have that
+                             	                     \begin{align*}
+                             	                       P_k(\boldsymbol{x}, t) &{=} P_k(\boldsymbol{x}, t{-}1) 
+                             	                                               {-} \frac{0.99 (1{-}P_2(\boldsymbol{x},t{-}1))
+                             		                                                     P_k(\boldsymbol{x}, t{-}1)}
+                             	                                                        {\underset{m{\ne}2}{\sum_{m{=}1}^4} 
+                             		                                                     P_m(\boldsymbol{x}, t{-}1)}\\
+                             	                      &{=} P_k(\boldsymbol{x}, t{-}1) \\ 
+                             	                      &{+} \frac{(0.99 P_2(\boldsymbol{x}, t{-}1) 
+                             	                                 {-} 0.99)
+                             	                    	         P_k(\boldsymbol{x}, t{-}1)}
+                             	                                {\underset{m{\ne}2}{\sum_{m{=}1}^4} 
+                             	                                 P_m(\boldsymbol{x}, t{-}1)},
+                             	                       \tag{26}
+                             	                       \label{eq:Pk2Bb} \\
+                             	                       k {=} 1, 3, 4.
+                             	                     \end{align*}
+                             	                     Therefore, using equations (\ref{eq:P22Bb}) and (\ref{eq:Pk2Bb}) we have 
+                             	                     \begin{align*}
+                             	                       \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) 
+                             	                       &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t{-}1)\\
+                             	                       &{+} (0.99 P_2(\boldsymbol{x}, t{-}1) {-} 0.99)
+                             	                            \underset{l {\ne} 2}{\sum_{l{=}1}^4}
+                             	                                      \frac{P_l(\boldsymbol{x}, t{-}1)}
+                             	                                           {\underset{m {\ne} 2}{\sum_{m{=}1}^4} 
+                             		                                        P_m(\boldsymbol{x}, t{-}1)}\\
+                             	                       &{+} 0.01 P_2(\boldsymbol{x}, t{-}1) {+} 0.99 \\
+                                   	                   &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t{-}1)\\
+                             	                       &{+} (0.99 P_2(\boldsymbol{x}, t{-}1) {-} 0.99)
+                                            	            \frac{\underset{l {\ne} 2}{\sum_{l{=}1}^4}
+                             		                              P_l(\boldsymbol{x}, t{-}1)}
+                             	                                 {1 {-} P_2(\boldsymbol{x}, t{-}1)} \\
+                             	                       &{+} 0.01 P_2(\boldsymbol{x}, t{-}1) {+} 0.99 \\
+                             	                       &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t{-}1)\\
+                             	                       &{+} (0.99 P_2(\boldsymbol{x}, t{-}1) {-} 0.99)
+                             	                            \frac{1 {-} P_2(\boldsymbol{x}, t{-}1)}
+                             	                                 {1 {-} P_2(\boldsymbol{x}, t{-}1)} \\
+                                     	               &{+} 0.01 P_2(\boldsymbol{x}, t{-}1) {+} 0.99 \\
+                             	                       &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4}  
+                             	                              P_l(\boldsymbol{x}, t{-}1)
+                             	                        {+} 0.99 P_2(\boldsymbol{x}, t{-}1) {-} 0.99\\
+                             	                       &{+} 0.01 P_2(\boldsymbol{x}, t{-}1) {+} 0.99 \\
+                             	                       &{=} \underset{l {\ne} 2}{\sum_{l{=}1}^4} P_l(\boldsymbol{x}, t{-}1)
+                             	                        {+} P_2(\boldsymbol{x}, t{-}1)
+                             	                        {=} \sum_{l{=}1}^4 P_l(\boldsymbol{x}, t{-}1) {=} 1.
+                             	                     \end{align*}
+                             \end{itemize}
+                           \end{itemize}
+	\end{itemize}
+    Since the two cases above are exhaustive and all cases resulted in \newline
+    $\sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) {=} 1$ then 
+    it must be that modifying phenotypic action $i$ with respect to some gene $j$ will 
+    maintain the summation given by $\sum_{l{=}1}^4 P_l(\boldsymbol{x}, t) {=} 1$.
+\end{proof}
+
+\subsection{Update Rules for Cell Class}
+The difference between the mutated class of a cell and the non-mutated class is 
+that the mutated class has $\Upsilon {\in} \mathbb{N}$ positively mutated genes. 
+Note that to delay the arrival of the first CSC not only does there have to be $\Upsilon$ positively mutated genes but for a SC or MNSC to transition into a CSC a random variable has to be less than the threshold $\iota {\in} \mathbb{R}_+(0, 1)$. This can be described by the following
+\begin{align}
+&\overline{\Psi}(\boldsymbol{x}, t, j) = 
+\begin{cases}
+   1, &\Psi(\boldsymbol{x}, t, j) {=} 1 \text{ or } \Psi(\boldsymbol{x}, t, j) {=} 2\\
+   0, &\text{ otherwise}
+\end{cases},
+\label{eq:PositivelyMutatedIndicatorFunc}\\
+&s(\boldsymbol{x}, t) {=} \begin{cases}
+                 0 (\text{NTC}), & s(\boldsymbol{x}, t{-}1) {=} 1 (\text{MNTC}),\\
+                  &\sum_{j=1}^G \overline{\Psi}(\boldsymbol{x}, t, j) {<} \Upsilon\\
+                 \\
+                 1 (\text{MNTC}), & s(\boldsymbol{x}, t{-}1) {=} 0 (\text{NTC}),\\
+                  &\sum_{j=1}^G \overline{\Psi}(\boldsymbol{x}, t, j) {\ge} \Upsilon\\
+                 \\
+                 2 (\text{NSC}), & s(\boldsymbol{x}, t{-}1) {=} 3 (\text{MNSC}),\\
+                  &\sum_{j=1}^G \overline{\Psi}(\boldsymbol{x}, t, j) {<} \Upsilon\\
+                 \\
+                 3 (\text{MNSC}), & s(\boldsymbol{x}, t{-}1) {=} 2 (\text{NSC}),\\
+                  &\sum_{j=1}^G \overline{\Psi}(\boldsymbol{x}, t, j) {\ge} \Upsilon \\
+                 \\
+                 4 (\text{CSC}), & s(\boldsymbol{x}, t{-}1) {=} 2 (\text{NSC}),\\
+                  &\sum_{j=1}^G \overline{\Psi}(\boldsymbol{x}, t, j) {\ge} \Upsilon,\\
+                  & z {\le} \displaystyle \frac{\iota}{2}\\
+                \\
+                4 (\text{CSC}), &s(\boldsymbol{x}, t{-}1) {=} 3 (\text{MNSC}),\\
+                  &\sum_{j=1}^G \overline{\Psi}(\boldsymbol{x}, t, j) {\ge} \Upsilon,\\
+                  &z {\le} \iota
+               \end{cases}
+\label{eq:stateTransitionFunction},
+\end{align}
+where $z {\sim} U(0, 1)$, $\Psi(\boldsymbol{x}, t, j)$ is the mutation indicator function given by \eqref{eq:MutationFunc}, and $G$ is the number of genes.
+
+Since each cell class has different probabilities for each phenotypic action, then 
+there exists an initial phenotype matrix, $\tilde{P} {\in} \mathbb{R}^{6{\times}4}(0, 1)$ 
+with $\sum_{i{=}1}^{4} \tilde{P}_{ki} {=} 1$, $k {=} 0, 1, 2, 3, 4, 5$.
+Therefore, whenever a non-empty cell changes class, the phenotype vector 
+must be set to its' new cell class's initial values, while also keeping all the 
+changes that have happened to the phenotype vector. This is achieved through the following process
+\begin{align}
+&P_i(\boldsymbol{x}, t) {=} \tilde{P}_{ki} {+} \Xi(P_i(\boldsymbol{x}, t{-}1)
+                                                      {-} \tilde{P}_{s(\boldsymbol{x}, t{-}1)i},
+                                                          \tilde{P}_{ki}), 
+\label{eq:PhenotypeTransferFunc}\\
+& \text{where } k \text{ is the new cell state}, i {=} 1, 2, 3, 4.\nonumber 
+\end{align}
+If the probabilities of the phenotypic actions no longer sum to one after the changes, then standard normalization is used to fix the sum.
+
+\subsection{Dedifferentiation}
+Dedifferentiation is the process of a specialized cell reverting back to a non-specialized cell. In our model this is accomplished by a non stem cell becoming a stem cell. Dedifferentiation is used to help maintain the proper ratio of stem cells to non stem cells in the grid by dedifferentiating whenever the number of stem cells in the neighbourhood of a non stem cell is less than or equal to some chosen value, $\hat{S}$, or if the number of empty cells in the neighbourhood of a non stem cell is less than or equal to some chosen value, $\hat{E}$. To help reduce the number of cells dedifferentiating, the process is completed only when a random sample from the uniform distribution is less than or equal to some threshold, $\hat{D} {\in} \mathbb{R}_+(0, 1)$. This process is represented by the function:
+\begin{align}
+s(\boldsymbol{x}, t) {=} \begin{cases}
+                 2 (\text{NSC}), & s(\boldsymbol{x}, t{-}1) {=} 0 (\text{NTC})
+                 \\
+                 3 (\text{MNSC}), & s(\boldsymbol{x}, t{-}1) {=} 1 (\text{MNTC})
+                 \\
+                 4 (\text{CSC}), & s(\boldsymbol{x}, t{-}1) {=} 5 (\text{TC})
+               \end{cases}.
+\label{eq:DeDifferentiationFunction}
+\end{align}
+
+\subsection{Cell Fitness}
+Each cell has a fitness value associated to it, so that the cells can compete and
+the population contains only the healthiest, or in the case of mutated cells,
+the most positively mutated cells. The characteristics that affect the fitness are
+based upon work by \textcite{Bowling}, in which they point to the following
+important characteristics:
+\begin{enumerate}
+\item if a cell has a high apoptotic rate, it is less fit;
+\item if a cell has a high proliferation rate, it is more fit;
+\item if a cell is older, then it is less fit;
+\item if a gene in a cell is mutated towards cancer, than it is less fit unless
+      the cell is cancerous, in which case it is more fit;
+\item if a cell is what they call super-competitive, then it is more fit than any type of cell.
+\end{enumerate}
+Based upon this the fitness of a cell in the CA is computed using the functions $\hat{M}$ which is the gene expression ratio and the fitness function $\hat{F}$:
+\begin{align}
+\hat{M}(\boldsymbol{x}, t, j) &{=} \begin{cases}
+                                     {-}\displaystyle \frac{E_j(\boldsymbol{x}, t)}{\overline{M}} 
+                                         &, (T_j = 0 \text{ and } E_j(\boldsymbol{x}, t) < 0)\\
+                                         &\text{ or } (T_j = 1 \text{ and } E_j(\boldsymbol{x}, t) > 0) \\ \\
+                                    \displaystyle \frac{E_j(\boldsymbol{x}, t)}{\overline{M}}
+                                         &, (T_j = 0 \text{ and } E_j(\boldsymbol{x}, t) > 0)\\
+                                         &\text{ or } (T_j = 1 \text{ and } E_j(\boldsymbol{x}, t) < 0) \\ \\
+                                    0 &, \text{otherwise}
+                                \end{cases},\label{eq:GeneExpressionRatio}\\
+\hat{F}(\boldsymbol{x}, t) &{=} \begin{cases}
+                            \displaystyle \frac{P_1(\boldsymbol{x}, t)}
+                                               {\tilde{P}_{s(\boldsymbol{x}, t)1}} 
+                              &, \overline{\tau}(\boldsymbol{x}, t) {=} 0\\
+                            \\
+                            \displaystyle \frac{P_1(\boldsymbol{x}, t)}
+                                               {\tilde{P}_{s(\boldsymbol{x}, t)1} {+} \omega} 
+                              &, \overline{\tau}(\boldsymbol{x}, t) {=} 1
+                          \end{cases} \nonumber \\
+                          &{-} \frac{P_3(\boldsymbol{x}, t)}{\tilde{P}_{s(\boldsymbol{x}, t)3}}
+                           {-} \alpha(\boldsymbol{x}, t)P_3(\boldsymbol{x}, t)
+                          \label{eq:FitnessFunc} \\
+                          &{+} \begin{cases}
+                                 \sum_{j{=}1}^{G} \hat{M}(\boldsymbol{x}, t, j) 
+                                   &, s(\boldsymbol{x}, t) {=} 0 \text{ (NTC) or } 
+                                      s(\boldsymbol{x}, t) {=} 2 (\text{NSC})\\
+                                 \\
+                                 {-}\sum_{j{=}1}^{G} \hat{M}(\boldsymbol{x}, t, j) 
+                                   &, \text{otherwise}\\
+                          \end{cases}\nonumber,
+\end{align}
+where $E_j(\boldsymbol{x}, t)$ is the gene-expression of gene $j$, $\overline{M}$ is the threshold that determines where gene $j$ is mutated, $T_j$ indicates if the gene $j$ is either a tumour suppressor gene or oncogene, $P_1(\boldsymbol{x}, t)$ is the probability that proliferation will occur in a time-step, $P_3(\boldsymbol{x}, t)$ is the probability that apoptosis will occur in a time-step, $\alpha(\boldsymbol{x}, t)$ is the age of the cell, $\overline{\tau}(\boldsymbol{x}, t)$ indicates if the cell is a TAC or not, and $\overline{P}$ is the initial phenotype matrix that provides the initial values for each of the phenotypic actions for each cell type.
+If the cell is from a SC class (SC, MNSC, CSC) then its' fitness is multiplied by a factor $\Pi {\in} \mathbb{R}_+$ if $\hat{F}(\boldsymbol{x}, t) {>} 0$ or $\Pi^{-1}$ if $\hat{F}(\boldsymbol{x}, t) {<} 0$, so that a SC type cell has a higher fitness than a non-stem cell.
+
+\subsection{CA Rule}
+Each non-empty cell in the CA grid chooses a phenotypic action to execute for that 
+time-step and attempts to complete such action. The phenotypic action is chosen by 
+taking a random sample from the probability distribution that is generated by the 
+phenotype vector. Consider that the cell that is performing the phenotypic action
+is located at $\boldsymbol{x}^{(p)} {\in} \Omega$. The cell the action is being applied to 
+will be located at $\boldsymbol{x}^{(c)} {\in} \Omega$, which is a randomly chosen 
+location in the cell's neighbourhood. The randomly chosen cell is an empty cell or a cell with a lower fitness in the case of proliferation, and differentiation. It is important to note that only NSC, MNSC, and CSC can differentiate.
+
+CSCs and TCs are the only class of cells that can kill other cells when moving during quiescence. If the parent cell is a CSC or TC and the chosen cell has a higher fitness then the phenotypic action is accomplished only if a sample from some random variable 
+is less than a threshold to kill, $\kappa {\in} \mathbb{R}_+(0, 1)$. A CSC can kill a TC and TC a CSC only if the fitness is lower, as otherwise the tumour cell population and/or CSC population would die out before they have had the chance to thrive. 
+
+\subsubsection{Proliferation}
+Assuming all the conditions for the phenotypic action to occur are met then 
+the following changes occur to the states of the parent and child cell upon proliferation:
+\begin{align}
+&\boldsymbol{S}(\boldsymbol{x}^{(k)}, t) {=} \begin{cases}
+                     [ s(\boldsymbol{x}^{(p)}, t{-}1), 0, 
+                       \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                       \boldsymbol{P}(\boldsymbol{x}^{(p)}, t{-}1),
+                       & ,\overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1) {=} 0 \\
+                     \hspace{0.25cm} \overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1), 
+                     \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) ] \\
+                     \\
+                     [ s(\boldsymbol{x}^{(p)}, t{-}1), 0,
+                        \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                        \boldsymbol{P}(\boldsymbol{x}^{(p)}, t{-}1),
+                       & ,\overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1) {=} 1, \\
+                       \hspace{0.25cm} \overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1),
+                       \overline{n}(\boldsymbol{x}^{(p)}, t{-}1){+}1 ]
+                       & \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) {\ne} \Theta \\
+                     \\
+                     [ s(\boldsymbol{x}^{(p)}, t{-}1), 0,
+                        \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                       & , \overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1) {=} 1, \\
+                     \hspace{0.25cm} [ P_1(\boldsymbol{x}^{(p)}, t{-}1) {-} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\\
+                     \hspace{0.4cm}  P_2(\boldsymbol{x}^{(p)}, t{-}1) {+} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1))
+                       & \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) {=} \Theta \\
+                       \hspace{0.4cm} P_3(\boldsymbol{x}^{(p)}, t{-}1), 
+                       P_4(\boldsymbol{x}^{(p)}, t{-}1) ], 0, 0 ]
+                    \end{cases}, \label{eq:ProliferationStateChange}
+\end{align}
+where $k {\in} \{ p, c \}$; $\omega {\in} \mathbb{R}_+(0, 1)$; $\boldsymbol{S}(\boldsymbol{x}, t)$ is defined by equation \eqref{eq:StateVector}; $\Xi(\epsilon, \xi)$, defined by equation \eqref{eq:phenotypicActionBoundaryFunction}, ensures that the increment $\omega$ does not cause the phenotypic action being modified to leave the interval $[0, 1]$.
+
+\subsubsection{Quiescence}
+Assuming all the conditions for the phenotypic action to occur are met then the 
+following changes occur to the states of the parent and child cell upon cell movement:
+\begin{align}
+&\boldsymbol{S}(\boldsymbol{x}^{(p)}, t) {=} \begin{cases}
+                     [ 6, 0, \boldsymbol{0}, \boldsymbol{0}, 0, 0 ]
+                       &, z {<} \zeta \\
+                       \\
+                       [ s(\boldsymbol{x}^{(p)}, t{-}1), \alpha(\boldsymbol{x}^{(p)}, t{-}1), 
+                        \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                       &, \text{otherwise} \\
+                       \hspace{0.25cm} \boldsymbol{P}(\boldsymbol{x}^{(p)}, t{-}1),
+                       \overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1),
+                       \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) ]
+                    \end{cases}, \label{eq:QuiesenceStateChangeParent}\\
+&\boldsymbol{S}(\boldsymbol{x}^{(c)}, t) {=} \begin{cases}
+                     [ s(\boldsymbol{x}^{(p)}, t{-}1), \alpha(\boldsymbol{x}^{(p)}, t{-}1), 
+                        \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                       &, z {<} \zeta \\
+                       \hspace{0.25cm} \boldsymbol{P}(\boldsymbol{x}^{(p)}, t{-}1),
+                       \overline{\tau}(x_1, y_1, t{-}1, \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) ]\\
+                       \\
+                       [ s(\boldsymbol{x}^{(c)}, t{-}1), \alpha(\boldsymbol{x}^{(c)}, t{-}1), 
+                        \boldsymbol{E}(\boldsymbol{x}^{(c)}, t{-}1),
+                       &, \text{otherwise} \\
+                      \hspace{0.25cm} \boldsymbol{P}(\boldsymbol{x}^{(c)}, t{-}1),
+                      \overline{\tau}(\boldsymbol{x}^{(c)}, t{-}1), \overline{n}(\boldsymbol{x}^{(c)}, t{-}1) ]
+                    \end{cases}, \label{eq:QuiesenceStatechangeChild}
+\end{align}
+where $z {\sim} U(0, 1)$ and $\zeta {\in} \mathbb{R}_+(0, 1)$ is the threshold that must be met 
+for the cell to move.
+
+\subsubsection{Apoptosis}
+The following changes occur to the state of the cell at $\boldsymbol{x}^{(p)}$ upon apoptosis:
+\begin{align}
+&\boldsymbol{S}(\boldsymbol{x}^{(p)}, t) {=} [ 6, 0, \boldsymbol{0}, \boldsymbol{0}, 0, 0 ].
+\label{eq:ApoptosisStateChange}
+\end{align}
+
+\subsubsection{Differentiation}
+Assuming all the conditions for the phenotypic action to occur are met then the  
+following changes occur to the states of the parent and child cell upon differentiation:
+\begin{align}
+&\boldsymbol{S}(\boldsymbol{x}^{(p)}, t) {=} [ s(\boldsymbol{x}^{(p)}, t{-}1), 0, 
+                                               \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                                               \label{eq:DifferentiationStateChangeParent}\\
+                                               &\hspace{2cm} \boldsymbol{P}(\boldsymbol{x}^{(p)}, t{-}1), \overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1), 
+                                               \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) ]
+\nonumber\\
+&\boldsymbol{S}(\boldsymbol{x}^{(c)}, t) {=} \begin{cases}
+                     [ 0 (\text{{\footnotesize NTC}}), 0, 
+                       \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                       &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 2 (\text{{\footnotesize NSC}})\\
+                     \hspace{0.1cm}[ P_1(\boldsymbol{x}^{(p)}, t{-}1) \\
+                     \hspace{0.35cm} {+} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\\
+                     \hspace{0.25cm} P_2(\boldsymbol{x}^{(p)}, t{-}1) \\
+                     \hspace{0.35cm} {-} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1)),\\
+                     \hspace{0.25cm} P_3(\boldsymbol{x}^{(p)}, t{-}1),
+                                     P_4(\boldsymbol{x}^{(p)}, t{-}1) ],\\
+                     \hspace{0.1cm} 1, 0 ] \\
+                     \\
+                     [ 1 (\text{{\footnotesize MNTC}}), 0, 
+                       \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                       &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 3 (\text{{\footnotesize MNSC}})\\
+                     \hspace{0.1cm} [ P_1(\boldsymbol{x}^{(p)}, t{-}1) \\
+                     \hspace{0.35cm} {+} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\\
+                     \hspace{0.25cm} P_2(\boldsymbol{x}^{(p)}, t{-}1) \\
+                     \hspace{0.35cm} {-} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1)),\\
+                     \hspace{0.25cm} P_3(\boldsymbol{x}^{(p)}, t{-}1),
+                                     P_4(\boldsymbol{x}^{(p)}, t{-}1) ],\\
+                     \hspace{0.1cm}  1, 0 ] \\
+                     \\
+                     [ 5 (\text{{\footnotesize TC}}), 0, 
+                       \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
+                       &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 4 (\text{{\footnotesize CSC}})\\
+                     \hspace{0.1cm} [ P_1(\boldsymbol{x}^{(p)}, t{-}1) \\
+                     \hspace{0.35cm} {+} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\\
+                     \hspace{0.25cm} P_2(\boldsymbol{x}^{(p)}, t{-}1) \\
+                     \hspace{0.35cm} {-} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1)),\\
+                     \hspace{0.25cm} P_3(\boldsymbol{x}^{(p)}, t{-}1),
+                                     P_4(\boldsymbol{x}^{(p)}, t{-}1) ],\\
+                     \hspace{0.1cm}  1, 0 ]
+                    \end{cases}\label{eq:DifferentiationStateChangeChild},
+\end{align}
+where $\omega {\in} \mathbb{R}_+(0, 1)$ is the amount the probability of proliferation changes when 
+the cell is a TAC.
+
+\subsection{Tumour Excision}
+For the purpose of exploring the length of time it takes for a tumour to recur, we include two simple types of excisions in the model. One whereby, all the tumour cells in the grid and their neighbours up-to a certain depth are removed and another, where just a circular sub-region of the grid is removed. 
+
+\subsection{Lineage Tracking}
+The lineage of each cell is tracked for the purpose of following tumour cell lineages from their origin, checking how many independent tumour masses form throughout the simulation, and whether the origin is monoclonal or polyclonal. The lineage is tracked using the following methods. Each cell has a parameter
+$\Lambda(\boldsymbol{x}, t) {\in} \{ {-}1, 0, 1, ..., L {\times} M {-} 1 \}$, where $L$ is the length in the x-direction and $M$ is the length in the y-direction, that when set to ${-}1$ implies no information is known or the cell is empty, and if set to any other value represents the spatial index of the parent at the time it created the first cell in the lineage. 
+
+During cell movement the parameter is passed down from parent ($\boldsymbol{x}^{(p)}$) to child cell ($\boldsymbol{x}^{(c)}$). In the case of apoptosis the parameter is set to ${-}1$. Finally, during proliferation and differentiation the parameter is set as follows for the cells $\boldsymbol{x}^{(p)}$ and $\boldsymbol{x}^{(c)}$:
+\begin{align}
+&\Lambda(\boldsymbol{x}, t) {=} \begin{cases}
+                           x_1^{(p)} M {+} x_2^{(p)},
+                            & \Lambda(\boldsymbol{x}^{(p)}, t{-}1) {=} -1 \\
+                           \Lambda(\boldsymbol{x}^{(p)}, t{-}1), 
+                            & \text{otherwise}
+                          \end{cases}.\label{eq:LineageTracker}\\
+\end{align}
+
+\subsection{Field Definition}
+A field in this model is defined to be any groupings of mutated cells, thus a field is a section of the grid that contains few or no NTC or NSC. 
+We can also further define a field based around the lineages, so that a grouping of mutated cells that share the same lineage would be considered a field. 
+
+\subsection{CA Model Timeline}
+Each time-step has the following order of actions:
+\begin{enumerate}
+    \item update the carcinogen sensitivity function,
+    \item run the gene expression neural network,
+    \item update the gene expressions based upon the output of the neural network in step 2,
+    \item update the gene expressions via the gene instability process,
+    \item update the phenotype vector based upon the gene expressions of each gene,
+    \item update the states of each cell using the state transition process,
+    \item apply the dedifferentiation process,
+    \item apply the phenotypic action chosen by the cell for that time-step,
+    \item possibly perform tumour excision.
+\end{enumerate}
+
+\end{document}

@@ -1,0 +1,305 @@
+\providecommand{\main}{../..}
+\documentclass[\main/thesis.tex]{subfiles}
+
+\begin{document}
+
+\section{Introduction to Neural Networks}
+This section is adapted from \textcite{Geron}.
+\subsection{History}
+Artificial neural networks (ANNs) were created to build an intelligent machine, more commonly known as artificial intelligence (AI), based upon the brain's architecture. In 1943 the neurophysiologist Warren McCulloch and mathematician Walter Pitts invented the first ANN architecture which was a simplified computational model for how biological neurons might work in animal brains to perform complex computations using propositional logic \parencite{McCulloch}. The initial success of these ANNs up until the 1960s led to 
+the hope that there would soon be truly intelligent machines that could be conversed with. However when this hope was not met the development of ANNs stopped due to loss of funding and interest. In the early 1980s development of new network architectures and better computational techniques led to a renewed interest in ANNs. By the 1990s more powerful alternative machine learning techniques such as support vector machines were favoured by researchers as they had better results and stronger theoretical foundations to understand and further develop. Until more recently, the last decade or so, ANNs were not very prevalent but there is now a prominent wave of development and research into them that has led to AI being used almost everywhere. This new wave likely will not stop due to the following reasons:
+\begin{itemize}
+	\item a significant quantity of data available to train neural networks,
+	\item ANNs frequently outperform other machine learning (ML) techniques,
+	\item computational power improvements since the 1990s which reduces both training and execution time,
+	\item new training algorithms are perpetually being developed and existing algorithms have been perfected,
+	\item When ANNs are applied to real problems some of the theoretical limitations are not present,
+	\item ANNs have acquired significant funding and progression due to prominent ongoing development of applications for ANNs.
+\end{itemize}
+
+\subsection{Basic ANN Architectures}
+\textcite{McCulloch} proposed a very simple model of the biological neuron, which later became known as an artificial neuron. An artificial neuron is made up of one or more binary (on/off) inputs and one binary output. The output is activated when a 
+certain number of its inputs is active. They showed that even with this seemingly simple model it was possible to build a network of artificial neurons that could compute any possible logical proposition.
+
+Another simple ANN architecture was invented by Frank Rosenblatt in 1957 that was called the Perceptron. It was based upon an artificial neuron called a linear threshold unit (LTU) in which the inputs and output are now real numbers instead of binary on/off values and each input connection is associated with a weight. The LTU computes a weighted sum of its inputs $z {=} \boldsymbol{w}^T {\cdot} \boldsymbol{x}$, then applies a step function to that sum and outputs the result: 
+$h_{\boldsymbol{w}}(\boldsymbol{x}) {=} \text{step}(z) {=} \text{step}(\boldsymbol{w}^T {\cdot} \boldsymbol{x})$, reference Figure \ref{fig:LTU} for a visual representation.
+\begin{figure}
+\begin{center}
+\begin{tikzpicture}[node distance=0.4cm]
+\node (x1) {\scriptsize $x_1$};
+\node (x2) [right=of x1] {\scriptsize $x_2$};
+\node (dots1) [right=of x2] {\scriptsize $\cdot \cdot \cdot$};
+\node (xn) [right=of dots1] {\scriptsize $x_n$};
+\node (w1) [circle, draw=black, fill=white, above=of x1] {\scriptsize $w_1$};
+\node (w2) [circle, draw=black, fill=white, above=of x2] {\scriptsize $w_2$};
+\node (dots2) [above=of dots1] {\scriptsize $\cdot \cdot \cdot$};
+\node (wn) [circle, draw=black, fill=white, above=of xn] {\scriptsize $w_n$};
+\node (hidden1) [semicircle, draw=black, fill=white, rotate=180, above right=of w2, yshift=-0.75cm, xshift=-0.5cm, text width=0.5cm] {\scriptsize \hspace*{0.01cm} \rotatebox{180}{$\Sigma$}};
+\node (hidden2) [semicircle, draw=black, fill=white, above=of hidden1, yshift=0.22cm, text width=0.65cm] {\scriptsize \hspace*{0.01cm} \line(1, 0){5} $\text{\line(0, 1){3}}^\text{\line(1, 0){5}}$};
+
+\node (text1) [right=of xn] {\scriptsize Inputs};
+\node (text2) [right=of wn] {\scriptsize Weights};
+\node (text3) [right=of hidden1, xshift=1.1cm] {\scriptsize Weighted sum: $z {=} \boldsymbol{w}^T {\cdot} \boldsymbol{x}$};
+\node (text4) [right=of hidden2] {\scriptsize Step function: step($z$)};
+
+\draw [thick] (x1) -- (w1);
+\draw [thick] (x2) -- (w2);
+\draw [thick] (xn) -- (wn);
+\draw [arrow] (w1) -- (hidden1);
+\draw [arrow] (w2) -- (hidden1);
+\draw [arrow] (wn) -- (hidden1);
+\draw [arrow] (hidden2) -- node[anchor=west] {\scriptsize Output: $h_{\boldsymbol{w}}(\boldsymbol{x}) {=} \text{step}(\boldsymbol{w}^T {\cdot} \boldsymbol{x})$} +(0, 1);
+\end{tikzpicture}
+\end{center}
+\caption{In this figure we show a visual representation of a linear threshold unit (LTU). Firstly, a weighted sum of the inputs is computed, followed by an application of a step function. This figure is adapted from \textcite{Geron}.}
+\label{fig:LTU}
+\end{figure}
+The most common step function used in Perceptrons is the Heaviside step function although sometimes the sign function is used in its place. A single LTU is typically used for linear binary classification as it computes a linear combination of the inputs and outputs the positive or negative class dependent on whether the inputs exceed some threshold.
+
+A Perceptron is composed of a single layer of LTUs, with each LTU connected to all the inputs, see Figure \ref{fig:Perceptron} for a visual representation.
+\begin{figure}
+ 	\begin{center}
+ 		\begin{tikzpicture}[node distance=2cm]
+ 		\node (x1) {\scriptsize $x_1$};
+ 		\node (x2) [right=of x1] {\scriptsize $x_2$};
+ 		\node (dots1) [right=of x2, xshift=-1.25cm] {\scriptsize $\cdot \cdot \cdot$};
+ 		\node (xn) [right=of dots1, xshift=-1.25cm] {\scriptsize $x_n$};
+ 		\node (In1) [circle, draw=black, fill=white, yshift=-1.25cm, text width=0.2cm, above=of x1] {$\uparrow$};
+ 		\node (In2) [circle, draw=black, fill=white, yshift=-1.25cm, text width=0.2cm, above=of x2] {$\uparrow$};
+ 		\node (dots2) [right=of In2, xshift=-1.35cm] {\scriptsize $\cdot \cdot \cdot$};
+ 		\node (Inn) [circle, draw=black, fill=white, yshift=-1.25cm, text width=0.2cm, above=of xn] {$\uparrow$};
+ 		\node (bias) [circle, draw=black, fill=white, xshift=0.25cm, text width=0.4cm, left=of In1] {\hspace*{-0.05cm} $1$};
+ 		\node (LTU1a) [semicircle, draw=black, fill=white, rotate=180, above=of In1, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+ 		\node (LTU1b) [semicircle, draw=black, fill=white, above=of LTU1a, yshift=-1.5cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+ 		\node (LTU2a) [semicircle, draw=black, fill=white, rotate=180, above=of In2, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+ 		\node (LTU2b) [semicircle, draw=black, fill=white, above=of LTU2a, yshift=-1.5cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+ 		\node (dots3) [right=of LTU2b, yshift=-0.1cm, xshift=-1.45cm] {\scriptsize $\cdot \cdot \cdot$};
+ 		\node (LTU3a) [semicircle, draw=black, fill=white, rotate=180, above=of Inn, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+ 		\node (LTU3b) [semicircle, draw=black, fill=white, above=of LTU3a, yshift=-1.5cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+ 		\node (LTUBiasa) [semicircle, draw=black, fill=white, rotate=180, above=of bias, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+ 		\node (LTUBiasb) [semicircle, draw=black, fill=white, above=of LTUBiasa, yshift=-1.5cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+ 		
+ 		\node (text1) [below=of x2, yshift=2cm] {\scriptsize Inputs};
+ 		\node (text2) [above=of LTU2b, yshift=-1.45cm] {\scriptsize Outputs};
+ 		\draw [dotted] (x1) +(-1, 0) -- node[pos=0.3, below left, text width=2cm] {\scriptsize Input Neuron (passthrough)} (In1);
+ 		\draw [dotted] (bias) -- node[pos=0.01, left, text width=2.2cm] {\scriptsize Bias Neuron (outputs 1)} +(-1, 0);
+ 		\draw [dotted] (LTUBiasb) +(-0.5, -0.2) -- node[pos=0.9, left] {\scriptsize LTU} ++(-1.5, -0.2);
+ 		\draw [dashed] (Inn) +(0.25, -0.5) arc(-90:90:0.5) node[pos=0.5, right, text width=1cm] {\scriptsize Input layer};
+ 		\draw [dashed] (LTU3b) +(0.25, -0.8) arc(-90:90:0.6) node[pos=0.5, right, text width=1cm] {\scriptsize Output layer}; 
+ 		
+ 		\draw [arrow] (x1) -- (In1);
+ 		\draw [arrow] (x2) -- (In2);
+ 		\draw [arrow] (xn) -- (Inn);
+ 		\draw [arrow] (In1) -- (LTU1a);
+ 		\draw [arrow] (In1) -- (LTU2a);
+ 		\draw [arrow] (In1) -- (LTU3a);
+ 		\draw [arrow] (In1) -- (LTUBiasa);
+ 	    \draw [arrow] (In2) -- (LTU1a);
+ 	    \draw [arrow] (In2) -- (LTU2a);
+ 	    \draw [arrow] (In2) -- (LTU3a);
+ 	    \draw [arrow] (In2) -- (LTUBiasa);
+ 	    \draw [arrow] (Inn) -- (LTU1a);
+ 	    \draw [arrow] (Inn) -- (LTU2a);
+ 	    \draw [arrow] (Inn) -- (LTU3a);
+ 	    \draw [arrow] (Inn) -- (LTUBiasa);
+ 	    \draw [arrow] (bias) -- (LTU1a);
+ 	    \draw [arrow] (bias) -- (LTU2a);
+ 	    \draw [arrow] (bias) -- (LTU3a);
+ 	    \draw [arrow] (bias) -- (LTUBiasa);
+ 		\draw [arrow] (LTU1b) -- +(0, 1);
+ 		\draw [arrow] (LTU2b) -- +(0, 1);
+ 		\draw [arrow] (LTU3b) -- +(0, 1);
+ 		\draw [arrow] (LTUBiasb) -- +(0, 1);
+ 		\end{tikzpicture}
+ 	\end{center}
+ 	\caption{In this figure we show a visual representation of a perceptron. Inputs are passed through an input layer (with an added bias neuron), the output of each of the neurons of the input layer are then inputted into each of the LTUs that make up the output layer. This figure is adapted from \textcite{Geron}.}
+ 	\label{fig:Perceptron}
+\end{figure}
+Perceptrons make predictions based off some threshold, thus they do not output a class probability. In \textcite{Minsky} they discuss a number of serious weaknesses of Perceptrons, in particular Perceptrons are incapable of solving some trivial problems. Some of the limitations of Perceptrons can be eliminated by stacking multiple Perceptrons to create what is called a Multi-Layer Perceptron (MLP). 
+
+\subsection{Multi-Layer Perceptron}
+
+A Multi-Layer Perceptron (MLP) is composed of one input layer, one or more layers of LTUs called hidden layers, and one final layer of LTUs called the output layer, an example MLP can be seen in Figure \ref{fig:MLPExample}. The input and hidden layers have a bias neuron and are fully connected to the next layer, meaning each output node of one layer is connected to every node of the input of the next layer. Note that when an ANN has two or more hidden layers, it is called a deep neural network (DNN).
+
+ \begin{figure}
+	\begin{center}
+		\begin{tikzpicture}[node distance=2.75cm]
+		\node (x1) {\scriptsize $x_1$};
+		\node (x2) [right=of x1] {\scriptsize $x_2$};
+		\node (dots1) [right=of x2, xshift=-1.25cm] {\scriptsize $\cdot \cdot \cdot$};
+		\node (xn) [right=of dots1, xshift=-1.25cm] {\scriptsize $x_n$};
+		\node (In1) [circle, draw=black, fill=white, yshift=-2cm, text width=0.2cm, above=of x1] {$\uparrow$};
+		\node (In2) [circle, draw=black, fill=white, yshift=-2cm, text width=0.2cm, above=of x2] {$\uparrow$};
+		\node (dots2) [right=of In2, xshift=-1.35cm] {\scriptsize $\cdot \cdot \cdot$};
+		\node (Inn) [circle, draw=black, fill=white, yshift=-2cm, text width=0.2cm, above=of xn] {$\uparrow$};
+		\node (bias1) [circle, draw=black, fill=white, xshift=0.25cm, text width=0.4cm, left=of In1] {\hspace*{-0.05cm} $1$};
+		\node (hid1a) [semicircle, draw=black, fill=white, rotate=180, above=of In1, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+		\node (hid1b) [semicircle, draw=black, fill=white, above=of hid1a, yshift=-2.25cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+		\node (hid2a) [semicircle, draw=black, fill=white, rotate=180, above=of In2, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+		\node (hid2b) [semicircle, draw=black, fill=white, above=of hid2a, yshift=-2.25cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+		\node (dots3) [right=of hid2b, yshift=-0.1cm, xshift=-1.45cm] {\scriptsize $\cdot \cdot \cdot$};
+		\node (hid3a) [semicircle, draw=black, fill=white, rotate=180, above=of Inn, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+		\node (hid3b) [semicircle, draw=black, fill=white, above=of hid3a, yshift=-2.25cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+		\node (hidBiasa) [semicircle, draw=black, fill=white, rotate=180, above=of bias, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+		\node (hidBiasb) [semicircle, draw=black, fill=white, above=of hidBiasa, yshift=-2.25cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+		\node (bias2) [circle, draw=black, fill=white, xshift=-1.5cm, yshift=-0.15cm, text width=0.4cm, left=of hid1b] {\hspace*{-0.05cm} $1$};
+		\node (out1a) [semicircle, draw=black, fill=white, rotate=180, above=of hid1b, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+		\node (out1b) [semicircle, draw=black, fill=white, above=of out1a, yshift=-2.25cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+		\node (out2a) [semicircle, draw=black, fill=white, rotate=180, above=of hid2b, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+		\node (out2b) [semicircle, draw=black, fill=white, above=of out2a, yshift=-2.25cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+		\node (dots4) [right=of out2b, yshift=-0.1cm, xshift=-1.45cm] {\scriptsize $\cdot \cdot \cdot$};
+		\node (out3a) [semicircle, draw=black, fill=white, rotate=180, above=of hid3b, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+		\node (out3b) [semicircle, draw=black, fill=white, above=of out3a, yshift=-2.25cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+		\node (outBiasa) [semicircle, draw=black, fill=white, rotate=180, left=of out1a, xshift=1.5cm, text width=0.2cm] {\scriptsize \hspace*{-0.1cm} \rotatebox{180}{$\Sigma$}};
+		\node (outBiasb) [semicircle, draw=black, fill=white, above=of outBiasa, yshift=-2.25cm, text width=0.425cm] {\scriptsize \hspace*{-0.1cm} \line(1, 0){5} $\text{\line(0, 1){2.5}}^\text{\line(1, 0){5}}$};
+		
+		\draw [dashed] (Inn) +(0.25, -0.5) arc(-90:90:0.5) node[pos=0.5, right, text width=1cm] {\scriptsize Input layer};
+		\draw [dashed] (hid3b) +(0.25, -0.8) arc(-90:90:0.6) node[pos=0.5, right, text width=1cm] {\scriptsize Hidden layer}; 
+		\draw [dashed] (out3b) +(0.25, -0.8) arc(-90:90:0.6) node[pos=0.5, right, text width=1cm] {\scriptsize Output layer};
+		
+		\draw [arrow] (x1) -- (In1);
+		\draw [arrow] (x2) -- (In2);
+		\draw [arrow] (xn) -- (Inn);
+		\draw [arrow] (In1) -- (hid1a);
+		\draw [arrow] (In1) -- (hid2a);
+		\draw [arrow] (In1) -- (hid3a);
+		\draw [arrow] (In1) -- (hidBiasa);
+		\draw [arrow] (In2) -- (hid1a);
+		\draw [arrow] (In2) -- (hid2a);
+		\draw [arrow] (In2) -- (hid3a);
+		\draw [arrow] (In2) -- (hidBiasa);
+		\draw [arrow] (Inn) -- (hid1a);
+		\draw [arrow] (Inn) -- (hid2a);
+		\draw [arrow] (Inn) -- (hid3a);
+		\draw [arrow] (Inn) -- (hidBiasa);
+		\draw [arrow] (bias1) -- (hid1a);
+		\draw [arrow] (bias1) -- (hid2a);
+		\draw [arrow] (bias1) -- (hid3a);
+		\draw [arrow] (bias1) -- (hidBiasa);
+		\draw [arrow] (hid1b) -- (out1a);
+		\draw [arrow] (hid1b) -- (out2a);
+		\draw [arrow] (hid1b) -- (out3a);
+		\draw [arrow] (hid1b) -- (outBiasa);
+		\draw [arrow] (hid2b) -- (out1a);
+		\draw [arrow] (hid2b) -- (out2a);
+		\draw [arrow] (hid2b) -- (out3a);
+		\draw [arrow] (hid2b) -- (outBiasa);
+		\draw [arrow] (hid3b) -- (out1a);
+		\draw [arrow] (hid3b) -- (out2a);
+		\draw [arrow] (hid3b) -- (out3a);
+		\draw [arrow] (hid3b) -- (outBiasa);
+		\draw [arrow] (hidBiasb) -- (out1a);
+		\draw [arrow] (hidBiasb) -- (out2a);
+		\draw [arrow] (hidBiasb) -- (out3a);
+		\draw [arrow] (hidBiasb) -- (outBiasa);
+		\draw [arrow] (bias2) -- (out1a);
+		\draw [arrow] (bias2) -- (out2a);
+		\draw [arrow] (bias2) -- (out3a);
+		\draw [arrow] (bias2) -- (outBiasa);
+		\draw [arrow] (out1b) -- +(0, 1);
+		\draw [arrow] (out2b) -- +(0, 1);
+		\draw [arrow] (out3b) -- +(0, 1);
+		\draw [arrow] (outBiasb) -- +(0, 1);
+		\end{tikzpicture}
+	\end{center}
+	\caption{This figure shows a simple Multi-Layer Perceptron with one hidden layer. It is adapted from \textcite{Geron}.}
+	\label{fig:MLPExample}
+\end{figure}
+
+To train, the weights for each LTU using training data, MLPs use an algorithm called back-propagation, which was created by \textcite{Rumelhart}. Back-propagation attempts to minimize the weights in a network so that the measure of the difference between the actual output and the networks output is minimized. The measure for the difference, typically called the loss function, is minimized by computing the gradient of the loss function with respect to each weight by chain rule, computing the gradient one layer at a time, starting at the last layer to avoid redundant calculations of intermediate terms in the chain rule. Gradients are used as it shows how much the input of a function needs to change to minimize the function. Since LTUs use step functions which are not differentiable everywhere \textcite{Rumelhart} replaced the step function with the logistic function, $\sigma(z) {=} \frac{1}{1 {+} \exp({-}z))}$. Many other functions can be used and are known as activation functions. Some examples of activation functions include the hyperbolic tangent function $\tanh(z) {=} 2\sigma(2z) {-} 1$ and the ReLU function $\text{ReLU}(z) {=} \max(0, z)$. 
+
+An MLP is typically used for classification, where each output corresponds to the log likelihood of a different class. The probability that the input belongs to class $k$ can be estimated by computing the exponential of every log likelihood, and normalizing them. The probabilities are thus given by:
+$$\hat{p}_k {=} \frac{\exp(s_k(\boldsymbol{x}))}{\sum_{j{=}1}^K \exp(s_j(\boldsymbol{x}))}.$$
+If only the class with the highest probability is desired then compute 
+$\hat{y} = \underset{k}{\text{argmax }} \boldsymbol{\hat{p}} = \underset{k}{\text{argmax }} s_k(\boldsymbol{x})$.
+
+\subsection{Designing an Artificial Neural Network}
+One of the important decisions when designing an ANN architecture is how many hidden layers to include. If the problem at hand does not have inherent structures, such as hats in photos of people, then one hidden layer is sufficient for complex functions, provided it has enough neurons. A deep network can model complex functions using fewer neurons than shallow nets, making them much faster to train so they are more parameter efficient. Sometimes the complex patterns in data can be broken down into a combination of simpler patterns, whereby lower layers model low-level patterns, intermediate layers combine the low-level patterns to model intermediate-level patterns, and the highest layers along with the output layer combine the intermediate patterns to model the high-level patterns. The hierarchical architecture helps DNNs generalize to new data-sets. A trained DNN can be used for another similar task by reusing the parameters of the lower hidden layers and retraining the intermediate and higher-level layers. Thus for many problems when designing an ANN we start with just one or two hidden layers on a simple problem and then for more complex problems we gradually increase the number of hidden layers until over-fitting of the training set starts to occur. 
+Another decision to make when creating an ANN architecture is how many neurons to include in each hidden layer. A prior common technique was to set the number of neurons for each layer such that each successive layer had fewer neurons than the previous layer, which represented the fact that higher-level structures required fewer individual classes to distinguish. However, nowadays, one simply sets all the layers to have the same number of neurons so that there is just one parameter instead of a parameter for each layer. Another technique is to gradually increase the number of neurons until the network starts over-fitting the training data-set. If the number of layers over the number of neurons per layer is increased the model will become more accurate. Another simpler technique is to pick a model with more layers and neurons than needed, then use early stopping when training to prevent it from over-fitting. 
+ 
+The final important question to consider is what activation function to use for each layer. For the hidden layers, it is common practice to use the ReLU activation function as it is faster to compute than most other functions and gradient descent does not become stuck as much on plateaus. For the output layer, the softmax activation function (which normalizes a vector into some probability distribution so that the sum of the output vector sums to one and each component of the vector can be interpreted as a probability), is generally a good choice for classification tasks that have mutually exclusive classes. When the classes are not mutually exclusive the choice is typically to use the logistic function. When dealing with some tasks, like a regression, that do not involve classification, it is sometimes useful to have no activation function at all in the output layer. 
+
+\section{Gene Expression Neural Network}
+In this section we describe the neural network we use to mutate genes through cell age and carcinogenic onslaught. We consider $G {\in} \mathbb{N}$ genes that are biomarkers to the considered cancer type. The gene expression of each gene is represented by the function
+\begin{equation}
+e_j(\boldsymbol{x}, t) {\in} \mathbb{R}, j {=} 1, 2, ..., G.
+\label{eq:geneExprFunc}
+\end{equation}
+The gene expression is a non-dimensional value that is zero when the expression is normal, negative when it is under-expressed, and positive when it is over-expressed. 
+The gene expression of each gene changes over time based upon a simple multi-layer perceptron (MLP). The input of the MLP is the vector
+\begin{equation}
+\boldsymbol{X}(\boldsymbol{x}, t) {:=} 
+  [
+    \{ c_i(\boldsymbol{x}, t {-} 1) \}_{i {=} 1,...,C},
+    \alpha(\boldsymbol{x}, t {-} 1)
+  ]^T 
+{\in} \mathbb{R}_+^{C {+} 1},
+\label{eq:geneExprNN_InputVector}
+\end{equation}
+where $c_i(\boldsymbol{x}, t)$ are the carcinogen concentrations and $\alpha(\boldsymbol{x}, t)$ is the age of the cell. This choice is such that changes in gene expression is based upon the carcinogens in the environment of the cell and the age, which essentially means we are looking at the effects of the carcinogens and replication errors as a cell ages. The output of the MLP is given by
+\begin{equation}
+\boldsymbol{Y}(\boldsymbol{x}, t) {:=} [ \{ \overline{\delta}_j(\boldsymbol{x}, t) \}_{j {=} 1, 2, ..., G} ]^T
+{\in} \mathbb{R}^{G},
+\label{eq:geneExprNN_OutputVector}
+\end{equation}
+where $\overline{\delta}_j(\boldsymbol{x}, t)$ is the computed maximum possible change in gene expression for gene $j$. The amount the gene $j$ will be mutated in a time-step is a random sample from the uniform distribution multiplied by $\overline{\delta}_j(\boldsymbol{x}, t)$. 
+
+$\boldsymbol{Y}(\boldsymbol{x}, t)$ is computed using matrix multiplication, addition and 
+application of a non-linear transform. The hidden layer is computed by
+\begin{equation}
+\boldsymbol{H}(\boldsymbol{x}, t) {:=} \gamma(W_{X} \boldsymbol{X}(\boldsymbol{x}, t))
+{\in} \mathbb{R}^{G},
+\label{eq:geneExprNN_HiddenLayer}
+\end{equation}
+where
+\begin{equation}
+\gamma(\xi) {:=} \frac{\xi}
+                      {\sqrt{1 {+} \nu \xi^2}},
+{\in} \left(
+        \frac{\minus 1}
+             {\sqrt{\nu}},
+        \frac{1}
+             {\sqrt{\nu}}
+      \right) 
+\label{eq:geneExprNN_ActivationFunc}
+\end{equation}
+is the non-linear transform (also known as an activation function) that is applied element wise to a vector and $W_{X} {\in} \mathbb{R}^{G {\times} C {+} 1}$ is a weight matrix. Note that the activation function is chosen to ensure $|\overline{\delta}_j(\boldsymbol{x}, t)| < \frac{1}{\sqrt{\nu}}$, hence allowing us to control the maximum amount the expression of gene $j$ can change in a time-step via $\nu$. After the hidden layer is computed the output is computed by
+\begin{equation}
+\boldsymbol{Y}(\boldsymbol{x}, t) {=} \gamma(W_{Y} \boldsymbol{H}(\boldsymbol{x}, t) {+} \boldsymbol{b}_{Y}(\boldsymbol{x}, t)), 
+\label{eq:geneExprNN_OutputLayer}
+\end{equation}
+where $W_{Y} {\in} \mathbb{R}^{G {\times} G}$ is a weight matrix and
+$\boldsymbol{b}_{Y}(\boldsymbol{x}, t) {\in} \mathbb{R}^G$ is a bias vector. 
+
+Biologically speaking $W_{X}^{(i,j)}, i {\in} [1, G], j {\in} [1, C]$ represents how 
+carcinogen $i$ influences gene $j$, $W_{X}^{(i,C {+} 1)}, i {\in} [1, G]$ represents whether cell age influences gene $j$, $W_{Y}^{(i,j)}$ represents whether gene $i$ influences 
+gene $j$, and $b_{Y}^{(i)}(\boldsymbol{x}, t)$ is whether gene $i$ has a 
+higher chance of gene expression changes relative to other genes. Note that if a 
+value in the weight matrices is negative it means there is a negative relationship, 
+if it is positive it means there is a positive relationship, and finally if it is 
+zero it means there is no relationship. In the case of determining how age affects 
+each gene, the values of $W_{X}^{(i,C {+} 1)}, i {\in} [1, G]$ are random made 
+positive or negative at every time-step based upon sampling from the uniform distribution and setting it 
+positive if the sample is less than 0.5 and negative otherwise. We randomly choose the direction cell age regulates gene expression because as a cell ages there are higher changes of gene replication errors, thus the direction will depend on the type of error.  
+
+Let U(0, 1) be the uniform distribution. The gene expression, $e_j(\boldsymbol{x}, t)$, of a gene is updated by
+\begin{equation}
+e_j(\boldsymbol{x}, t) {=} e_j(\boldsymbol{x}, t {-} 1) {+} z \overline{\delta}_j(\boldsymbol{x}, t),
+z {\sim} U,
+\label{eq:geneExprNN_geneExprUpdateFunc}
+\end{equation}
+where we use $z {\sim} U$ to indicate that $z$ is sampled from $U$.
+A gene $j$ is considered to be mutated if its' gene expression 
+is above the threshold value $\overline{M} {\in} \mathbb{R}_+$, \ie, $|e_j(\boldsymbol{x}, t)| {\ge} \overline{M}$. The bias for a gene $j$, $b_{Y}^{(j)}(\boldsymbol{x}, t)$, is updated 
+through the relation
+\begin{equation}
+b_{Y}^{(j)}(\boldsymbol{x}, t) {=} \begin{cases}
+                           \beta &, e_j(\boldsymbol{x}, t {-} 1) {\ge} \overline{M} \\
+                        {-}\beta &, e_j(\boldsymbol{x}, t {-} 1) {\le} {-}\overline{M} \\
+                               0 &, \text{otherwise}
+                      \end{cases},
+\beta {\in} \mathbb{R}_+.
+\label{eq:geneExprNN_BiasVectorUpdateFunc}
+\end{equation}
+
+\end{document}

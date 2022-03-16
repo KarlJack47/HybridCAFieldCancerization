@@ -1,0 +1,505 @@
+\providecommand{\main}{../..}
+\documentclass[\main/thesis.tex]{subfiles}
+
+\begin{document}
+	
+\section{Carcinogen Partial Differential Equations}
+
+Consider a carcinogen that is in the spatial domain \newline
+$\Omega {=} \{ \boldsymbol{x}{=}(x_1, x_2) | 0 {<} x_1 {<} L, 0 {<} x_2 {<} M \}$ and evolves in the domain \newline $\Omega_T {=} \Omega {\times} (0, T], T {>} 0$.
+The concentration for the carcinogen is computed by the function
+$c(\boldsymbol{x}, t)$. In which $c(\boldsymbol{x}, t)$ is a solution to the 
+following initial boundary value problem (IBVP)
+\begin{align}
+	&\text{PDE }    \hspace{0.12in} c_t(\boldsymbol{x}, t) {=} D \Delta c(\boldsymbol{x}, t)
+	                                             {+} F(\boldsymbol{x}, t),
+	                                (\boldsymbol{x}, t) {\in} \Omega;
+	                                \label{eq:carcin_pde_inhomo} \\
+	&\text{BCs }    \hspace{0.17in} c(0, x_2, t)   {=} g_1(x_2, t),
+	                                c(L, x_2, t)   {=} g_2(x_2, t),
+	                                (x_2, t) {\in} \partial \Omega{\times}[0, T];
+	                                \label{eq:bcs_inhomo_x} \\
+	&\text{BCs }    \hspace{0.17in} c(x_1, 0, t)   {=} g_3(x_1, t),
+	                                c(x_1, M, t)   {=} g_4(x_1, t),
+	                                (x_1, t) {\in} \partial \Omega{\times}[0, T];
+	                                \label{eq:bcs_inhomo_y} \\
+	&\text{IC }     \hspace{0.30in} c(\boldsymbol{x}, 0)   {=} f(\boldsymbol{x}),
+	                                \boldsymbol{x} {\in} \Omega;
+	                                \label{eq:ic_inhomo} \\
+	&\text{Source }                 F(\boldsymbol{x}, t)   {=} I(\boldsymbol{x}, t)
+	                                                 {-} O(\boldsymbol{x}, t),
+	                                \label{eq:source_term}
+\end{align}
+where
+$
+\Delta {=} \frac{\partial^2}
+                {\partial x_1^2}
+       {+} \frac{\partial^2}
+                {\partial x_2^2}
+$;
+$F(\boldsymbol{x}, t) {\in} \mathbb{R}$ is the source term with
+$I(\boldsymbol{x}, t) {\in} \mathbb{R}_+$ being the input and
+$O(\boldsymbol{x}, t) {\in} \mathbb{R}_+$ being the loss of the carcinogen; \newline
+$
+g_1(x_2, t), g_2(x_2, t), g_3(x_1, t), g_4(x_1, t), f(\boldsymbol{x}) {\in} \mathbb{R}_+
+$. 
+The IBVP \eqref{eq:carcin_pde_inhomo}-\eqref{eq:ic_inhomo} is non-homogeneous 
+both in the boundary conditions (BC) and PDE.
+
+Let us non-dimensionalize the equation so that the solution of the PDE is unit-less and can be later used as input into a neural network. To non-dimensionalize a PDE all the dependent and independent variables need to be made dimensionless. This is achieved by dividing all the independent and dependent variables by some characteristic value that is denoted with a subscript $c$. Let us define the dimensionless variables
+\begin{align}
+&\hat{x_1} {=} \frac{x_1}{x_c^{(1)}}, \hat{x_2} {=} \frac{x_2}{x_c^{(2)}}, 
+\hat{t} {=} \frac{t}{t_c} \label{eq:dimensionlessIndepenVars}\\
+&\hat{c} {=} \frac{c}{c_c}, \hat{F} {=} \frac{F}{F_c} \label{eq:dimensionlessPDEDependVars}\\
+&\hat{g_1} {=} \frac{g_1}{g_c^{(1)}}, \hat{g_2} {=} \frac{g_2}{g_c^{(2)}}, 
+\hat{g_3} {=} \frac{g_3}{g_c^{(3)}}, \hat{g_4} {=} \frac{g_4}{g_c^{(4)}}, 
+\label{eq:dimensionlessBCVars}\\
+&\hat{f} = \frac{f}{f_c}. \label{eq:dimensionlessICVar}
+\end{align}
+We choose the characteristic values of the source term, boundary conditions and initial condition to be the absolute value of the maximum value of the functions so that
+\begin{align}
+&F_c {=} \max_{\boldsymbol{x}, t} | F(\boldsymbol{x}, t) | \label{eq:characteristicSourceTerm}\\
+&g_c^{(1)} {=} \max_{x_2, t} | g_1(x_2, t) |, g_c^{(2)} {=} \max_{x_2, t} | g_2(x_2, t) |,
+\label{eq:characteristicBC1}\\
+&g_c^{(3)} {=} \max_{x_1, t} | g_3(x_1, t) |, g_c^{(4)} {=} \max_{x_1, t} | g_1(x_1, t) |
+\label{eq:characteristicBC2}\\
+&f_c {=} \max_{\boldsymbol{x}} | f(\boldsymbol{x}) |. \label{eq:characteristicIC}
+\end{align}
+To discover the characteristic space, time, and concentration values we need to plug the dimensionless variables into the PDE, which gives us
+\begin{align*}
+\frac{c_c}{t_c} \hat{c}_{\hat{t}}(\hat{x_1}, \hat{x_2}, \hat{t}) 
+&{=} D c_c \left ( \frac{\hat{c}_{\hat{x_1}\hat{x_1}}(\hat{x_1}, \hat{x_2}, \hat{t})}{x_c^{{(1)^2}}} \right.
+\left. {+} \frac{\hat{c}_{\hat{x_2}\hat{x_2}}(\hat{x_1}, \hat{x_2}, \hat{t})}{x_c^{{(2)}^2}} \right)\\
+&{+} \hat{F}(\hat{x_1}, \hat{x_2}, \hat{t}) F_c.
+\end{align*}
+Multiplying the above by $\frac{t_c}{c_c}$ and letting $x_c^{(1)} = x_c^{(2)} := x_c$ gives us
+\begin{align}
+\hat{c}_{\hat{t}}(\hat{x_1}, \hat{x_2}, \hat{t}) 
+&{=} \frac{D t_c}{x_c^2} \left ( \hat{c}_{\hat{x_1}\hat{x_1}}(\hat{x_1}, \hat{x_2}, \hat{t}) \right.
+\left. {+} \hat{c}_{\hat{x_2}\hat{x_2}}(\hat{x_1}, \hat{x_2}, \hat{t}) \right) \label{eq:dimensionlessPDE1}\\
+&{+} \hat{F}(\hat{x_1}, \hat{x_2}, \hat{t}) \frac{F_c t_c}{c_c}.
+\nonumber
+\end{align}
+By convention of non-dimensionalization we make the coefficients equal to one so to simplify the equation, this gives us
+\begin{align}
+&\frac{D t_c}{x_c^2} {=} 1 {\implies} t_c {=} \frac{x_c^2}{D}, \label{eq:characteristicTime}\\
+&\frac{F_c t_c}{c_c} {=} 1 {\implies} c_c {=} F_c t_c {=} \frac{x_c^2 F_c}{D}. \label{eq:characteristicConcen}
+\end{align}
+Thus we have the non-dimensional PDE given by
+\begin{equation}
+\hat{c}_{\hat{t}}(\hat{x_1}, \hat{x_2}, \hat{t}) 
+{=} \Delta \hat{c}(\hat{x_1}, \hat{x_2}, \hat{t}) {+} \hat{F}(\hat{x_1}, \hat{x_2}, \hat{t})
+\label{eq:DimensionlessPDE}
+\end{equation}
+For convenience we choose 
+\begin{equation}
+x_c {=} \max(L, M).
+\label{eq:characteristicSpaceVar}
+\end{equation}
+We can now write out the boundary conditions in the new dimensionless variables
+\begin{align}
+\hat{c}(0, \hat{x_2}, \hat{t}) &{=} \frac{g_c^{(1)}}{c_c} \hat{g_1}(\hat{x_2}, \hat{t})
+{=} \frac{g_c^{(1)} D}{x_c^2 F_c} \hat{g_1}(\hat{x_2}, \hat{t}),
+\label{eq:DimensionlessBC1}\\
+\hat{c}\left(\frac{L}{x_c}, \hat{x_2}, \hat{t}\right) &{=} \frac{g_c^{(2)}}{c_c} \hat{g_2}(\hat{x_2}, \hat{t})
+{=} \frac{g_c^{(2)} D}{x_c^2 F_c} \hat{g_2}(\hat{x_2}, \hat{t}),
+\label{eq:DimensionlessBC2}\\
+\hat{c}(\hat{x_1}, 0, \hat{t}) &{=} \frac{g_c^{(3)}}{c_c} \hat{g_3}(\hat{x_1}, \hat{t})
+{=} \frac{g_c^{(3)} D}{x_c^2 F_c} \hat{g_3}(\hat{x_1}, \hat{t}),
+\label{eq:DimensionlessBC3}\\
+\hat{c}\left(\hat{x_1}, \frac{M}{x_c}, \hat{t}\right) &{=} \frac{g_c^{(4)}}{c_c} \hat{g_4}(\hat{x_1}, \hat{t})
+{=} \frac{g_c^{(4)} D}{x_c^2 F_c} \hat{g_4}(\hat{x_1}, \hat{t}).
+\label{eq:DimensionlessBC4}
+\end{align}
+Finally we write out the initial condition in the new dimensionless variables
+\begin{align}
+\hat{c}(\hat{x_1}, \hat{x_2}, 0) {=} \frac{f_c}{c_c} \hat{f}(\hat{x_1}, \hat{x_2})
+                                                {=} \frac{f_c D}{x_c^2 F_c} \hat{f}(\hat{x_1}, \hat{x_2}).
+\label{eq:DimensionlessIC}
+\end{align}
+Thus we have the non-dimensional PDE problem given by
+\begin{align*}
+\hat{c}_{\hat{t}}(\hat{x_1}, \hat{x_2}, \hat{t}) 
+&{=} \Delta \hat{c}(\hat{x_1}, \hat{x_2}, \hat{t}), 
+(\boldsymbol{\hat{x}}, \hat{t}) {\in} \left(0, \frac{L}{x_c}\right){\times}\left(0, \frac{M}{x_c}\right){\times}\left(0, \frac{T}{t_c}\right]
+\tag{\ref{eq:DimensionlessPDE}}\\
+&{+} \hat{F}(\hat{x_1}, \hat{x_2}, \hat{t}),\\
+\hat{c}(0, \hat{x_2}, \hat{t})
+&{=} \frac{g_c^{(1)} D}{x_c^2 F_c} \hat{g_1}(\hat{x_2}, \hat{t}),
+(\hat{x_2}, \hat{t}) {\in} \left(0, \frac{M}{x_c}\right){\times}\left(0, \frac{T}{t_c}\right],
+\tag{\ref{eq:DimensionlessBC1}}\\
+\hat{c}\left(\frac{L}{x_c}, \hat{x_2}, \hat{t}\right)
+&{=} \frac{g_c^{(2)} D}{x_c^2 F_c} \hat{g_2}(\hat{x_2}, \hat{t}),
+(\hat{x_2}, \hat{t}) {\in} \left(0, \frac{M}{x_c}\right){\times}\left(0, \frac{T}{t_c}\right],
+\tag{\ref{eq:DimensionlessBC2}}\\
+\hat{c}(\hat{x_1}, 0, \hat{t}) 
+&{=} \frac{g_c^{(3)} D}{x_c^2 F_c} \hat{g_3}(\hat{x_1}, \hat{t}),
+(\hat{x_1}, \hat{t}) {\in} \left(0, \frac{L}{x_c}\right){\times}\left(0, \frac{T}{t_c}\right],
+\tag{\ref{eq:DimensionlessBC3}}\\
+\hat{c}\left(\hat{x_1}, \frac{M}{x_c}, \hat{t}\right)
+&{=} \frac{g_c^{(4)} D}{x_c^2 F_c} \hat{g_4}(\hat{x_1}, \hat{t}),
+(\hat{x_1}, \hat{t}) {\in} \left(0, \frac{L}{x_c}\right){\times}\left(0, \frac{T}{t_c}\right],
+\tag{\ref{eq:DimensionlessBC4}}\\
+\hat{c}(\hat{x_1}, \hat{x_2}, 0)
+&{=} \frac{f_c D}{x_c^2 F_c} \hat{f}(\hat{x_1}, \hat{x_2}),
+(\hat{x_1}, \hat{x_2}) {\in} \left(0, \frac{L}{x_c}\right){\times}\left(0, \frac{M}{x_c}\right),
+\tag{\ref{eq:DimensionlessIC}}\\
+x_c &{=} \max(L, M),
+\tag{\ref{eq:characteristicSpaceVar}} \\
+t_c &{=} \frac{x_c^2}{D},
+\tag{\ref{eq:characteristicTime}}\\
+F_c &{=} \max_{\boldsymbol{x}, t} | F(\boldsymbol{x}, t) |,
+\tag{\ref{eq:characteristicSourceTerm}}\\
+g_c^{(1)} &{=} \max_{x_2, t} | g_1(x_2, t) |, g_c^{(2)} {=} \max_{x_2, t} | g_2(x_2, t) |,
+\tag{\ref{eq:characteristicBC1}}\\
+g_c^{(3)} &{=} \max_{x_1, t} | g_3(x_1, t) |, g_c^{(4)} {=} \max_{x_1, t} | g_1(x_1, t) |
+\tag{\ref{eq:characteristicBC2}}\\
+f_c &{=} \max_{\boldsymbol{x}} | f(\boldsymbol{x}) |.
+\tag{\ref{eq:characteristicIC}}
+\end{align*}
+Since the diffusion equation is a linear differential equation of the parabolic type then 
+we can solve the IBVP via the method of Green's Function as described by \textcite{Polyanin}. 
+
+First let us go through the theory of solving a non-homogeneous linear differential 
+equation of the parabolic type in $n$ space variables of the form
+\begin{equation}
+u_t - L_{\boldsymbol{x}}[u] {=} \overline{\Phi}(\boldsymbol{x}, t),
+\label{eq:parabolic_pde_eq}
+\end{equation}
+where $u {=} u(\boldsymbol{x}, t), \boldsymbol{x} {=} V {\subset} \mathbb{R}^n$, with $V$ being a simply connected region with boundary $S {=} \partial V$.
+The symbol $L_{\boldsymbol{x}}$ is a second-order partial differential operator having non-divergence form so
+\begin{equation}
+L_{\boldsymbol{x}}[u] {=} \sum_{i, j {=} 1}^{n} \overline{a}_{ij}(\boldsymbol{x}, t) u_{x_ix_j}
+                      {+} \sum_{i{=}1}^n \overline{b}_i(\boldsymbol{x}, t) u_{x_i}
+                      {+} \overline{c}(\boldsymbol{x}, t) u.
+\label{eq:linear_second_order_spatial_op}
+\end{equation}
+Also the partial differential operator $\frac{\partial}{\partial t} {-} L_{\boldsymbol{x}}$
+is uniformly parabolic, that is there exists a constant $\theta {>} 0$ such that
+$$\sum_{i,j{=}1}^{n} \overline{a}_{ij}(\boldsymbol{x}, t) \xi_i \xi_j {\ge} \theta \sum_{i=1}^{n} \xi_i^2$$
+for all $(\boldsymbol{x}, t) {\in} V {\times} (0, T]$. The initial condition for the PDE is given by
+\begin{equation}
+u {=} \overline{f}(\boldsymbol{x}) \text{ at } t {=} 0.
+\label{eq:ic_parabolic_pde}
+\end{equation}
+Let $S_k, k {=} 1, ..., p$ be distinct portions of the surface $S$ such that $S {=} \sum_{k=1}^{p} S_k$ then the non-homogeneous linear boundary condition is given by
+\begin{equation}
+\Gamma_{\boldsymbol{x}}^{(k)}[u] {=} \overline{g_k}(\boldsymbol{x}, t), (\boldsymbol{x}, t) {\in} S_k {\times} [0, T], k {=} 1, ..., p.
+\label{eq:bc_parabolic_pde}
+\end{equation}
+In the general case, $\Gamma_{\boldsymbol{x}}$ is a first-order linear differential operator in the space coordinates with coefficients depending on $\boldsymbol{x}$ and $t$.
+The three main important forms of $\Gamma_{\boldsymbol{x}}$ include
+\begin{enumerate}
+\item Dirichlet: $\Gamma_{\boldsymbol{x}}^{(k)}[u] {=} u$, 
+\item Neumann: $\Gamma_{\boldsymbol{x}}^{(k)}[u] {=} u_{M_x}$,
+\item Robin: $\Gamma_{\boldsymbol{x}}^{(k)}[u] {=} u_{M_x} {+} \overline{v}(\boldsymbol{x}, t)u$,
+\end{enumerate}
+where $u_{M_x} {=} \sum_{i, j {=} 1}^{n} \overline{a}_{ij}(\boldsymbol{x}, t) N_j G_{x_i}$ with 
+$\boldsymbol{N} {=} \{ N_1, ..., N_n \}$ being the unit outward normal to the surface $S_k, k {=} 1, ..., p$.
+By the theory of Green's function the solution of the non-homogeneous linear boundary value problem defined by 
+\eqref{eq:parabolic_pde_eq}-\eqref{eq:bc_parabolic_pde} is given by
+\begin{align}
+u(\boldsymbol{x}, t) &{=} \int_{0}^{t} \int_V \overline{\Phi}(\boldsymbol{y}, \tau) G(\boldsymbol{x}, \boldsymbol{y}, t, \tau) dV_y d\tau
+                     {+} \int_{V} \overline{f}(\boldsymbol{y}) G(\boldsymbol{x}, \boldsymbol{y}, t, 0) dV_y 
+                     \label{eq:Green_func_sol_parabolic_ibvp} \\
+                     &{+} \sum_{k{=}1}^{p} \int_{0}^{t} \int_{S_k} \overline{g_k}(\boldsymbol{y}, \tau) H_k(\boldsymbol{x}, \boldsymbol{y}, t, \tau) dS_y d\tau \nonumber.
+\end{align}
+$G(\boldsymbol{x}, \boldsymbol{y}, t, \tau)$ is the Green's function; for $t {>} \tau {\ge} 0$, it satisfies the homogeneous equation
+\begin{equation}
+G_t {-} L_{\boldsymbol{x}}[G] {=} 0
+\label{eq:Greens_func_pde}
+\end{equation}
+with the non-homogeneous initial condition of the special form
+\begin{equation}
+G {=} \delta(\boldsymbol{x} {-} \boldsymbol{y}) \text{ at } t {=} \tau
+\label{eq:Greens_func_ic}
+\end{equation}
+and the homogeneous boundary condition
+\begin{equation}
+\Gamma_{\boldsymbol{x}}^{(k)}[G] {=} 0, \boldsymbol{x} {\in} S_k, k {=} 1, .., p.
+\label{eq:Greens_func_bc}
+\end{equation}
+The vector $\boldsymbol{y} {=} \{y_1, ..., y_n \} {\in} V$ from problem \eqref{eq:Greens_func_pde}-\eqref{eq:Greens_func_bc} is an\newline
+$n$-dimensional free parameter, and $\delta(\boldsymbol{x} {-} \boldsymbol{y}) {=} \delta(x_1 {-} y_1)...\delta(x_n {-} y_n)$ is the\newline
+$n$-dimensional Dirac delta function. The Green's function $G$ is independent of the in-homogeneity's in the IBVP 
+\eqref{eq:parabolic_pde_eq}-\eqref{eq:bc_parabolic_pde}, so it is independent to functions $\overline{\Phi}$, $\overline{f}$, and $\overline{g}$.
+In the solution \eqref{eq:Green_func_sol_parabolic_ibvp} the integrations are performed everywhere with respect to $\boldsymbol{y}$ with $dV_y {=} dy_1...dy_n$.
+The functions $H_k, k{=}1, ..., p$ involved in the integrand of the last term in solution \eqref{eq:Green_func_sol_parabolic_ibvp} can be expressed in terms of Green's function $G$ and its choice is based upon the three main types of boundary conditions as follows
+\begin{enumerate}
+\item Dirichlet: $H_k {=} {-}G_{M_y} {:=} {-}\sum_{i, j {=} 1}^{n} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i}$, 
+                 $N_j$ is the $j$-th \\ \hspace*{1.75cm} component of the unit outward normal to $S_k$;
+\item Neumann: $H_k {=} G$;
+\item Robin: $H_k {=} G$.
+\end{enumerate}
+Note if the coefficients of \eqref{eq:Greens_func_pde} and the boundary condition \eqref{eq:Greens_func_bc} are independent of $t$, then  
+the Green's function reduces to only three arguments and $G(\boldsymbol{x}, \boldsymbol{y}, t, \tau) {=} G(\boldsymbol{x}, \boldsymbol{y}, t{-}\tau)$.
+
+For the problem \eqref{eq:DimensionlessPDE}-\eqref{eq:DimensionlessIC} we have that $u {=} \hat{c}$, $n {=} 2$, 
+$V {=} \Omega$, $p {=} 4$, \newline 
+$S_1 {=} \{ \boldsymbol{\hat{x}} | \hat{x_1} {=} 0, 0 {<} \hat{x_2} {<} \frac{M}{x_c} \}$, 
+$S_2 {=} \{ \boldsymbol{\hat{x}} | \hat{x_1} {=} \frac{L}{x_c}, 0 {<} \hat{x_2} {<} \frac{M}{x_c} \}$,
+$S_3 {=} \{ \boldsymbol{\hat{x}} | \hat{x_2} {=} 0, 0 {<} \hat{x_1} {<} \frac{L}{x_c} \}$, \newline
+$S_4 {=} \{ \boldsymbol{\hat{x}} | \hat{x_2} {=} \frac{M}{x_c}, 0 {<} \hat{x_1} {<} \frac{L}{x_c} \}$, $\overline{a}_{11} {=} \overline{a}_{22} {=} 1$,
+$\overline{a}_{12} {=} \overline{a}_{21} {=} \overline{b}_1 {=} \overline{b}_2 {=} \overline{c} {=} 0$, 
+$L_{\boldsymbol{\hat{x}}} {=} \Delta \hat{c}$, $\overline{\Phi} {=} \hat{F}$, $\Gamma_{\boldsymbol{\hat{x}}} {=} \hat{c}$, $\overline{f} {=} \hat{f}$,
+$\overline{g_1} {=} \hat{g_1}$, $\overline{g_2} {=} \hat{g_2}$, $\overline{g_3} {=} \hat{g_3}$, $\overline{g_4} {=} \hat{g_4}$.
+Since the coefficients in $L_{\boldsymbol{\hat{x}}}$ and $\Gamma_{\boldsymbol{\hat{x}}}$ are independent of $\hat{t}$ then $G {=} G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t} {-} \tau)$. Also since the boundary conditions are Dirichlet then
+\begin{align}
+H_1 &{=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} G_{y_2} |_{y_1{=}0},
+\label{eq:H1}\\
+H_2 &{=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} {-}G_{y_2} |_{y_1{=}L},
+\label{eq:H2}\\
+H_3 & {=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} G_{y_1} |_{y_2{=}0},
+\label{eq:H3}\\
+H_4 &{=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} {-}G_{y_1} |_{y_2{=}M}
+\label{eq:H4}.
+\end{align}
+Next we solve for Green's function via the IBVP \eqref{eq:Greens_func_pde}-\eqref{eq:Greens_func_bc} which can be written as
+\begin{align*}
+G_t &{=} \Delta_{\boldsymbol{\hat{x}}} G,\tag{\ref{eq:Greens_func_pde}}\\
+G &{=} \delta(\hat{x_1}{-}y_1)\delta(\hat{x_2}{-}y_2) \text{ at } t {=} \tau,\tag{\ref{eq:Greens_func_ic}}\\
+G &{=} 0, \boldsymbol{\hat{x}} {\in} S_k, k{=}1, ..., 4 \tag{\ref{eq:Greens_func_bc}}.
+\end{align*}
+Assume by separation of variables that 
+\begin{equation*}
+	G {:=} \phi(\boldsymbol{\hat{x}}, \boldsymbol{y}) \eta(\hat{t}{-}\tau)
+\end{equation*}
+and insert into \eqref{eq:Greens_func_pde} to acquire
+\begin{equation*}
+	\phi(\boldsymbol{\hat{x}}, \boldsymbol{y}) \eta'(\hat{t}{-}\tau) {=} \Delta_{\boldsymbol{\hat{x}}} \phi(\boldsymbol{\hat{x}}, \boldsymbol{y}) \eta(\hat{t}{-}\tau).
+\end{equation*}
+Divide the above by $\phi(\boldsymbol{\hat{x}}, \boldsymbol{y}) \eta(\hat{t}{-}\tau)$ to obtain
+\begin{equation*}
+	    \frac{\eta'(\hat{t}{-}\tau)}
+	         {\eta(\hat{t}{-}\tau)}
+	{=} \frac{\Delta_{\boldsymbol{\hat{x}}} \phi(\boldsymbol{\hat{x}}, \boldsymbol{y})}
+	         {\phi(\boldsymbol{\hat{x}}, \boldsymbol{y})}.
+\end{equation*}
+Since the left hand side (LHS) of the above only depends on $\hat{t}{-}\tau$ and the right 
+hand side (RHS) only on ($\boldsymbol{\hat{x}}$, $\boldsymbol{y}$) then set each side equal to some separation 
+constant, $\minus \lambda$.
+This results in the differential equations
+\begin{align}
+	&\eta'(\hat{t}{-}\tau) {+} \lambda \eta(\hat{t}{-}\tau) {=} 0,
+	 \label{eq:time_ode} \\
+	&\Delta_{\boldsymbol{\hat{x}}} \phi(\boldsymbol{\hat{x}}, \boldsymbol{y}) {+} \lambda \phi(\boldsymbol{\hat{x}}, \boldsymbol{y}) {=} 0.
+	 \label{eq:spatial_pde}
+\end{align}
+Taking under consideration the assumed form of $G$ and
+$\eta(\hat{t}{-}\tau) {\ne} 0$, the BC \eqref{eq:Greens_func_bc} becomes
+\begin{equation}
+	\phi(\boldsymbol{\hat{x}}, \boldsymbol{y}) {=} 0, \boldsymbol{\hat{x}} {\in} S_k, k {=} 1, ..., 4
+	\label{eq:bcs_homo_phi}
+\end{equation}
+The equations \eqref{eq:spatial_pde}-\eqref{eq:bcs_homo_phi} form a BVP which 
+can be solved using separation of variables. Assume
+\begin{equation*}
+	\phi(\boldsymbol{\hat{x}}, \boldsymbol{y}) {:=} \chi(\hat{x_1}, y_1) \psi(\hat{x_2}, y_2)
+\end{equation*}
+and insert into
+\eqref{eq:spatial_pde} to acquire
+\begin{equation*}
+	\chi_{\hat{x_1}\hat{x_1}}(\hat{x_1}, y_1) \psi(\hat{x_2}, y_2) {+} \chi(\hat{x_1}, y_1) \psi_{\hat{x_2}\hat{x_2}}(\hat{x_2}, y_2)
+	{+} \lambda \chi(\hat{x_1}, y_1) \psi(\hat{x_2}, y_2) {=} 0.
+\end{equation*} 
+Subtracting the above by the second and third terms of the LHS and then dividing 
+the result by $\chi(\hat{x_1}, y_1) \psi(\hat{x_2}, y_2)$ yields
+\begin{equation*}
+	\frac{\chi_{\hat{x_1}\hat{x_1}}(\hat{x_1}, y_1)}
+	     {\chi(\hat{x_1}, y_1)}
+	{=} {-} \left(
+	              \frac{\psi_{\hat{x_2}\hat{x_2}}(\hat{x_2}, y_2)}
+	                   {\psi(\hat{x_2}, y_2)}
+	          {+} \lambda
+	        \right).
+\end{equation*}
+The LHS of the above equation depends only on $(\hat{x_1}, y_1)$ while the RHS only on $(\hat{x_2}, y_2)$. 
+Thus setting both sides equal to a separation constant, $\minus \mu$, acquires 
+the following ordinary differential equations (ODEs)
+\begin{align}
+	&\chi_{\hat{x_1}\hat{x_1}}(\hat{x_1}, y_1) {+} \mu \chi(\hat{x_1}, y_2) {=} 0,
+	\label{eq:ode_x1_y1} \\
+	&\psi_{\hat{x_2}\hat{x_2}}(\hat{x_2}, y_2) {+} (\lambda {-} \mu) \psi(\hat{x_2}, y_2) {=} 0.
+	\label{eq:ode_x2_y2}
+\end{align}
+Insert $\phi(\boldsymbol{\hat{x}}, \boldsymbol{y})$ into the BC \eqref{eq:bcs_homo_phi}, 
+with the assumption that the trivial solutions of the ODEs are undesirable because it would lead to the spatial part of the PDE problem being zero and hence we would be left with the trivial solution of the PDE problem, to acquire
+\begin{align}
+	&\chi(\hat{x_1}, y_1) {=} 0, \hat{x_1} {\in} S_k, k {=} 1, 2
+	\label{eq:bc_ode_x1_y1} \\
+	&\psi(\hat{x_2}, y_2) {=} 0, \hat{x_2} {\in} S_k, k {=} 3, 4.
+	\label{eq:bc_ode_x2_y2}
+\end{align}
+Assume by separation of variables that $\chi(\hat{x_1}, y_1) {=} \hat{X_1}(\hat{x_1})Y_1(y_1)$,\newline
+$\psi(\hat{x_2}, y_2) {=} \hat{X_2}(\hat{x_2})Y_2(y_2)$ then \eqref{eq:ode_x1} and \eqref{eq:ode_x2} become
+\begin{align*}
+    Y_1(y_1)(\hat{X_1}''(\hat{x_1}) {+} \mu \hat{X_1}(\hat{x_1})) {=} 0\\
+    Y_2(y_2)(\hat{X_2}''(\hat{x_2}) {+} (\lambda - \mu) \hat{X_2}(\hat{x_2})) {=} 0.
+\end{align*}
+Since $\chi(\hat{x_1}, y_1) {=} 0, \psi(\hat{x_2}, y_2) {=} 0$ is undesirable, as it would lead to a trivial solution for the PDE problem, then it must be that $Y_1(y_1), Y_2(y_2) {\in} \mathbb{R}$ and
+\begin{align}
+    \hat{X_1}''(\hat{x_1}) {+} \mu \hat{X_1}(\hat{x_1}) {=} 0 \label{eq:ode_x1}\\
+    \hat{X_2}''(\hat{x_2}) {+} (\lambda - \mu) \hat{X_2}(\hat{x_2}) {=} 0 \label{eq:ode_x2}
+\end{align}
+Insert $\chi(\hat{x_1}, y_1), \psi(\hat{x_2}, y_2)$ into the BC \eqref{eq:bc_ode_x1_y1} and 
+\eqref{eq:bc_ode_x2_y2}, respectively, with the assumption that the trivial solutions 
+of the ODE's are undesirable since it would lead to a trivial solution for the PDE problem, to acquire
+\begin{align}
+    \hat{X_1}(\hat{x_1}) {=} 0, \hat{x_1} {\in} S_k, k {=} 1, 2 \label{eq:bc_ode_x1}\\
+    \hat{X_2}(\hat{x_2}) {=} 0, \hat{x_2} {\in} S_k, k {=} 3, 4 \label{eq:bc_ode_x2}
+\end{align}
+Two Sturm-Liouville problems (SLP), namely (\ref{eq:ode_x1}, \ref{eq:bc_ode_x1}) 
+and (\ref{eq:ode_x2}, \ref{eq:bc_ode_x2}) have resulted from the separation of 
+variables. Since (\ref{eq:ode_x2}, \ref{eq:bc_ode_x2}) depends on two separation 
+constants, ($\lambda$, $\mu$), and (\ref{eq:ode_x1}, \ref{eq:bc_ode_x1}) only 
+on the constant $\mu$ then (\ref{eq:ode_x1}, \ref{eq:bc_ode_x1}) must be solved 
+first. The equation \eqref{eq:ode_x1} is a homogeneous second order linear ODE 
+with constant coefficients in the canonical form: 
+$\tilde{a}v''(\xi) {+} \tilde{b}v'(\xi) {+} \tilde{c}v(\xi) {=} 0$.
+Therefore the solution can be classified using the discriminant of the characteristic equation
+$\tilde{a}\nu^2 {+} \tilde{b}\nu {+} \tilde{c} {=} 0$, whereby, if it is:
+\begin{align*}
+	&\text{strictly positive then } \hspace{0.03in} v(\xi) {=} K_1 \cosh(\nu_1 \xi) 
+	                                                       {+} K_2 \sinh(\nu_2 \xi),
+	 \\
+	&\text{strictly negative then }                 v(\xi) {=} e^{\text{Re}(\nu) \xi}
+	                                                           \left(
+	                                                                 K_1 \cos(\text{Im}(\nu) \xi)
+	                                                             {+} K_2 \sin(\text{Im}(\nu) \xi)
+	                                                           \right),
+	 \\
+	&\text{zero then }              \hspace{0.87in} v(\xi) {=} K_1 e^{\nu \xi} 
+	                                                       {+} K_2 \xi e^{\nu \xi}.
+\end{align*}
+Applying the above solution method to equation \eqref{eq:ode_x1} we have that $\tilde{a} {=} 1$, $\tilde{b} {=} 0$, $\tilde{c} {=} \mu$, therefore the discriminant is strictly negative and $\nu {=} {\pm}\sqrt{\mu}i, \mu {>} 0$. Thus the general solution is given by
+\begin{equation*}
+	\hat{X_1}(\hat{x_1}) {=} K_1 \cos(\sqrt{\mu} \hat{x_1})
+	         {+} K_2 \sin(\sqrt{\mu} \hat{x_1}), 
+	K_1, K_2 {\in} \mathbb{R}.
+\end{equation*}
+The first BC in \eqref{eq:bc_ode_x1} implies that $K_1 {=} 0$, so that
+\begin{equation*}
+	\hat{X_1}(\hat{x_1}) {=} K_2 \sin(\sqrt{\mu} \hat{x_1}).
+\end{equation*}
+The second BC in \eqref{eq:bc_ode_x1} results in $K_2 \sin\left(\sqrt{\mu} \frac{L}{x_c}\right) {=} 0$
+which implies that either $K_2 {=} 0$ or $\sin\left(\sqrt{\mu} \frac{L}{x_c}\right) {=} 0$. 
+Choose $K_2 {=} 1$ and set $\sin\left(\sqrt{\mu} \frac{L}{x_c}\right) {=} 0$, so that $\hat{X_1}(\hat{x_1}) {\ne} 0$,
+to arrive at the solution
+\begin{align*}
+	&\hat{X_1}^{(n)}(\hat{x_1}) {=} \sin(\sqrt{\mu_n} \hat{x_1}), \\
+	&\mu_n     {=} \frac{n^2 \pi^2 x_c^2}
+	                    {L^2},
+	 n {=} 1, 2, 3, ....
+\end{align*}
+Note that the SLP (\ref{eq:ode_x2}, \ref{eq:bc_ode_x2}) differs from the SLP 
+(\ref{eq:ode_x1}, \ref{eq:bc_ode_x1}) only in that the characteristic equation has 
+$\tilde{c} {=} \lambda {-} \mu_n$ and thus the solution is
+\begin{align*}
+	&\hat{X_2}^{(m)}(\hat{x_2}) {=} \sin(\sqrt{\lambda_{nm} {-} \mu_m} \hat{x_2}), \\
+	&\lambda_{nm} {=} \pi^2 x_c^2 \left(\frac{n^2}{L^2} {+} \frac{m^2}{M^2}\right),
+	 n, m {=} 1, 2, 3, ....
+\end{align*}
+Therefore the solution of the BVP 
+\eqref{eq:spatial_pde}-\eqref{eq:bcs_homo_phi} is given by
+\begin{align}
+	&\phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}) 
+	 {=} \sin\left(\frac{n \pi \hat{x_1} x_c}{L}\right)Y_1^{(n)}(y_1)
+	     \sin\left(\frac{m \pi \hat{x_2} x_c}{M}\right)Y_2^{(m)}(y_2),
+	 \label{eq:spatial_sol} \\
+	&\lambda_{nm} {=} \pi^2 x_c^2 \left(\frac{n^2}{L^2} {+} \frac{m^2}{M^2}\right),
+	 n, m {=} 1, 2, 3, ...
+	 \label{eq:sep_const}
+\end{align}
+Thus the solution of the BVP (\ref{eq:Greens_func_pde}, \ref{eq:Greens_func_bc}) is
+\begin{equation*}
+	G_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) {=} \phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}) \eta_{nm}(\hat{t}{-}\tau).
+\end{equation*}
+Since $G_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau)$ is a set of infinite solutions and a superposition of 
+solutions is also a solution then $G_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau)$ can be written as an 
+infinite sum, \ie,
+\begin{equation}
+	G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) {=} \sum_{n,m {=} 1}^{\infty} \phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}) \eta_{nm}(\hat{t}{-}\tau).
+	\label{eq:variable_sol}
+\end{equation}
+Now $\eta_{nm}(\hat{t}{-}\tau)$ must be solved via the ODE
+\begin{equation*}
+	\eta'_{nm}(\hat{t}{-}\tau) {+} \lambda_{nm} \eta_{nm}(\hat{t}{-}\tau) {=} 0 \tag{\ref{eq:time_ode}}.
+\end{equation*}
+This equation is a first order linear ODE which can be solved by multiplying it 
+by an integrating factor, so that the LHS is the result of an application of the 
+product rule and thus can be written as a derivative of the product between the 
+dependent term, $\eta_{nm}(\hat{t}{-}\tau)$, and the integrating factor, after which it can 
+be integrated \wrt the independent variable, $\hat{t}$. Using this technique with the 
+integrating factor $e^{\lambda_{nm} (\hat{t}{-}\tau)}$ obtains  
+\begin{equation*}
+	e^{\lambda_{nm} (\hat{t}{-}\tau)} \eta_{nm}(\hat{t}{-}\tau) {=} K_{nm}, 
+	K_{nm} {\in} \mathbb{R}.
+\end{equation*}
+Multiplying the above by $e^{\minus \lambda_{nm} (\hat{t}{-}\tau)}$ results with the general solution
+\begin{equation}
+	\eta_{nm}(\hat{t}{-}\tau) {=} K_{nm} e^{\minus \lambda_{nm} (\hat{t}{-}\tau)},
+	K_{nm} {\in} \mathbb{R}
+	\label{eq:time_depen_sol}
+\end{equation}
+Applying the initial condition (IC) \eqref{eq:Greens_func_ic} to acquire a 
+formulation of $K_{nm}$ which in turn obtains the particular solution, results in
+\begin{equation*}
+	G(\boldsymbol{\hat{x}}, \boldsymbol{y}, 0) {=} \sum_{n,m {=} 1}^{\infty} \eta_{nm}(0) \phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y})
+	                                           {=} \delta(\boldsymbol{\hat{x}} {-} \boldsymbol{y}).
+\end{equation*}
+By the rules of exponents $e^0 {=} 1$ it is easily shown that $\eta_{nm}(0) {=} K_{nm}$ and therefore
+\begin{equation*}
+    \sum_{n,m {=} 1}^{\infty} K_{nm} \phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}) {=} \delta(\boldsymbol{\hat{x}} {-} \boldsymbol{y}).
+\end{equation*}
+If we let $K_{nm} {=} \frac{4 x_c^2}{LM}$, $Y_1(y_1) {=} \sin\left(\frac{n \pi x_c y_1}{L}\right)$, $Y_2(y_2) {=} \sin\left(\frac{m \pi x_c y_2}{M}\right)$ then
+\begin{align*}
+    &\frac{4 x_c^2}{LM} \sum_{n, m {=} 1}^{\infty} \sin\left(\frac{n \pi x_c \hat{x_1}}{L}\right)
+	                                               \sin\left(\frac{m \pi x_c \hat{x_2}}{M}\right)
+	                                              \sin\left(\frac{n \pi x_c y_1}{L}\right)
+	                                              \sin\left(\frac{m \pi x_c y_2}{M}\right)\\
+    &{=} \delta(\boldsymbol{\hat{x}} {-} \boldsymbol{y})
+\end{align*}
+is the Fourier sine series of $\delta(\boldsymbol{\hat{x}} - \boldsymbol{y})$.
+Thus Green's function is given by
+\begin{align}
+G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) &{=} \frac{4 x_c^2}{LM} \sum_{n, m {=} 1}^{\infty} \phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}) \eta_{nm}(\hat{t}{-}\tau),
+\label{eq:Greens_func}\\
+\phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}) &{=} \sin\left(\frac{n \pi x_c \hat{x_1}}{L}\right)
+	                                           \sin\left(\frac{m \pi x_c \hat{x_2}}{M}\right)
+	                                           \sin\left(\frac{n \pi x_c y_1}{L}\right)
+	                                           \sin\left(\frac{m \pi x_c y_2}{M}\right).
+\nonumber
+\end{align}
+Therefore the solution of the IBVP \eqref{eq:DimensionlessPDE}-\eqref{eq:DimensionlessIC} is
+\begin{align}
+\hat{c}(\boldsymbol{\hat{x}}, \hat{t}) &{=} \int_{0}^{\hat{t}} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} \hat{F}(\boldsymbol{y}, \tau) G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dS_y d\tau \nonumber\\
+               &{+} \frac{f_c D}{F_c x_c^2} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} f(\boldsymbol{y}) G(\boldsymbol{x}, \boldsymbol{y}, t) dS_y \nonumber\\
+               &{+} \frac{g_c^{(1)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{M}{x_c}} \hat{g_1}(y_2, \tau) H_1(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_2 d\tau \label{eq:carcin_sol}\\
+               &{+} \frac{g_c^{(2)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{M}{x_c}} \hat{g_2}(y_2, \tau) H_2(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_2 d\tau \nonumber\\
+               &{+} \frac{g_c^{(3)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{L}{x_c}} \hat{g_3}(y_1, \tau) H_3(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_1 d\tau \nonumber\\
+               &{+} \frac{g_c^{(4)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{L}{x_c}} \hat{g_4}(y_1, \tau) H_4(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_1 d\tau \nonumber\\
+H_1(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) &{=} G_{y_2}(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) |_{y_1{=}0}, \tag{\ref{eq:H1}}\\
+H_2(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) &{=} {-} G_{y_2}(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) |_{y_1{=}\frac{L}{x_c}}, \tag{\ref{eq:H2}}\\
+H_3(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) &{=} G_{y_1}(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) |_{y_2{=}0}, \tag{\ref{eq:H3}}\\
+H_4(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) &{=} {-} G_{y_1}(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) |_{y_2{=}\frac{M}{x_c}}, \tag{\ref{eq:H4}}\\
+G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) &{=} \frac{4 x_c^2}{LM} \sum_{n, m {=} 1}^{\infty} \phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}) \eta_{nm}(\hat{t}{-}\tau), \tag{\ref{eq:Greens_func}}\\
+\phi_{nm}(\boldsymbol{\hat{x}}, \boldsymbol{y}) &{=} \sin\left(\frac{n \pi x_c \hat{x_1}}{L}\right)\sin\left(\frac{m \pi x_c \hat{x_2}}{M}\right)
+	                                                 \sin\left(\frac{n \pi x_c y_1}{L}\right)\sin\left(\frac{m \pi x_c y_2}{M}\right), \tag{\ref{eq:spatial_sol}}\\
+\eta_{nm}(\hat{t}) &{=} e^{\minus \lambda_{nm} \hat{t}}, \tag{\ref{eq:time_depen_sol}}\\
+\lambda_{nm} &{=} \pi^2 x_c^2 \left(\frac{n^2}{L^2} {+} \frac{m^2}{M^2}\right),
+\tag{\ref{eq:sep_const}}\\
+F_c &{=} \max_{\boldsymbol{x}, t} | F(\boldsymbol{x}, t) |,
+\tag{\ref{eq:characteristicSourceTerm}}\\
+g_c^{(1)} &{=} \max_{x_2, t} | g_1(x_2, t) |, g_c^{(2)} {=} \max_{x_2, t} | g_2(x_2, t) |,
+\tag{\ref{eq:characteristicBC1}}\\
+g_c^{(3)} &{=} \max_{x_1, t} | g_3(x_1, t) |, g_c^{(4)} {=} \max_{x_1, t} | g_1(x_1, t) |
+\tag{\ref{eq:characteristicBC2}}\\
+f_c &{=} \max_{\boldsymbol{x}} | f(\boldsymbol{x}) |,
+\tag{\ref{eq:characteristicIC}}\\
+x_c &{=} \max(L, M).
+\tag{\ref{eq:characteristicSpaceVar}}
+\end{align}
+
+When considering $C {>} 1$ carcinogens each carcinogen evolves using the same PDE model described above with each solution and the parameters of the model being distinguished by an index $i {=} 1, ..., C$.
+
+\end{document}
