@@ -1,14 +1,14 @@
-% A workaround to allow relative paths in included subfiles
-% that are to be compiled separately
-% See https://tex.stackexchange.com/questions/153312/subfiles-inside-a-subfile-using-relative-paths
 \providecommand{\main}{..}
 \documentclass[\main/thesis.tex]{subfiles}
 
 \begin{document}
 
-% environment for abstract.
 \begin{abstract}
+Field Cancerization is a hypothesis for the formation of cancer in certain types of tissues. It proposes the idea that a tumour can form in a “field” of cells that are predetermined for the development of cancer. Further, it is hypothesized that these fields are mainly caused by the onslaught of carcinogens on the tissue. Lastly, field cancerization proposes that tumour recurrence is related to the tumour being excised without fully removing the surrounding field. 
 
+The model we propose is a hybrid cellular automaton (CA) used to verify the previously stated propositions and determine how long cancer development will take. The CA is considered to be hybrid due to its’ rule depending on the results of partial differential equations (PDEs) and a multi-layer perceptron (MLP). The PDEs represent the spread of carcinogens in the tissue, while the MLP computes the effects of the carcinogens on the gene expression of the genes related to cancer development in the tissue under consideration. 
+
+We apply the model to field cancerization of the tongue. Most of the parameters of the model were chosen and are not based upon real data, as the necessary data was not available. This includes the choice of substituting nicotine, which is a mutagen but not currently listed as a carcinogen, to represent the carcinogen impacts of smoking tobacco. According to Health Canada tobacco contains over 4,000 chemicals, of which more than 70 are carcinogens \cite{canada.ca}. Many researchers are investigating how nicotine contributes to the development of cancer due to its use in non-tobacco products such as e-cigarettes and nicotine patches. One such study by \textcite{Sanner} suggests that nicotine has several cancer-causing effects including speeding up cell growth, it is poisonous to cells, it kick-starts a process that is an important step in the path toward malignant cell growth, and it decreases the tumour suppressor CHK2. Therefore, we considered the readily available data with regards to nicotine as an appropriate choice to substitute for the over 70 carcinogens in tobacco. The other carcinogen considered in this thesis is ethanol to represent alcohol consumption. It was found that nicotine was a more potent carcinogen than ethanol. The combined impact of both ethanol and nicotine resulted in more aggressive cancer growth. It was verified that removing the field results in recurrence taking longer to occur than if the field is not removed. We also tracked cell lineages and found that as the field develops, the number of distinct cell lines decreases. Finally, we found that most tumour masses formed via polyclonal origin instead of monoclonal origin, though both occur within the simulations.  
 \end{abstract}
 
 \end{document}
