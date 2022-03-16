@@ -10,6 +10,7 @@ of tongue carcinomas.
 3. The stability of the program has only been checked up to a time step of 10966 and grid size of 1024.
 4. If you want to consider more carcinogens you need to update the main.cu file and change the appropriate variables.
 5. If you want to consider different genes you will have to edit the appropriate variables.
+6. The program might not run in a cloud environment like GoogleCloud since it depends on being able to display a GUI.
 
 # Compile
 To compile the program run the bin/compile.sh bash script in the directory you want the program.
