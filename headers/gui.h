@@ -22,21 +22,22 @@ struct GUI {
     cudaGraphicsResource *resrcs[nWindows];
     uchar4 *devPtrs[nWindows]; size_t sizes[nWindows];
     void *dataBlock;
-    void (*fAnimCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
-                    unsigned, unsigned,unsigned,bool*,bool*);
+    void (*fAnimCA)(uchar4*,unsigned,void*,unsigned,bool,bool*,bool,
+                    unsigned*, unsigned*,unsigned*, unsigned, bool*,bool*);
     void (*fAnimLineage)(uchar4*,unsigned,void*,unsigned,
                          unsigned,unsigned,bool,bool);
     void (*fAnimCarcin)(uchar4*,unsigned,void*,unsigned,
                         unsigned,bool,bool);
     void (*fAnimCell)(uchar4*,unsigned,void*,
                       unsigned,unsigned,bool);
-    void (*fAnimTimerAndSaver)(void*,bool,unsigned,bool,bool);
+    void (*fAnimTimerAndSaver)(void*,bool,unsigned,bool,bool,bool);
     bool display, paused, excise, *perfectExcision, windowsShouldClose,
-         detached[nWindows-1], keys[9], *activeCarcin;
+         detached[nWindows-1], keys[9], *activeCarcin, earlyStop;
     unsigned width, height, ticks, gridSize, *maxT, currLineage, currState,
-             *nCarcin, maxNCarcin, currCarcin, currContext,
-             currCell[2], radius, centerX, centerY;
-    char lineageWindowNames[nLineageWindows][25], **carcinNames;
+             *nCarcin, maxNCarcin, currCarcin, currContext, currCell[2],
+             *radius, *centerX, *centerY, currExcisionIdx,
+             numExcisionLocations, maxNumExcisionLocations;
+    char lineageWindowNames[nLineageWindows][30], **carcinNames;
 
     GUI()
     {
@@ -60,10 +61,16 @@ struct GUI {
         dataBlock = d;
         display = show;
         paused = false;
+        earlyStop = false;
         if (display) paused = true;
         excise = false;
         perfectExcision = perfectexcision;
-        radius = 0;
+        numExcisionLocations = 0;
+        maxNumExcisionLocations = 50;
+        radius = (unsigned*) malloc(maxNumExcisionLocations * sizeof(unsigned));
+        centerX = (unsigned*) malloc(maxNumExcisionLocations * sizeof(unsigned));
+        centerY = (unsigned*) malloc(maxNumExcisionLocations * sizeof(unsigned));
+        currExcisionIdx = 0;
         gridSize = gSize;
         maxT = T;
         nCarcin = ncarcin; maxNCarcin = maxncarcin;
@@ -75,10 +82,10 @@ struct GUI {
             return;
 
         for (i = 0; i < nLineageWindows; i++)
-            memset(lineageWindowNames[i], '\0', 20);
+            memset(lineageWindowNames[i], '\0', 30);
         strcpy(lineageWindowNames[0], "Gene Families");
         strcpy(lineageWindowNames[1], "Lineage Heatmap");
-        strcpy(lineageWindowNames[2], "Top Ten Lineages Overall");
+        strcpy(lineageWindowNames[2], "Top Twenty Lineages Overall");
         if (carNames != NULL) {
             carcinNames = (char**)malloc(maxNCarcin*sizeof(char*));
             for (i = 0; i < maxNCarcin; i++) {
@@ -149,6 +156,10 @@ struct GUI {
             free(carcinNames); carcinNames = NULL;
         }
 
+        if (radius != NULL) free(radius);
+        if (centerX != NULL) free(centerX);
+        if (centerY != NULL) free(centerY);
+
         for (i = 0; i < nWindows; i++) {
             if (!windows[i]) continue;
             CudaSafeCall(cudaGraphicsUnregisterResource(resrcs[i]));
@@ -205,8 +216,8 @@ struct GUI {
 
         if (windowIdx == CA_GRID)
             fAnimCA(devPtrs[windowIdx], width, dataBlock, ticks, display,
-                    paused, excise, radius, centerX, centerY,
-                    &windowsShouldClose, keys);
+                    &paused, excise, radius, centerX, centerY, numExcisionLocations,
+                    &earlyStop, keys);
         else if (windowIdx == LINEAGE_INFO)
             fAnimLineage(devPtrs[windowIdx], width, dataBlock, idx1, idx2,
                          ticks, display, paused);
@@ -225,20 +236,20 @@ struct GUI {
                 draw(windowIdx, width, height);
     }
 
-    void anim(void(*fCA)(uchar4*,unsigned,void*,unsigned,bool,bool,bool,
-                         unsigned,unsigned,unsigned,bool*,bool*),
+    void anim(void(*fCA)(uchar4*,unsigned,void*,unsigned,bool,bool*,bool,
+                         unsigned*,unsigned*,unsigned*,unsigned,bool*,bool*),
               void(*fLineage)(uchar4*,unsigned,void*,unsigned,
                               unsigned,unsigned,bool,bool),
               void(*fCarcin)(uchar4*,unsigned,void*,unsigned,
                              unsigned,bool,bool),
               void(*fCell)(uchar4*,unsigned,void*,
                            unsigned,unsigned,bool),
-              void(*fTimeAndSave)(void*,bool,unsigned,bool,bool))
+              void(*fTimeAndSave)(void*,bool,unsigned,bool,bool,bool))
     {
         unsigned i, j, idx,
         //                      s    e    p   c   a   b    x    h    o
                  keyVal[9] = { 115, 101, 112, 99, 97, 98, 120, 104, 111 };
-        bool exciseBefore, displayBefore, changeMaxT;
+        bool exciseBefore, displayBefore, changeMaxT, nKeyHit;
         int xpos, ypos, key;
         struct termios oldt;
         char cellName[18] = { '\0' }, stateNames[7][8] = { { '\0' } };
@@ -268,7 +279,7 @@ struct GUI {
 
         while (!windowsShouldClose) {
             exciseBefore = excise; displayBefore = display;
-            changeMaxT = false;
+            changeMaxT = false; nKeyHit = false;
             for (i = 0; i < 9; i++)
                 keys[i] = false;
             set_terminal_mode(&oldt);
@@ -276,7 +287,10 @@ struct GUI {
                 key = getch();
                 if (key == 32) // space bar
                     paused ? paused = false : paused = true;
-                else if (key == 27) // ESC key
+                else if (key == 78 && paused) {// n key
+                    paused = false;
+                    nKeyHit = true;
+                } else if (key == 27) // ESC key
                     windowsShouldClose = true;
                 else if (key == 107) // k key
                     excise ? excise = false : excise = true;
@@ -294,11 +308,19 @@ struct GUI {
             fflush(stdout);
             if (excise && exciseBefore != excise) {
                 printf("Excision mode is activated.\n");
-                printf("Pick circle center location (0-%d 0-%d): ",
-                       gridSize, gridSize);
-                scanf("%d %d", &centerX, &centerY);
-                printf("Pick the radius of excision: ");
-                scanf("%d", &radius);
+                if (!(*perfectExcision)) {
+                    user_input("How many excision location do you want to specify? (max is %d) ", "%d",
+                               maxNumExcisionLocations - currExcisionIdx, &numExcisionLocations, 0,
+                               maxNumExcisionLocations - currExcisionIdx);
+                    numExcisionLocations += currExcisionIdx;
+                    for (i = currExcisionIdx; i < numExcisionLocations; i++) {
+                        user_input("Pick circle center location (0-%d 0-%d): ", "%d,%d",
+                                   gridSize - 1, gridSize - 1, &centerX[i], 0, gridSize - 1,
+                                   &centerY[i], 0, gridSize - 1);
+                        user_input("Pick the radius of excision: ", "%d", &radius[i], 0, (int) round(gridSize / 2.0));
+                    }
+                    currExcisionIdx = i;
+                }
             }
             else if (!excise && exciseBefore != excise)
                 printf("Excision mode is deactivated.\n");
@@ -308,10 +330,8 @@ struct GUI {
                         if (display) show_window(windows[i]);
                         else hide_window(windows[i]);
                     }
-            if (changeMaxT) {
-                printf("Pick a new maximum time (<999999): ");
-                scanf("%u", maxT);
-            }
+            if (changeMaxT) user_input("Pick a new maximum time (%u-999999): ", "%u",
+                                       *maxT, maxT, *maxT, 999999);
 
             if (glfwWindowShouldClose(windows[CA_GRID])
              || glfwWindowShouldClose(windows[LINEAGE_INFO])
@@ -332,6 +352,11 @@ struct GUI {
                 }
             }
 
+            if (windowsShouldClose)
+                for (i = 0; i < nWindows; i++)
+                    if (i == CA_GRID || detached[i-1])
+                        hide_window(windows[i]);
+
             glfwGetWindowPos(windows[currContext], &xpos, &ypos);
             for (i = 0; i < nWindows; i++) {
                 if (i == currContext) continue;
@@ -343,7 +368,7 @@ struct GUI {
 
             if (display && (detached[0] || currContext == LINEAGE_INFO)) {
                 if (currLineage == 2)
-                    sprintf(lineageWindowNames[2], "Top Ten Lineages %s",
+                    sprintf(lineageWindowNames[2], "Top Twenty Lineages %s",
                             stateNames[currState]);
                 glfwSetWindowTitle(windows[LINEAGE_INFO],
                                    lineageWindowNames[currLineage]);
@@ -359,7 +384,7 @@ struct GUI {
 
             if (!paused || windowsShouldClose)
                 fAnimTimerAndSaver(dataBlock, true, ticks, paused,
-                                   windowsShouldClose);
+                                   windowsShouldClose, earlyStop);
 
             update_window(CA_GRID, ticks);
             if (paused) glfwSwapBuffers(windows[CA_GRID]);
@@ -391,18 +416,19 @@ struct GUI {
                     }
                 }
 
-            if (windowsShouldClose)
-                for (i = 0; i < nWindows; i++)
-                    if (i == CA_GRID || detached[i-1])
-                        hide_window(windows[i]);
-
             if (!paused || windowsShouldClose)
                 fAnimTimerAndSaver(dataBlock, false, ticks, paused,
-                                   windowsShouldClose);
+                                   windowsShouldClose, earlyStop);
 
-            if (!paused) ticks++;
+            if (!paused) {
+                ticks++;
+                currExcisionIdx = 0;
+                numExcisionLocations = 0;
+            }
 
-            if (ticks == *maxT+1) break;
+            if (nKeyHit) paused = true;
+
+            if (ticks == *maxT+1 || earlyStop) break;
         }
     }
 
@@ -528,24 +554,27 @@ struct GUI {
                 }
                 break;
             case GLFW_KEY_UP:
-                if (action == GLFW_PRESS)
+                if (action == GLFW_PRESS && gui->currLineage == 2)
                     change_current(&gui->currState, 7);
                 break;
             case GLFW_KEY_DOWN:
-                if (action == GLFW_PRESS)
+                if (action == GLFW_PRESS && gui->currLineage == 2)
                     change_current(&gui->currState, 7, false);
                 break;
             case GLFW_KEY_0:
                 if (action == GLFW_PRESS)
-                    gui->currState = 0;
+                    gui->currLineage == 2 ? gui->currState = 0
+                                          : gui->currLineage = 0;
                 break;
             case GLFW_KEY_1:
                 if (action == GLFW_PRESS)
-                    gui->currState = 1;
+                    gui->currLineage == 2 ? gui->currState = 1
+                                          : gui->currLineage = 1;
                 break;
             case GLFW_KEY_2:
                 if (action == GLFW_PRESS)
-                    gui->currState = 2;
+                    gui->currLineage == 2 ? gui->currState = 2
+                                          : gui->currLineage = 2;
                 break;
             case GLFW_KEY_3:
                 if (action == GLFW_PRESS)
@@ -761,7 +790,8 @@ struct GUI {
     {
         GUI *gui = *(get_gui_ptr());
         double xpos, ypos;
-        int cellX, cellY;
+        int cellX, cellY, radiusInput;
+        char userInput;
 
         if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
             glfwGetCursorPos(window, &xpos, &ypos);
@@ -773,16 +803,39 @@ struct GUI {
 
             if (cellX >= gui->gridSize) cellX = gui->gridSize - 1;
             if (cellY >= gui->gridSize) cellY = gui->gridSize - 1;
+
+            if (gui->ticks != 0 && gui->paused) {
+                system("tput init");
+                printf("You chose the cell location (%d, %d)\n",
+                       cellX, cellY);
+                user_input("Do you want to change the location? (Y/N) ", "%c", &userInput, "N,Y");
+                if (userInput == 'Y') {
+                    do {
+                        user_input("Pick the cell location (0-%d 0-%d): ", "%d,%d",
+                                   gui->gridSize - 1, gui->gridSize - 1, &cellX, 0, gui->gridSize - 1,
+                                   &cellY, 0, gui->gridSize - 1);
+                        user_input("You chose (%d, %d) for the location, is this correct? (Y/N) ", "%c",
+                                   cellX, cellY, &userInput, "N,Y");
+                    } while (userInput == 'N');
+                }
+            }
             gui->currCell[0] = cellX;
             gui->currCell[1] = cellY;
 
-            if (!(*gui->perfectExcision) && gui->excise && gui->paused) {
-                gui->centerX = cellX;
-                gui->centerY = cellY;
-                printf("Circle center location (%d, %d)\n",
-                       gui->centerX, gui->centerY);
-                printf("Pick the radius of excision: ");
-                scanf("%d", &gui->radius);
+
+            if (!(*gui->perfectExcision) && gui->excise && gui->paused
+                && gui->numExcisionLocations != gui->maxNumExcisionLocations) {
+                do {
+                    user_input("Pick the radius of excision (>= 0, -1 to cancel): ", "%d",
+                               &radiusInput, -1, (int) round(gui->gridSize / 2.0));
+                    user_input("You chose %d for the radius, is this correct? (Y/N) ", "%c", radiusInput, &userInput, "N,Y");
+                } while (userInput == 'N');
+                if (radiusInput > -1) {
+                    gui->radius[gui->currExcisionIdx] = radiusInput;
+                    gui->centerX[gui->currExcisionIdx] = cellX;
+                    gui->centerY[gui->currExcisionIdx++] = cellY;
+                    gui->numExcisionLocations++;
+                } else printf("You cancelled the excision.\n");
             }
         }
     }

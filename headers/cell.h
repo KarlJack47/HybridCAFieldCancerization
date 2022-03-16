@@ -2,10 +2,10 @@
 #define __CELL_H__
 
 struct CellParams {
-    unsigned nPheno, nNeigh, minMut;
+    unsigned nPheno, nNeigh, minMut, minNumSC, maxNumEmpty, maxTACDivisions;
     double mutThresh, phenoIncr, exprAdjMaxIncr;
-    double chanceMove, chanceKill, chanceUpreg, chancePhenoMut, chanceExprAdj,
-           chanceCSCForm;
+    double chancePhenoAdj, chanceGeneExprAdj, chanceMove, chanceKill,
+           chanceUpreg, chanceTACProlif, chanceCSCForm, chanceDediff;
     gene CSCGeneIdx;
 
     effect *upregPhenoMap, *downregPhenoMap;
@@ -17,43 +17,68 @@ struct CellParams {
     CellParams(unsigned nStates, unsigned nGenes, unsigned minmut,
                double chancecscform, double alpha, effect *upregphenomap,
                effect *downregphenomap, ca_state *diffmap, gene_type *genetype,
-               gene_related *generelations, double *phenoinit=NULL)
+               gene_related *generelations, double cellCycleLen,
+               double cellLifeSpan, double *phenoinit=NULL)
     : nPheno(4), nNeigh(8), phenoIncr(1e-6), exprAdjMaxIncr(1.0/sqrt(alpha)),
-      mutThresh(0.1), minMut(minmut), chanceCSCForm(chancecscform), CSCGeneIdx(RB),
-      chanceMove(0.25), chanceKill(0.4), chanceUpreg(0.5), chancePhenoMut(1.0),
-      chanceExprAdj(1.0)
+      mutThresh(0.1), minMut(minmut), chanceCSCForm(chancecscform),
+      chanceDediff(1e-4), minNumSC(0), maxNumEmpty(6),
+      chancePhenoAdj(0.35), chanceGeneExprAdj(0.45), chanceMove(0.25),
+      chanceKill(0.20), chanceUpreg(0.5),
+      maxTACDivisions(2), chanceTACProlif(1.0 / 3.0)
     {
         size_t dbl = sizeof(double), eff = sizeof(effect),
                st = sizeof(ca_state), gType = sizeof(gene_type),
                gRel = sizeof(gene_related);
+        double SCLifeSpan = 25550.0, apopFactor = 1.625,
+               NCProlifFactor = 0.65, SCProlifFactor = 14.75,
+               compFactor = 1.485, diffFactor = 1.0 / 6.0;
 
         CudaSafeCall(cudaMallocManaged((void**)&phenoInit, nStates*nPheno*dbl));
+        memset(phenoInit, 0.0, nStates*nPheno*dbl);
         if (phenoinit == NULL) {
-            phenoInit[ NC * nPheno + PROLIF] = 0.024000;
-            phenoInit[MNC * nPheno + PROLIF] = 0.024000;
-            phenoInit[ SC * nPheno + PROLIF] = 0.014000;
-            phenoInit[MSC * nPheno + PROLIF] = 0.007000;
-            phenoInit[CSC * nPheno + PROLIF] = 0.000625;
-            phenoInit[ TC * nPheno + PROLIF] = 0.000625;
-            phenoInit[ NC * nPheno +  QUIES] = 0.966000;
-            phenoInit[MNC * nPheno +  QUIES] = 0.971000;
-            phenoInit[ SC * nPheno +  QUIES] = 0.956000;
-            phenoInit[MSC * nPheno +  QUIES] = 0.966550;
-            phenoInit[CSC * nPheno +  QUIES] = 0.991875;
-            phenoInit[ TC * nPheno +  QUIES] = 0.992500;
-            phenoInit[ NC * nPheno +   APOP] = 0.010000;
-            phenoInit[MNC * nPheno +   APOP] = 0.005000;
-            phenoInit[ SC * nPheno +   APOP] = 0.005000;
-            phenoInit[MSC * nPheno +   APOP] = 0.002500;
-            phenoInit[CSC * nPheno +   APOP] = 0.001250;
-            phenoInit[ TC * nPheno +   APOP] = 0.001250;
-            phenoInit[ NC * nPheno +   DIFF] = 0.000000;
-            phenoInit[MNC * nPheno +   DIFF] = 0.000000;
-            phenoInit[ SC * nPheno +   DIFF] = 0.025000;
-            phenoInit[MSC * nPheno +   DIFF] = 0.025000;
-            phenoInit[CSC * nPheno +   DIFF] = 0.006250;
-            phenoInit[ TC * nPheno +   DIFF] = 0.000000;
-            memset(phenoInit+EMPTY*nPheno, 0, nPheno*dbl);
+            phenoInit[ NC * nPheno +   APOP] = cellCycleLen / cellLifeSpan;
+            phenoInit[MNC * nPheno +   APOP] = phenoInit[NC*nPheno+APOP]
+                                             / apopFactor;
+            phenoInit[ SC * nPheno +   APOP] = cellCycleLen / SCLifeSpan;
+            phenoInit[MSC * nPheno +   APOP] = phenoInit[SC*nPheno+APOP]
+                                             / apopFactor;
+            phenoInit[CSC * nPheno +   APOP] = phenoInit[MSC*nPheno+APOP]
+                                             / (5.0 * apopFactor);
+            phenoInit[ TC * nPheno +   APOP] = phenoInit[MNC*nPheno+APOP]
+                                             / (5.0 * apopFactor);
+
+            phenoInit[ NC * nPheno + PROLIF] = NCProlifFactor * phenoInit[NC*nPheno+APOP];
+            phenoInit[MNC * nPheno + PROLIF] = phenoInit[NC*nPheno+PROLIF];
+            phenoInit[ TC * nPheno + PROLIF] = phenoInit[NC*nPheno+PROLIF];
+            phenoInit[ SC * nPheno + PROLIF] = SCProlifFactor * phenoInit[SC*nPheno+APOP];
+            phenoInit[MSC * nPheno + PROLIF] = phenoInit[SC*nPheno+PROLIF];
+            phenoInit[CSC * nPheno + PROLIF] = phenoInit[SC*nPheno+PROLIF];
+
+            phenoInit[ SC * nPheno + DIFF] = compFactor * diffFactor;
+            phenoInit[MSC * nPheno + DIFF] = phenoInit[SC*nPheno+DIFF];
+            phenoInit[CSC * nPheno + DIFF] = phenoInit[SC*nPheno+DIFF];
+
+            phenoInit[ NC * nPheno +  QUIES] = 1.0
+                                             - (phenoInit[NC*nPheno+PROLIF]
+                                              + phenoInit[NC*nPheno+APOP]);
+            phenoInit[MNC * nPheno +  QUIES] = 1.0
+                                             - (phenoInit[MNC*nPheno+PROLIF]
+                                              + phenoInit[MNC*nPheno+APOP]);
+            phenoInit[ SC * nPheno +  QUIES] = 1.0
+                                             - (phenoInit[SC*nPheno+PROLIF]
+                                              + phenoInit[SC*nPheno+APOP]
+                                              + phenoInit[SC*nPheno+DIFF]);
+            phenoInit[MSC * nPheno +  QUIES] = 1.0
+                                             - (phenoInit[MSC*nPheno+PROLIF]
+                                              + phenoInit[MSC*nPheno+APOP]
+                                              + phenoInit[MSC*nPheno+DIFF]);
+            phenoInit[CSC * nPheno +  QUIES] = 1.0
+                                             - (phenoInit[CSC*nPheno+PROLIF]
+                                              + phenoInit[CSC*nPheno+APOP]
+                                              + phenoInit[CSC*nPheno+DIFF]);
+            phenoInit[ TC * nPheno +  QUIES] = 1.0
+                                             - (phenoInit[TC*nPheno+PROLIF]
+                                              + phenoInit[TC*nPheno+APOP]);
         } else memcpy(phenoInit, phenoinit, nStates*nPheno*dbl);
 
         CudaSafeCall(cudaMallocManaged((void**)&upregPhenoMap,
@@ -127,21 +152,22 @@ struct Cell {
     int device;
     ca_state state;
     unsigned location, age;
-    unsigned *neigh;
+    unsigned *neigh, *testedNeigh, numNeighTested;
     double *phenotype;
     double *geneExprs;
     double *bOut;
+    double fitness;
 
     int chosenPheno, chosenCell;
     int64_t lineage;
-    bool cellRebirth, moved;
-    unsigned *inUse, *actionDone, *actionApplied, excised;
+    bool cellRebirth, moved, isTAC, deDifferentiated, canKill, canMove;
+    unsigned *inUse, *actionDone, *actionApplied, *checked, excised, nTACProlif;
 
     CellParams *params;
 
     Cell(void)
     {
-        neigh = NULL;
+        neigh = NULL; testedNeigh = NULL;
         phenotype = NULL;
         geneExprs = NULL; bOut = NULL;
         inUse = NULL; actionDone = NULL; actionApplied = NULL;
@@ -156,40 +182,41 @@ struct Cell {
     {
         double rnd, S, weightStatesTemp[7] = { 0.0 };
 
-        set_seed();
-
         device = dev;
         params = paramsIn;
         location = x * gridSize + y;
+        fitness = 0.0;
+        lineage = -1;
+        isTAC = false;
 
         if (weightStates == NULL) {
-            weightStatesTemp[NC] = 0.70; weightStatesTemp[SC] = 0.01;
+            weightStatesTemp[NC] = 0.645; weightStatesTemp[SC] = 0.065;
             weightStatesTemp[EMPTY] = 0.29;
         } else memcpy(weightStatesTemp, weightStates, 7*sizeof(double));
         S = weightStatesTemp[NC];
 
         rnd = rand() / (double) RAND_MAX;
-	    if (abs(rnd) <= S)
-	        state = NC;
-	    else if (abs(rnd) <= (S += weightStatesTemp[MNC]))
-	        state = MNC;
-	    else if (abs(rnd) <= (S += weightStatesTemp[SC]))
-	        state = SC;
-	    else if (abs(rnd) <= (S += weightStatesTemp[MSC]))
-	        state = MSC;
-	    else if (abs(rnd) <= (S += weightStatesTemp[CSC]))
-	        state = CSC;
-	    else if (abs(rnd) <= (S += weightStatesTemp[TC]))
-	        state = TC;
-	    else state = EMPTY;
+	if (abs(rnd) <= S)
+	    state = NC;
+	else if (abs(rnd) <= (S += weightStatesTemp[MNC]))
+	    state = MNC;
+	else if (abs(rnd) <= (S += weightStatesTemp[SC]))
+	    state = SC;
+	else if (abs(rnd) <= (S += weightStatesTemp[MSC]))
+	    state = MSC;
+	else if (abs(rnd) <= (S += weightStatesTemp[CSC]))
+	    state = CSC;
+	else if (abs(rnd) <= (S += weightStatesTemp[TC]))
+	    state = TC;
+	else state = EMPTY;
 
-	    if (radius != 0 && check_in_circle(x, y, gridSize, radius, cX, cY)) {
-	        rnd = rand() / (double) RAND_MAX;
-	        S = 0.89; // percentage of TC
-	        if (rnd <= S) state = TC;
-	        else if (rnd <= (S += 0.01)) state = CSC;
-	        else state = EMPTY;
-	    }
+	if (radius != 0 && check_in_circle(x, y, gridSize, radius, cX, cY)) {
+	    rnd = rand() / (double) RAND_MAX;
+	    S = 0.89; // percentage of TC
+	    if (rnd <= S) state = TC;
+	    else if (rnd <= (S += 0.01)) state = CSC;
+	    else state = EMPTY;
+	}
 
         init(x, y, gridSize, nGenes);
 
@@ -207,7 +234,7 @@ struct Cell {
         size_t unsgn = sizeof(unsigned), dbl = sizeof(double);
         unsigned xIncr = (x + 1) % gridSize, yIncr = (y + 1) % gridSize,
                  xDecr = abs((int) (((int) x - 1) % gridSize)),
-                 yDecr = abs((int) (((int) y - 1) % gridSize));
+                 yDecr = abs((int) (((int) y - 1) % gridSize)), i;
 
         CudaSafeCall(cudaMallocManaged((void**)&phenotype, params->nPheno*dbl));
 
@@ -221,22 +248,30 @@ struct Cell {
         neigh[SOUTH_WEST] = xDecr * gridSize + yDecr;
         neigh[NORTH_WEST] = xDecr * gridSize + yIncr;
 
+        numNeighTested = 0;
+        CudaSafeCall(cudaMallocManaged((void**)&testedNeigh, params->nNeigh*unsgn));
+        for (i = 0; i < params->nNeigh; i++)
+            testedNeigh[i] = gridSize * gridSize;
+
         CudaSafeCall(cudaMallocManaged((void**)&geneExprs,
-                                       2*nGenes*dbl));
-        memset(geneExprs, 0, 2*nGenes*dbl);
+                                       nGenes*dbl));
+        memset(geneExprs, 0, nGenes*dbl);
         CudaSafeCall(cudaMallocManaged((void**)&bOut, nGenes*dbl));
         memset(bOut, 0, nGenes*dbl);
 
         chosenPheno = -1; chosenCell = -1;
-        cellRebirth = false; moved = false;
+        deDifferentiated = false;
+        cellRebirth = false; moved = false; canKill = false; canMove = false;
         CudaSafeCall(cudaMallocManaged((void**)&inUse, unsgn));
         *inUse = 0;
         CudaSafeCall(cudaMallocManaged((void**)&actionApplied, unsgn));
         *actionApplied = 0;
         CudaSafeCall(cudaMallocManaged((void**)&actionDone, unsgn));
         *actionDone = 0;
+        CudaSafeCall(cudaMallocManaged((void**)&checked, unsgn));
+        *checked = 0;
         excised = 0;
-        lineage = -1;
+        nTACProlif = 0;
     }
 
     void free_resources(void)
@@ -262,6 +297,12 @@ struct Cell {
         if (actionDone != NULL) {
             CudaSafeCall(cudaFree(actionDone)); actionDone = NULL;
         }
+        if (checked != NULL) {
+            CudaSafeCall(cudaFree(checked)); checked = NULL;
+        }
+        if (testedNeigh != NULL) {
+            CudaSafeCall(cudaFree(testedNeigh)); testedNeigh = NULL;
+        }
     }
 
     void prefetch_memory(int dev, unsigned gSize, unsigned nGenes,
@@ -274,8 +315,11 @@ struct Cell {
         CudaSafeCall(cudaMemPrefetchAsync(neigh,
                                           params->nNeigh*sizeof(unsigned),
                                           dev, *stream));
+        CudaSafeCall(cudaMemPrefetchAsync(testedNeigh,
+                                          params->nNeigh*sizeof(unsigned),
+                                          dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(geneExprs,
-                                          2*nGenes*dbl,
+                                          nGenes*dbl,
                                           dev, *stream));
         CudaSafeCall(cudaMemPrefetchAsync(bOut,
                                           nGenes*dbl,
@@ -285,53 +329,70 @@ struct Cell {
                                           dev, *stream));
     }
 
-    __device__ void adjust_phenotype(unsigned pheno, double incr)
+    __host__ __device__ void adjust_phenotype(unsigned pheno, double incr,
+                                              double *tmpPhenotype=NULL)
     {
-        double incrSign, minIncr = abs(incr), chosenIncr = incr, sum = 0.0;
+        size_t dbl = sizeof(double);
+        double incrSign = 1, minIncr = abs(incr), chosenIncr = incr, sum = 0.0;
+        double incrTest, tempIncr;
+        double phenotypeCpy[4];
 
         if (incr == 0.0) return;
         if ((state == NC || state == MNC || state == TC) && pheno == DIFF)
             return;
 
-        incrSign = incr / abs(incr);
+        if (tmpPhenotype != NULL)
+            memcpy(phenotypeCpy, tmpPhenotype, params->nPheno*dbl);
+        else
+            memcpy(phenotypeCpy, phenotype, params->nPheno*dbl);
 
-        if (phenotype[pheno] + chosenIncr <= 0.0
-         && phenotype[pheno] * 0.99  < minIncr) {
-            minIncr = phenotype[pheno] * 0.99;
+        if (incr < 0.0) incrSign = -1;
+
+        incrTest = phenotypeCpy[pheno] + chosenIncr;
+        if ((isTAC && incrTest < 0.0) || (!isTAC && incrTest <= 0.0)
+         && (tempIncr = phenotypeCpy[pheno] * 0.99)  < minIncr) {
+            minIncr = tempIncr;
             chosenIncr = incrSign * minIncr;
-        } else if (phenotype[pheno] + chosenIncr >= 1.0
-               && (1.0 - phenotype[pheno]) * 0.99 < minIncr) {
-            minIncr = (1.0 - phenotype[pheno]) * 0.99;
+        } else if (incrTest >= 1.0
+               && (tempIncr = (1.0 - phenotypeCpy[pheno]) * 0.99) < minIncr) {
+            minIncr = tempIncr;
             chosenIncr = incrSign * minIncr;
         }
-        if (pheno != QUIES && phenotype[QUIES] - chosenIncr <= 0.0
-         && phenotype[QUIES] * 0.99 < minIncr) {
-            minIncr = phenotype[QUIES] * 0.99;
+        incrTest = phenotypeCpy[QUIES] - chosenIncr;
+        if (pheno != QUIES && incrTest <= 0.0
+         && (tempIncr = phenotypeCpy[QUIES] * 0.99) < minIncr) {
+            minIncr = tempIncr;
             chosenIncr = incrSign * minIncr;
-        } else if (pheno != QUIES && phenotype[QUIES] - chosenIncr >= 1.0
-               && (1.0 - phenotype[QUIES]) * 0.99 < minIncr) {
-            minIncr = (1.0 - phenotype[QUIES]) * 0.99;
+        } else if (pheno != QUIES && incrTest >= 1.0
+               && (tempIncr = (1.0 - phenotypeCpy[QUIES]) * 0.99) < minIncr) {
+            minIncr = tempIncr;
             chosenIncr = incrSign * minIncr;
         }
 
         if (pheno != QUIES) {
-            phenotype[pheno] += chosenIncr;
-            phenotype[QUIES] -= chosenIncr;
+            phenotypeCpy[pheno] += chosenIncr;
+            phenotypeCpy[QUIES] -= chosenIncr;
         } else {
-            phenotype[pheno] += chosenIncr;
-            sum += phenotype[PROLIF] + phenotype[APOP] + phenotype[DIFF];
-            phenotype[PROLIF] -= chosenIncr * (phenotype[PROLIF] / sum);
-            phenotype[  APOP] -= chosenIncr * (phenotype[APOP] / sum);
-            phenotype[  DIFF] -= chosenIncr * (phenotype[DIFF] / sum);
+            phenotypeCpy[pheno] += chosenIncr;
+            sum = phenotypeCpy[PROLIF] + phenotypeCpy[APOP] + phenotypeCpy[DIFF];
+            phenotypeCpy[PROLIF] -= chosenIncr * (phenotypeCpy[PROLIF] / sum);
+            phenotypeCpy[  APOP] -= chosenIncr * (phenotypeCpy[APOP] / sum);
+            phenotypeCpy[  DIFF] -= chosenIncr * (phenotypeCpy[DIFF] / sum);
         }
+
+        if (tmpPhenotype != NULL)
+            memcpy(tmpPhenotype, phenotypeCpy, params->nPheno*dbl);
+        else
+            memcpy(phenotype, phenotypeCpy, params->nPheno*dbl);
     }
 
-    __device__ void normalize()
+    __device__ void normalize(double sumIn=0.0)
     {
         unsigned i;
-        double S = 0.0;
+        double S = sumIn == 0.0 ? 0.0 : sumIn;
 
-        for (i = 0; i < params->nPheno; i++) S += phenotype[i];
+        if (S == 0.0)
+            for (i = 0; i < params->nPheno; i++) S += phenotype[i];
 
         for (i = 0; i < params->nPheno; i++)
             phenotype[i] /= S;
@@ -340,31 +401,33 @@ struct Cell {
     __device__ void change_state(ca_state newState)
     {
         unsigned i;
-        double delta, deltaSign, S;
+        unsigned newStatePheno = newState, statePheno = state;
+        double delta, deltaSign = 1, S = 0.0, incrTest;
+        bool nonSC = (newState == NC || newState == MNC || newState == TC);
 
         if (newState == ERROR) return;
         if (state == newState) return;
 
         for (i = 0; i < params->nPheno; i++) {
-            if ((newState == NC || newState == MNC || newState == TC) && i == DIFF)
+            if (nonSC && i == DIFF)
                 continue;
-            delta = phenotype[i] - params->phenoInit[state*params->nPheno+i];
-            deltaSign = delta / abs(delta);
-            if (params->phenoInit[newState*params->nPheno+i] + delta <= 0.0)
-                delta = deltaSign * params->phenoInit[newState*params->nPheno+i] * 0.99;
-            else if (params->phenoInit[newState*params->nPheno+i] + delta >= 1.0)
-                delta = deltaSign * (1.0 - params->phenoInit[newState*params->nPheno+i]) * 0.99;
-            phenotype[i] = params->phenoInit[newState*params->nPheno+i] + delta;
+            delta = phenotype[i] - params->phenoInit[statePheno*params->nPheno+i];
+            if (delta < 0.0) deltaSign = -1;
+            incrTest = params->phenoInit[newStatePheno*params->nPheno+i] + delta;
+            if (incrTest <= 0.0)
+                delta = deltaSign * params->phenoInit[newStatePheno*params->nPheno+i] * 0.99;
+            else if (incrTest >= 1.0)
+                delta = deltaSign * (1.0 - params->phenoInit[newStatePheno*params->nPheno+i]) * 0.99;
+            phenotype[i] = params->phenoInit[newStatePheno*params->nPheno+i] + delta;
+            S += phenotype[i];
         }
 
         state = newState;
 
         if (state == EMPTY) return;
 
-        S = 0.0;
-        for (i = 0; i < params->nPheno; i++) S += phenotype[i];
         if (abs(S - 1.0) > FLT_EPSILON)
-            normalize();
+            normalize(S);
     }
 
     __device__ int get_phenotype(curandState_t *rndState)
@@ -385,211 +448,266 @@ struct Cell {
     __device__ void copy_mutations(Cell *c, unsigned nGenes)
     {
         unsigned i;
-        double delta, deltaSign, S = 0.0;
+        unsigned statePheno = state;
+        bool nonSC = (c->state == NC || c->state == MNC || c->state == TC);
+        double delta, deltaSign = 1, S = 0.0, incrTest;
 
         if (c->state == EMPTY || state == EMPTY) return;
 
         for (i = 0; i < params->nPheno; i++) {
-            if ((c->state == NC || c->state == MNC || c->state == TC) && i == DIFF)
+            if (nonSC && i == DIFF)
                 continue;
-            delta = phenotype[i] - params->phenoInit[state*params->nPheno+i];
-            if (delta == 0.0) continue;
-            deltaSign = delta / abs(delta);
-            if (c->phenotype[i] + delta <= 0.0)
+            delta = phenotype[i] - params->phenoInit[statePheno*params->nPheno+i];
+            if (delta == 0.0) { S += c->phenotype[i]; continue; }
+            if (delta < 0.0) deltaSign = -1;
+            incrTest = c->phenotype[i] + delta;
+            if (incrTest <= 0.0)
                 delta = deltaSign * c->phenotype[i] * 0.99;
-            else if (c->phenotype[i] + delta >= 1.0)
+            else if (incrTest >= 1.0)
                 delta = deltaSign * (1.0 - c->phenotype[i]) * 0.99;
             c->phenotype[i] += delta;
+            S += c->phenotype[i];
         }
-        for (i = 0; i < params->nPheno; i++) S += c->phenotype[i];
-        if (abs(S - 1.0) > FLT_EPSILON) c->normalize();
+        if (abs(S - 1.0) > FLT_EPSILON)
+            c->normalize(S);
+
         for (i = 0; i < nGenes; i++) {
-            c->geneExprs[i*2] = geneExprs[i*2];
-            c->geneExprs[i*2+1] = geneExprs[i*2+1];
+            c->geneExprs[i] = geneExprs[i];
             c->bOut[i] = bOut[i];
         }
     }
 
     __device__ unsigned positively_mutated(gene M)
     {
-        double geneExpr = geneExprs[M*2] - geneExprs[M*2+1];
+        double geneExpr = geneExprs[M];
 
-        if (geneExpr < 0.0 && geneExprs[M*2+1] >= params->mutThresh) {
+        if (geneExpr < 0.0 && abs(geneExpr) >= params->mutThresh) {
             if (params->geneType[M] == SUPPR)
                 return 1;
-            return 2; // down-regulated
+            return 2; // downregulated
         }
 
-        if (geneExpr > 0.0 && geneExprs[M*2] >= params->mutThresh) {
+        if (geneExpr > 0.0 && geneExpr >= params->mutThresh) {
             if (params->geneType[M] == ONCO)
-                return 1;
-            return 3; // up-regulated
+                return 3;
+            return 4; // upregulated
         }
 
-        return 0;
+        return 0; // not mutated
     }
 
     __device__ int proliferate(Cell *c, curandState_t *rndState,
-                               unsigned gSize, unsigned nGenes)
+                               unsigned gSize, unsigned nGenes,
+                               unsigned *countKills)
     {
-        ca_state newState = ERROR;
-        curandState_t localState;
+        bool CSCorTC = (state == CSC || state == TC),
+             lowerFitness = (fitness <= c->fitness);
 
-        if (state != CSC && state != TC && c->state != EMPTY)
-            return -2;
-        if ((state == CSC || state == TC)
-         && (c->state == TC || c->state == CSC))
+        if (c->state != EMPTY && lowerFitness && !canKill)
             return -2;
 
-        if (state == CSC && !(positively_mutated(params->CSCGeneIdx) == 1))
-            return -1;
-
-        localState = *rndState;
-
-        if ((state == CSC && c->state != EMPTY
-          && curand_uniform_double(&localState) <= params->chanceKill)
-         || (state == TC && c->state != EMPTY
-          && curand_uniform_double(&localState) <= params->chanceKill)
-          || c->state == EMPTY) {
-            newState = state;
-            if (c->state != EMPTY && (state == CSC || state == TC)) {
-                printf("(%d, %d, %d) killed by (%d, %d, %d) via proliferation\n",
-                       c->location / gSize, c->location % gSize, c->state,
-                       location / gSize, location % gSize, state);
-                c->apoptosis(nGenes);
+        if (c->state != EMPTY && (!lowerFitness || canKill)) {
+            if (lowerFitness && canKill) {// by chance (CSC or TC)
+                // Proliferation by state via chance of c->state
+                atomicAdd(&countKills[(state-4)*7+c->state+42], 1);
+                // Proliferation by state via chance overall
+                atomicAdd(&countKills[(state-4)*7+EMPTY+42], 1);
+                // Kill by state via chance overall of c->state
+                atomicAdd(&countKills[(state-4)*7+c->state+140], 1);
+                // Kill by state via chance overall
+                atomicAdd(&countKills[(state-4)*7+EMPTY+140], 1);
+            } else {
+                // Proliferation by state via competition of c->state
+                atomicAdd(&countKills[state*7+c->state], 1);
+                // Proliferation by state via competition overall
+                atomicAdd(&countKills[state*7+EMPTY], 1);
             }
-            c->change_state(newState);
-            copy_mutations(c, nGenes);
-
-            if (lineage == -1) {
-                c->lineage = location + 1;
-                lineage = c->lineage;
-            } else c->lineage = lineage;
-            c->age = 0; age = 0;
+            if (CSCorTC) {
+                // Proliferation by state overall of c->state (competition + chance)
+                atomicAdd(&countKills[(state-4)*7+c->state+56], 1);
+                // Proliferation by state overall (competition + chance)
+                atomicAdd(&countKills[(state-4)*7+EMPTY+56], 1);
+            }
+            if (state != NC && state != MNC) {
+                // Num kill c->state by state overall
+                atomicAdd(&countKills[(state-2)*7+c->state+154], 1);
+                // Num kill by state overall
+                atomicAdd(&countKills[(state-2)*7+EMPTY+154], 1);
+            }
+            c->apoptosis(nGenes);
         }
 
-        *rndState = localState;
+        c->change_state(state);
 
-        return newState;
+        if (isTAC) {
+            if (nTACProlif != params->maxTACDivisions) {
+                nTACProlif++;
+                c->isTAC = true;
+                c->nTACProlif = nTACProlif;
+            } else {
+                adjust_phenotype(0, -params->chanceTACProlif);
+                isTAC = false;
+                nTACProlif = 0;
+            }
+        }
+        copy_mutations(c, nGenes);
+
+        if (lineage == -1) {
+            c->lineage = location;
+            lineage = c->lineage;
+        } else c->lineage = lineage;
+        c->age = 0; age = 0;
+
+        return state;
     }
 
     __device__ int differentiate(Cell *c, curandState_t *rndState,
-                                 unsigned gSize, unsigned nGenes)
+                                 unsigned gSize, unsigned nGenes,
+                                 unsigned *countKills)
     {
         ca_state newState = ERROR;
-        curandState_t localState;
+        bool lowerFitness = (fitness <= c->fitness);
 
         if (state != SC && state != MSC && state != CSC)
             return -1;
 
-        if (state != CSC && c->state != EMPTY)
+        if (c->state != EMPTY && lowerFitness && !canKill)
             return -2;
-        if (state == CSC && (c->state == CSC || c->state == TC))
-            return -2;
-        if (state == CSC && !(positively_mutated(params->CSCGeneIdx) == 1))
-            return -1;
 
-        localState = *rndState;
-
-        if ((state == CSC && c->state != EMPTY
-           && curand_uniform_double(&localState) <= params->chanceKill)
-         || c->state == EMPTY) {
-            newState = params->diffMap[state-2];
-            if (c->state != EMPTY && state == CSC) {
-                printf("(%d, %d, %d) killed by (%d, %d, %d) via differentiation\n",
-                       c->location / gSize, c->location % gSize, c->state,
-                       location / gSize, location % gSize, state);
-                c->apoptosis(nGenes);
+        if (c->state != EMPTY && (!lowerFitness || canKill)) {
+            if (lowerFitness && canKill) {// by chance CSC
+                // Differentiation by state via chance of c->state
+                atomicAdd(&countKills[c->state+91], 1);
+                // Differentiation by state via chance overall
+                atomicAdd(&countKills[EMPTY+91], 1);
+                // Kill by state via chance overall of c->state
+                atomicAdd(&countKills[(state-4)*7+c->state+140], 1);
+                // Kill by state via chance overall
+                atomicAdd(&countKills[(state-4)*7+EMPTY+140], 1);
+            } else {
+                // Differentiation by state via competition of c->state
+                atomicAdd(&countKills[(state-2)*7+c->state+70], 1);
+                // Differentiation by state via competition overall
+                atomicAdd(&countKills[(state-2)*7+EMPTY+70], 1);
+                // Kill by state via competition overall of c->state
+                atomicAdd(&countKills[(state-2)*7+c->state+119], 1);
+                // Kill by state via competition overall
+                atomicAdd(&countKills[(state-2)*7+EMPTY+119], 1);
             }
-            c->change_state(newState);
-            copy_mutations(c, nGenes);
-
-            if (lineage == -1) {
-                c->lineage = location + 1;
-                lineage = c->lineage;
-            } else c->lineage = lineage;
-            c->age = 0; age = 0;
+            if (state == CSC) {
+                // Differentiation by state overall of c->state (competition + chance)
+                atomicAdd(&countKills[c->state+98], 1);
+                // Differentiation by state overall (competition + chance)
+                atomicAdd(&countKills[EMPTY+98], 1);
+            }
+            // Num kill c->state by state overall
+            atomicAdd(&countKills[(state-2)*7+c->state+154], 1);
+            // Num kill by state overall
+            atomicAdd(&countKills[(state-2)*7+EMPTY+154], 1);
+            c->apoptosis(nGenes);
         }
 
-        *rndState = localState;
+        newState = params->diffMap[state-2];
+        c->change_state(newState);
+        copy_mutations(c, nGenes);
+
+        if (lineage == -1) {
+            c->lineage = location;
+            lineage = c->lineage;
+        } else c->lineage = lineage;
+        c->age = 0; age = 0;
+        c->isTAC = true;
+        c->adjust_phenotype(0, params->chanceTACProlif);
 
         return newState;
     }
 
     __device__ int move(Cell *c, curandState_t *rndState,
-                        unsigned gSize, unsigned nGenes)
+                        unsigned gSize, unsigned nGenes,
+                        unsigned *countKills)
     {
-        curandState_t localState;
+        bool CSCorTC = (state == CSC || state == TC);
 
-        if ((state != CSC || state != TC) && c->state != EMPTY)
+        if (!CSCorTC && c->state != EMPTY) return -2;
+
+        if (!canMove)
             return -2;
-        if ((state == CSC || state == TC)
-         && (c->state == CSC || c->state == TC))
-            return -2;
 
-        localState = *rndState;
+        if (c->state != EMPTY && !canKill) return -2;
 
-        if (curand_uniform_double(&localState) <= params->chanceMove) {
-            if (((state == CSC || state == TC) && c->state != EMPTY
-               && curand_uniform_double(&localState) <= params->chanceKill)
-			 || c->state == EMPTY) {
-			    if (c->state != EMPTY && (state == CSC || state == TC)) {
-			        printf("(%d, %d, %d) killed by (%d, %d, %d) via movement\n",
-			               c->location / gSize, c->location % gSize, c->state,
-			               location / gSize, location % gSize, state);
-			        c->apoptosis(nGenes);
-			    }
-                c->change_state(state);
-                copy_mutations(c, nGenes);
-                c->age = age;
-                c->lineage = lineage;
-                apoptosis(nGenes);
-            }
+        // Only CSC and TC can do this
+        if (c->state != EMPTY && canKill) {
+            // Movement by state via chance of c->state
+            atomicAdd(&countKills[(state-4)*7+c->state+105], 1);
+            // Movement by state via chance overall
+            atomicAdd(&countKills[(state-4)*7+EMPTY+105], 1);
+            // Kill by state via chance overall of c->state
+            atomicAdd(&countKills[(state-4)*7+c->state+140], 1);
+            // Kill by state via chance overall
+            atomicAdd(&countKills[(state-4)*7+EMPTY+140], 1);
+            // Num kill c->state by state overall
+            atomicAdd(&countKills[(state-2)*7+c->state+154], 1);
+            // Num kill by state overall
+            atomicAdd(&countKills[(state-2)*7+EMPTY+154], 1);
+            c->apoptosis(nGenes);
         }
 
-        *rndState = localState;
+        c->change_state(state);
+        copy_mutations(c, nGenes);
+        c->age = age;
+        c->lineage = lineage;
+        if (isTAC) {
+            c->isTAC = isTAC;
+            c->nTACProlif = nTACProlif;
+        }
+        apoptosis(nGenes);
 
-        return 0;
+        return c->state;
     }
 
     __device__ void apoptosis(unsigned nGenes)
     {
         unsigned i;
 
+        if (state == EMPTY) return;
+
         state = EMPTY;
         for (i = 0; i < params->nPheno; i++)
              phenotype[i] = params->phenoInit[EMPTY*params->nPheno+i];
         for (i = 0; i < nGenes; i++) {
-            geneExprs[i*2] = 0.0;
-			geneExprs[i*2+1] = 0.0;
-			bOut[i] = 0.0;
+            geneExprs[i] = 0.0;
+            bOut[i] = 0.0;
         }
         age = 0;
         lineage = -1;
+        if (isTAC) {
+            isTAC = false;
+            nTACProlif = 0;
+        }
+        fitness = 0.0;
     }
 
     __device__ void phenotype_mutate(gene M, curandState_t *rndState)
     {
         unsigned i;
         double incr = params->phenoIncr;
-        double geneExpr = geneExprs[M*2] - geneExprs[M*2+1];
-        curandState_t localState;
+        unsigned mutInfo = positively_mutated(M);
+        curandState_t localState = *rndState;
 
-        if (!(curand_uniform_double(rndState) <= params->chancePhenoMut))
-            return;
-        localState = *rndState;
-
-        if (geneExprs[M*2] >= params->mutThresh
-         || geneExprs[M*2+1] >= params->mutThresh) {
-            // down-regulation
-            if (geneExpr < 0.0) {
-                for (i = 0; i < params->nPheno; i++) {
+        // downregulation
+        if (mutInfo == 1 || mutInfo == 2) {
+            for (i = 0; i < params->nPheno; i++) {
+                if (curand_uniform_double(&localState) <= params->chancePhenoAdj) {
+                    incr *= curand_uniform_double(&localState);
                     incr *= params->downregPhenoMap[M*params->nPheno+i];
                     adjust_phenotype(i, incr);
                 }
-            // up-regulation
-            } else if (geneExpr > 0.0) {
-                for (i = 0; i < params->nPheno; i++) {
+            }
+        // upregulation
+        } else if (mutInfo == 3 || mutInfo == 4) {
+            for (i = 0; i < params->nPheno; i++) {
+                if (curand_uniform_double(&localState) <= params->chancePhenoAdj) {
+                    incr *= curand_uniform_double(&localState);
                     incr *= params->upregPhenoMap[M*params->nPheno+i];
                     adjust_phenotype(i, incr);
                 }
@@ -603,91 +721,101 @@ struct Cell {
                                         unsigned nGenes)
 	{
 	    unsigned m;
-        double incr = params->exprAdjMaxIncr, factor, maxFactor = 1.5;
-        int posMut = positively_mutated(M), posMutm;
+        double incr = params->exprAdjMaxIncr, factor,
+               chanceFix = params->chanceGeneExprAdj * 0.80,
+               rndSamp;
+        unsigned mutInfoM = positively_mutated(M), mutInfom;
+        bool posMutM;
         curandState_t localState = *rndState;
 
         for (m = 0; m < nGenes; m++) {
-            if (curand_uniform_double(&localState) > params->chanceExprAdj)
-                continue;
-            if (m == M) continue;
-            posMutm = positively_mutated((gene) m);
-            if (posMut == 1 && posMutm == 1) continue;
-            if (params->geneRelations[M*nGenes+m] == YES) {
+            if (m != M && params->geneRelations[M*nGenes+m] != YES) continue;
+            mutInfom = m == M ? mutInfoM : positively_mutated((gene) m);
+            // M positively mutated so mutate m towards cancer
+            if (posMutM = (mutInfoM == 1 || mutInfoM == 3)
+             && (rndSamp = curand_uniform_double(&localState)) <= params->chanceGeneExprAdj) {
                 factor = curand_uniform_double(&localState);
-                if (posMut == 1) {
-                    if (params->geneType[m] == SUPPR)
-                        geneExprs[m*2+1] += incr * factor;
-                    else geneExprs[m*2] += incr * factor;
-                } else if (posMutm == 1) {
-                    if (params->geneType[m] == SUPPR)
-                        geneExprs[m*2] += incr * factor * maxFactor;
-                    else
-                        geneExprs[m*2+1] += incr * factor * maxFactor;
-                } else if (posMutm == 2)
-                    geneExprs[m*2] += incr * factor * maxFactor;
-                else if (posMutm == 3)
-                    geneExprs[m*2+1] += incr * factor * maxFactor;
+                if (params->geneType[m] == SUPPR)
+                    geneExprs[m] -= incr * factor;
+                else geneExprs[m] += incr * factor;
+            }
+            // M is not positively mutated.
+            // m is mutated so mutate m away from cancer
+            if (!posMutM && mutInfom
+             && rndSamp <= params->chanceGeneExprAdj) {
+                factor = curand_uniform_double(&localState);
+                if (mutInfom == 1 || mutInfom == 2)
+                    geneExprs[m] += incr * factor;
+                else geneExprs[m] -= incr * factor; // mutInfom = 3 or 4
+            }
+
+            // body fixing mutations
+            if (m == M && mutInfom
+             && curand_uniform_double(&localState) <= chanceFix) {
+                factor = curand_uniform_double(&localState);
+                if (mutInfom == 1 || mutInfom == 2) geneExprs[m] += incr * factor;
+                else geneExprs[m] -= incr * factor;
             }
         }
 
         *rndState = localState;
     }
 
+    __device__ void compute_fitness(unsigned nGenes)
+    {
+        unsigned m;
+        double geneExprsSum = 0.0, SCFactor = 4.0;
+        unsigned statePheno = state;
+
+        fitness = 0.0;
+
+        fitness -= age * phenotype[APOP];
+        fitness += isTAC ? phenotype[PROLIF] / (params->phenoInit[statePheno*params->nPheno]
+                                                + params->chanceTACProlif)
+                         : phenotype[PROLIF] / params->phenoInit[statePheno*params->nPheno];
+        fitness -= phenotype[APOP] / params->phenoInit[statePheno*params->nPheno+APOP];
+        for (m = 0; m < nGenes; m++) {
+            if (geneExprs[m] == 0.0) continue;
+            if (geneExprs[m] < 0.0) {
+                if (params->geneType[m] == SUPPR)
+                    geneExprsSum += geneExprs[m] / params->mutThresh;
+                else
+                    geneExprsSum -= geneExprs[m] / params->mutThresh;
+            } else {
+                if (params->geneType[m] == ONCO)
+                    geneExprsSum += geneExprs[m] / params->mutThresh;
+                else
+                    geneExprsSum -= geneExprs[m] / params->mutThresh;
+            }
+        }
+        fitness += (state == NC || state == SC) ? -geneExprsSum : geneExprsSum;
+
+        if (state == SC || state == MSC || state == CSC)
+            fitness *= fitness < 0 ? (1.0 / SCFactor) : SCFactor;
+        if (isTAC) fitness *= fitness < 0 ? (2.0 / SCFactor) : SCFactor / 2.0;
+    }
+
     __device__ void mutate(GeneExprNN *NN, double *NNOut,
                            curandState_t *rndState)
-	{
+    {
         unsigned m;
-        double rnd;
+        double factor;
+        curandState_t localState = *rndState;
 
         if (state == EMPTY) return;
 
         for (m = 0; m < NN->nOut; m++) {
-            if (NNOut[m] > 0)
-                geneExprs[m*2] += curand_uniform_double(rndState) * NNOut[m];
-            else if (NNOut[m] < 0)
-                geneExprs[m*2+1] += curand_uniform_double(rndState)
-                                  * abs(NNOut[m]);
+            factor = curand_uniform_double(&localState);
+            geneExprs[m] += factor * NNOut[m];
         }
 
-        rnd = curand_uniform_double(rndState);
-        if (rnd <= 0.1666666667) {
-            for (m = 0; m < NN->nOut; m++)
-                gene_regulation_adj((gene) m, rndState, NN->nOut);
-            NN->mutate(bOut, geneExprs, params->mutThresh);
-            for (m = 0; m < NN->nOut; m++)
-                phenotype_mutate((gene) m, rndState);
-        } else if (rnd > 0.1666666667 && rnd <= 0.3333333333) {
-            NN->mutate(bOut, geneExprs, params->mutThresh);
-            for (m = 0; m < NN->nOut; m++)
-                gene_regulation_adj((gene) m, rndState, NN->nOut);
-            for (m = 0; m < NN->nOut; m++)
-                phenotype_mutate((gene) m, rndState);
-        } else if (rnd > 0.3333333333 && rnd <= 0.5000000000) {
-            NN->mutate(bOut, geneExprs, params->mutThresh);
-            for (m = 0; m < NN->nOut; m++)
-                phenotype_mutate((gene) m, rndState);
-            for (m = 0; m < NN->nOut; m++)
-                gene_regulation_adj((gene) m, rndState, NN->nOut);
-        } else if (rnd > 0.5000000000 && rnd <= 0.6666666667) {
-            for (m = 0; m < NN->nOut; m++)
-                phenotype_mutate((gene) m, rndState);
-            NN->mutate(bOut, geneExprs, params->mutThresh);
-            for (m = 0; m < NN->nOut; m++)
-                gene_regulation_adj((gene) m, rndState, NN->nOut);
-        } else if (rnd > 0.6666666667 && rnd <= 0.8333333333) {
-            for (m = 0; m < NN->nOut; m++)
-                phenotype_mutate((gene) m, rndState);
-            for (m = 0; m < NN->nOut; m++)
-                gene_regulation_adj((gene) m, rndState, NN->nOut);
-            NN->mutate(bOut, geneExprs, params->mutThresh);
-        } else {
-            for (m = 0; m < NN->nOut; m++)
-                gene_regulation_adj((gene) m, rndState, NN->nOut);
-            for (m = 0; m < NN->nOut; m++)
-                phenotype_mutate((gene) m, rndState);
-            NN->mutate(bOut, geneExprs, params->mutThresh);
-        }
+        NN->mutate(bOut, geneExprs, params->mutThresh);
+        for (m = 0; m < NN->nOut; m++)
+            gene_regulation_adj((gene) m, rndState, NN->nOut);
+        for (m = 0; m < NN->nOut; m++)
+            phenotype_mutate((gene) m, rndState);
+
+        compute_fitness(NN->nOut);
     }
 };
 

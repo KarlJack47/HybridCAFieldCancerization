@@ -1,6 +1,6 @@
 # HybridCAFieldCancerization
 
-The parameters are set such that the only carcinogen is alcohol and there are 10
+The parameters are set such that two carcinogens are possible, alcohol and nicotine, and there are 10
 genes that are allowed to mutate. The parameters are tuned towards the formation
 of tongue carcinomas.
 
@@ -15,8 +15,8 @@ of tongue carcinomas.
 To compile the program run the bin/compile.sh bash script in the directory you want the program.
 
 # Running Simulations
-To run 100 simulations with the default grid size of 256 and number of time steps 8766 run the bin/create_results.sh script
-in the directory you want the output of the program to be.
+Results for the thesis were generated using bin/simulations.sh.
+For more information on how to generate custom results run bin/create_results.sh help.
 
 # GUI Instructions
 1. If the GUI is active the simulations are initially paused.
@@ -31,9 +31,9 @@ in the directory you want the output of the program to be.
    2. Press the 'K' key to set excision mode on. While this is active all tumor cells and their neighbours are 
       killed. Note that the key 'K' acts as a toggle switch so to stop tumour excision one must hit the key again.
       Also if the simulation is currently paused tumour excision won't occur till it is unpaused and will occur at the end
-      of the timestep.  
+      of the timestep.
    3. If excision mode is active and a user clicks on a cell in the grid then they will be specifying the center for an excision
-      to be formed and asked to enter a radius (in number of cells). If they specify a radius of zero no excision occurs.  
+      to be formed and asked to enter a radius (in number of cells). If they specify a radius of -1 no excision occurs.
 7. When the Gene Families is the current active one:
    1. Press the right arrow key to step through the simulation.
 8. While the Cell window is the currently active one:

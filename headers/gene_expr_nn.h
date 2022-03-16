@@ -156,11 +156,14 @@ struct GeneExprNN {
         double geneExpr;
 
         for (i = 0; i < nOut; i++) {
-            geneExpr = geneExprs[i*2] - geneExprs[i*2+1];
-            if (bOut[i] == 0.0 && geneExpr != 0.0
-             && (geneExprs[i*2] >= mutThresh
-              || geneExprs[i*2+1] >= mutThresh))
+            geneExpr = geneExprs[i];
+            // upregulated + mutated
+            if (geneExpr > 0.0 && geneExpr >= mutThresh)
                 bOut[i] = bias;
+            // downregualted + mutated
+            else if (geneExpr < 0.0 && abs(geneExpr) >= mutThresh)
+                bOut[i] = -bias;
+            // non mutated
             else
                 bOut[i] = 0.0;
         }

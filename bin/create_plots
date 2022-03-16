@@ -1,63 +1,716 @@
-set terminal pngcairo size 640,480 enhanced font 'Verdana,10'
-set key off
-set xlabel 'time (10 hours)'
+set terminal pngcairo size 1024,758 enhanced font 'Helvetica,20'
 
-states = "NC MNC SC MSC CSC TC Empty" 
-phenotypes = "Proliferating Quiescent Apoptotic Differentiating"
+set key samplen 2 spacing 1.5 font ",15" outside off
+set xlabel 'time (months)'
+
+basicColors = "dark-violet #009e73 #56b4e9 #e69f00 #f0e442 #0072b2 #e51e10 black gray50"
+totalPop = ARG1
+timeScale = 0.0136986151248053 # 10 h / (24 h * 30.4167 days)
+if (ARG5 eq "1") {
+  maxTime = system("ls ../../time_steps | sort | tail -n 1 | cut -d . -f 1 | sed 's/^0*//'") * timeScale
+} else {
+  maxTime = system("ls time_steps | sort | tail -n 1 | cut -d . -f 1 | sed 's/^0*//'") * timeScale
+}
+states = "NTC MNTC NSC MNSC CSC TC Empty"
+array stateColors[7]
+stateColors[1] = 9596770; stateColors[2] = 3328118; stateColors[3] = 21651;
+stateColors[4] = 15779840; stateColors[5] = 13123327; stateColors[6] = 16727358;
+stateColors[7] = 0
+phenotypes = "Proliferated Moved Apoptotic Differentiated"
 phenotypes1 = "Proliferation Quiescence Apoptosis Differentiation"
 genes = "TP53 TP73 RB P21 TP16 EGFR CCDN1 MYC PIK3CA RAS"
+array geneColors[10]
+geneColors[1] = 5517317; geneColors[2] = 9195786; geneColors[3] = 12550445;
+geneColors[4] = 14664317; geneColors[5] = 16181443; geneColors[6] = 13101797;
+geneColors[7] = 8441281; geneColors[8] = 3512207; geneColors[9] = 91742;
+geneColors[10] = 15408
+carcinogens = "Ethanol Nicotine"
+deDiff = "_SC _Empty _Both _Rand "
+conjunction = "_ _ "
+array TAC[3]
+TAC[1] = "TAC" 
+TAC[2] = "Non-TAC"
+TAC[3] = ""
+array dueTo[5]
+dueTo[1] = " due to Insufficient SC in the Neighbourhood"
+dueTo[2] = " due to an Abundance of Empty Cells in the Neighbourhood"
+dueTo[3] = " due to both Insufficient SC and an Abundance of Empty Cells in the Neighbourhood"
+dueTo[4] = " due to Random Effects"
+dueTo[5] = ""
+mutated="Mutated Non-Mutated"
+mutatedStates="State1 State3 State4 State5 State0 State2"
+sumCommandHeader="awk '{ if (FNR==1) a[FNR]=$0; else { a[FNR]=$1; s[FNR]+=$2 } } END { for (i=1; i<=FNR; i++) { if (i==1) print a[i]; else print a[i], s[i], 0 } }'"
+diffCommand="| awk '{ if (FNR!=1) print $1, $2 - $5, $3; else print $0; }'"
+fracCommand="| awk '{ if (FNR!=1) print $1, $5 != 0 ? $2/$5 : 0, $3; else print $0; }'"
+nGenes = 10
+mutThreshold = 0.1
+array defaultPhenotype[24] # Array for inital phenotype values for each cell type
+
+set xrange [0:maxTime]
+do for [i=1:2] {
+  temp=sprintf("%s", sumCommandHeader)
+  do for [j=1:4] {
+    if (i == 2 && j == 3) { break }
+    temp=sprintf("%s num%s.data", temp, word(mutatedStates, (i-1)*4+j))
+  } 
+  system(temp.' > num'.word(mutated, i).'.data')
+}
+
+temp=sprintf("%s", sumCommandHeader)
+do for [i=1:6] {
+  temp=sprintf("%s numState%d.data", temp, i-1)
+}
+system(temp.' > numState_nonEmpty.data')
+
+system(sumCommandHeader.' numState0.data numState1.data numState5.data > numState_nonSC.data')
+system(sumCommandHeader.' numState2.data numState3.data numState4.data > numState_SC.data')
+system(sumCommandHeader.' numState1.data numState5.data > numMutated_nonSC.data')
+system(sumCommandHeader.' numState0.data > numNon-Mutated_nonSC.data')
+system(sumCommandHeader.' numState3.data numState4.data > numMutated_SC.data')
+system(sumCommandHeader.' numState2.data > numNon-Mutated_SC.data')
+
+system(sumCommandHeader.' numState4.data numState5.data > numCSCAndTC.data')
+set ylabel 'Fracion of Population'
+set title 'Fraction of Total Population that is Part of a Tumour Mass'
+set output 'numCSCAndTC.png'
+plot 'numCSCAndTC.data' u ($1*timeScale):($2/totalPop) with points pt 1 lc rgb 'black'
+
+set ylabel 'Fraction of Population'
+do for [i=1:2] {
+  set title 'Fraction of '.word(mutated, i).' TAC Cells'
+  set output 'numTAC_'.word(mutated, i).'.png'
+  temp=sprintf("%s", sumCommandHeader)
+  do for [j=1:4] {
+    if (i == 2 && j > 1) { break }
+    if (i == 1 && (j == 2 || j == 3)) { continue } 
+    temp=sprintf("%s numTAC_%s.data", temp, word(mutatedStates, (i-1)*4+j))
+  }
+  temp=sprintf("%s > numTAC_%s.data", temp, word(mutated, i)) 
+  system(temp)
+  temp=sprintf("paste %s %s %s > %s", 'numTAC_'.word(mutated, i).'.data', 'num'.word(mutated, i).'.data', fracCommand, 'numTAC_'.word(mutated, i).'_frac.data')
+  system(temp)
+  plot sprintf("numTAC_%s_frac.data", word(mutated, i)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+}
+
+system('paste numState0.data numTAC_State0.data '.diffCommand.' > numNon-TAC_State0.data')
+system('paste numState1.data numTAC_State1.data '.diffCommand.' > numNon-TAC_State1.data')
+system('paste numState5.data numTAC_State5.data '.diffCommand.' > numNon-TAC_State5.data')
 
 do for [i=1:7] {
-  set title 'Number of '.word(states, i)
-  set ylabel '# '.word(states, i)
+  set title 'Fraction of '.word(states, i)
+  set ylabel 'Fraction of Population'
   set output 'num'.word(states, i).'.png'
+  set yrange [0:*]
   if (i == 7) {
-      plot sprintf("numState%d.data", i-1) u 1:2:3 with points pt 1 lc rgb 'black'
+    plot sprintf("numState%d.data", i-1) u ($1*timeScale):($2/totalPop) with points pt 1 lc rgb 'black'
+    do for [j=1:2] {
+      set title 'Fraction of '.word(mutated, j).' Cells'
+      set output 'num'.word(mutated, j).'.png'
+      set ylabel 'Fraction of Population'
+      temp=sprintf("paste num%s.data numState_nonEmpty.data %s > num%s_frac.data", word(mutated, j), fracCommand, word(mutated, j))
+      system(temp)
+      plot 'num'.word(mutated, j).'_frac.data' u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    }
   } else {
-      plot sprintf("numState%d.data", i-1) u 1:2:3 with points pt 1 lc rgb var
+    plot sprintf("numState%d.data", i-1) u ($1*timeScale):($2/totalPop):3 with points pt 1 lc rgb var
   }
-  do for [j=1:4] {
-    if (j == 4 && (i == 1 || i == 2 || i == 6)) { continue }
-    if (i != 7) {
-      set title 'Average Chance of '.word(phenotypes1, j).' for '.word(states, i)
-      set output 'chance'.word(phenotypes1, j).'_'.word(states, i).'.png'
-    } else {
-      set title 'Average Chance of '.word(phenotypes1, j).' for All Cell Types'
-      set output 'chance'.word(phenotypes1, j).'_all.png'
+  set ylabel 'Fraction of Total # Lineages'
+  if (i == 7) {
+    do for [j=1:2] {
+      set title 'Fraction of Lineages that Contain '.word(mutated, j).' Cells'
+      set output 'numLineages_'.word(mutated, j).'.png'
+      temp=sprintf("paste %s %s %s > %s", 'numLineages_'.word(mutated, j).'.data', 'numLineages_State6.data', fracCommand, 'numLineages_'.word(mutated, j).'_frac.data')
+      system(temp)
+      plot 'numLineages_'.word(mutated, j).'_frac.data' u ($1*timeScale):2 with points pt 1 lc rgb 'black'
     }
-    set ylabel 'Average Change of '.word(phenotypes1, j)
+    set ylabel 'log(# Lineages)'
+    set title 'Number of Lineages Overall'
+    set output 'numLineages.png'
+    plot sprintf("numLineages_State%d.data", i-1) u ($1*timeScale):(log($2)) with points pt 1 lc rgb 'black'
+  } else {
+    set title 'Fraction of Lineages that Contain '.word(states, i)
+    set output 'numLineages_'.word(states, i).'.png'
+    temp=sprintf("paste %s %s %s > %s", sprintf("numLineages_State%d.data", i-1), 'numLineages_State6.data', fracCommand, sprintf("numLineages_State%d_frac.data", i-1))
+    system(temp)
+    plot sprintf("numLineages_State%d_frac.data", i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb 'black'
+  }
+  
+  set ylabel 'Average Fraction of Positively Mutated Genes'
+  if (i == 7) {
+    set title 'Average Fraction of Positively Mutated Genes for All Cell Types'
+    set output 'numPosMut_all.png'
+    plot sprintf("numPosMut_State%d.data", i-1) u ($1*timeScale):($2/nGenes) with points pt 1 lc rgb 'black'
+
+    do for [k=1:2] {
+      set title 'Average Fraction of Positively Mutated Genes for '.word(mutated, k).' Cells'
+      set output 'numPosMut_'.word(mutated, k).'.png'
+      plot sprintf("numPosMut_State%d_%s.data", i-1, word(mutated, k)) u ($1*timeScale):($2/nGenes) with points pt 1 lc rgb 'black'
+    }
+  } else {
+    set title 'Average Fraction of Positively Mutated Genes for '.word(states, i)
+    set output 'numPosMut_'.word(states, i).'.png'
+    plot sprintf("numPosMut_State%d.data", i-1) u ($1*timeScale):($2/nGenes):3 with points pt 1 lc rgb var
+  }
+  
+  do for [j=1:4] {
+    set ylabel 'Fraction of '.word(phenotypes, j).' Cells'
     if (i == 7) {
-        plot sprintf("chancePheno%d_State%d.data", j-1, i-1) u 1:2:3 with points pt 1 lc rgb 'black'
+      set title 'Fraction of '.word(phenotypes, j).' Cells'
+      set output 'num'.word(phenotypes, j).'.png'
+      if (j == 4) {
+        temp=sprintf("paste numPheno%d.data numState_SC.data %s > numPheno%d_frac.data", j-1, fracCommand, j-1)
+      } else {
+        temp=sprintf("paste numPheno%d.data numState_nonEmpty.data %s > numPheno%d_frac.data", j-1, fracCommand, j-1)
+      }
+      system(temp)
+      plot sprintf("numPheno%d_frac.data", j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      do for [k=1:2] {
+        set title 'Fraction of '.word(phenotypes, j).' '.word(mutated, k).' Cells'
+        set output 'num'.word(phenotypes, j).'_'.word(mutated, k).'.png'
+        temp=sprintf("%s", sumCommandHeader)
+        do for [l=1:4] {
+          if (k == 2 && l == 3) { break }
+          if (j == 4 && (l == 1 || l == 4)) { continue }
+          temp=sprintf("%s numPheno%d_%s.data", temp, j-1, word(mutatedStates, (k-1)*4+l))
+        }
+        temp=sprintf("%s > numPheno%d_%s.data", temp, j-1, word(mutated, k)) 
+        system(temp)
+        if (j == 4) {
+          temp=sprintf("paste numPheno%d_%s.data num%s_SC.data %s > numPheno%d_%s_frac.data", j-1, word(mutated, k), word(mutated, k), fracCommand, j-1, word(mutated, k))
+        } else {
+          temp=sprintf("paste numPheno%d_%s.data num%s.data %s > numPheno%d_%s_frac.data", j-1, word(mutated, k), word(mutated, k), fracCommand, j-1, word(mutated, k))
+        }
+        system(temp)
+        plot sprintf("numPheno%d_%s_frac.data", j-1, word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+      }
+      if (j == 1 || j == 2 || j == 3) {
+        set title 'Fraction of '.word(phenotypes, j).' TAC Cells'
+        set output 'numTAC_'.word(phenotypes, j).'.png'
+        temp=sprintf("paste numTAC_Pheno%d.data numTAC.data %s > numTAC_Pheno%d_frac.data", j-1, fracCommand, j-1)
+        system(temp)
+        plot sprintf("numTAC_Pheno%d_frac.data", j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+        do for [k=1:2] {
+          set title 'Fraction of '.word(phenotypes, j).' '.word(mutated, k).' TAC Cells'
+          set output 'numTAC_'.word(phenotypes, j).'_'.word(mutated, k).'.png'
+          temp=sprintf("%s", sumCommandHeader)
+          do for [l=1:4] {
+            if (k == 2 && l > 1) { break }
+            if (k == 1 && (l == 2 || l == 3)) { continue } 
+            temp=sprintf("%s numTAC_Pheno%d_%s.data", temp, j-1, word(mutatedStates, (k-1)*4+l))
+          }
+          temp=sprintf("%s > numTAC_Pheno%d_%s.data", temp, j-1, word(mutated, k))
+          system(temp)
+          temp=sprintf("paste numTAC_Pheno%d_%s.data numTAC_%s.data %s > numTAC_Pheno%d_%s_frac.data", j-1, word(mutated, k), word(mutated, k), fracCommand, j-1, word(mutated, k))
+          system(temp)
+          plot sprintf("numTAC_Pheno%d_%s_frac.data", j-1, word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+        }
+      }
     } else {
-        plot sprintf("chancePheno%d_State%d.data", j-1, i-1) u 1:2:3 with points pt 1 lc rgb var
+      if (j == 4 && (i == 1 || i == 2 || i == 6)) { continue }
+      set title 'Fraction of '.word(phenotypes, j).' '.word(states, i)
+      set output 'num'.word(phenotypes, j).'_'.word(states, i).'.png'
+      temp=sprintf("paste numPheno%d_State%d.data numState%d.data %s > numPheno%d_State%d_frac.data", j-1, i-1, i-1, fracCommand, j-1, i-1)
+      system(temp)
+      plot sprintf("numPheno%d_State%d_frac.data", j-1, i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      if (i == 1 || i == 2 || i == 6) {
+        set title 'Fraction of '.word(phenotypes, j).' '.word(states, i).' TAC Cells'
+        set output 'numTAC_'.word(phenotypes, j).'_'.word(states, i).'.png'
+        temp=sprintf("paste numTAC_Pheno%d_State%d.data numTAC_State%d.data %s > numTAC_Pheno%d_State%d_frac.data", j-1, i-1, i-1, fracCommand, j-1, i-1)
+        system(temp)
+        plot sprintf("numTAC_Pheno%d_State%d_frac.data", j-1, i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      }
+    }
+
+    if (j == 4 && (i == 1 || i == 2 || i == 6)) { continue }
+    set ylabel 'Average Probability of '.word(phenotypes1, j) # Do later if time, divide by initial phenotypic value
+    if (i != 7) {
+      set title 'Average Probability of '.word(phenotypes1, j).' for '.word(states, i)
+      set output 'chance'.word(phenotypes1, j).'_'.word(states, i).'.png'
+      plot sprintf("chancePheno%d_State%d.data", j-1, i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    } else {
+      set title 'Average Probability of '.word(phenotypes1, j).' for All Cell Types'
+      set output 'chance'.word(phenotypes1, j).'_all.png'
+      plot sprintf("chancePheno%d_State%d.data", j-1, i-1) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+
+      do for [k=1:2] {
+        set title 'Average Probability of '.word(phenotypes1, j).' for '.word(mutated, k).' Cells'
+        set output 'chance'.word(phenotypes1, j).'_'.word(mutated, k).'.png'
+        plot sprintf("chancePheno%d_State%d_%s.data", j-1, i-1, word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+      }
     }
   }
-  if (i == 7) { continue }
-  do for [j=1:4] {
-    if (j == 4 && (i == 1 || i == 2 || i == 6)) { continue }
-    set title 'Number of '.word(phenotypes, j).' '.word(states, i)
-    set ylabel '# '.word(phenotypes, j).' Cells'
-    set output 'num'.word(phenotypes, j).'_'.word(states, i).'.png'
-    plot sprintf("numPheno%d_State%d.data", j-1, i-1) u 1:2:3 with points pt 1 lc rgb var
-  }
+  
   do for [j=1:10] {
-    set title 'Number of '.word(states, i).' with a Positive Mutation in '.word(genes, j)
-    set ylabel '# Cells with Positive Mutation in '.word(genes, j)
-    set output 'num'.word(genes, j).'_'.word(states, i).'.png'
-    plot sprintf("numGene%d_State%d.data", j-1, i-1) u 1:2:3 with points pt 1 lc rgb var
+    set ylabel 'Fraction of Cells with Positive Mutation in '.word(genes, j)
+    if (i == 7) {
+      set title 'Fraction of Cells with a Positive Mutation in '.word(genes, j)
+      set output 'num'.word(genes, j).'.png'
+      temp=sprintf("paste numGene%d.data numState_nonEmpty.data %s > numGene%d_frac.data", j-1, fracCommand, j-1)
+      system(temp)
+      plot sprintf("numGene%d_frac.data", j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      do for [k=1:2] {
+        set title 'Fraction of '.word(mutated, k).' Cells with a Positive Mutated in '.word(genes, j)
+        set output 'num'.word(genes, j).'_'.word(mutated, k).'.png'
+        temp=sprintf("%s", sumCommandHeader)
+        do for [l=1:4] {
+          if (k == 2 && l == 3) { break }
+          temp=sprintf("%s numGene%d_%s.data", temp, j-1, word(mutatedStates, (k-1)*4+l))
+        }
+        temp=sprintf("%s > numGene%d_%s.data", temp, j-1, word(mutated, k))
+        system(temp)
+        temp=sprintf("paste numGene%d_%s.data num%s.data %s > numGene%d_%s_frac.data", j-1, word(mutated, k), word(mutated, k), fracCommand, j-1, word(mutated, k))
+        system(temp)
+        plot sprintf("numGene%d_%s_frac.data", j-1, word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+      }
+    } else {
+      set title 'Fraction of '.word(states, i).' with a Positive Mutation in '.word(genes, j)
+      set output 'num'.word(genes, j).'_'.word(states, i).'.png'
+      temp=sprintf("paste numGene%d_State%d.data numState%d.data %s > numGene%d_State%d_frac.data", j-1, i-1, i-1, fracCommand, j-1, i-1)
+      system(temp)
+      plot sprintf("numGene%d_State%d_frac.data", j-1, i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    }
+    
+    set yrange [*:*]
+    set ylabel 'Average Gene Expression of '.word(genes, j)
+    if (i != 7) {
+      set title 'Average Gene Expression of '.word(genes, j).' for '.word(states, i)
+      set output 'geneExpr'.word(genes, j).'_'.word(states, i).'.png'
+      plot sprintf("geneExpr%d_State%d.data", j-1, i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var,\
+           mutThreshold dashtype 2 lc rgb 'black',\
+           -mutThreshold dashtype 2 lc rgb 'black'
+    } else {
+      set title 'Average Gene Expression of '.word(genes, j).' for All Cell Types'
+      set output 'geneExpr'.word(genes, j).'_all.png'
+      plot sprintf("geneExpr%d_State%d.data", j-1, i-1) u ($1*timeScale):2 with points pt 1 lc rgb 'black',\
+           mutThreshold dashtype 2 lc rgb 'black',\
+           -mutThreshold dashtype 2 lc rgb 'black'
+
+      do for [k=1:2] {
+        set title 'Average Gene Expression of '.word(genes, j).' for '.word(mutated, k).' Cells'
+        set output 'geneExpr'.word(genes, j).'_'.word(mutated, k).'.png'
+        plot sprintf("geneExpr%d_State%d_%s.data", j-1, i-1, word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black',\
+             mutThreshold dashtype 2 lc rgb 'black',\
+             -mutThreshold dashtype 2 lc rgb 'black'
+      }
+    }
+  }
+
+  set ylabel 'Average Fitness'
+  if (i == 7) {
+    set title 'Average Fitness for All Cell Types'
+    set output 'fitness_all.png'
+    plot sprintf("fitness_State%d.data", i-1) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+
+     do for [k=1:2] {
+      set title 'Average Fitness for '.word(mutated, k).' Cells'
+      set output 'fitness_'.word(mutated, k).'.png'
+      plot sprintf("fitness_State%d_%s.data", i-1, word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    }
+  } else {
+    set title 'Average Fitness for '.word(states, i)
+    set output 'fitness_'.word(states, i).'.png'
+    plot sprintf("fitness_State%d.data", i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+  }
+
+  set yrange [0:*]
+  set ylabel 'Fraction of Cells that Changed State'
+  if (i == 7) {
+    set title 'Fraction of Cells that Changed State'
+    set output 'numChangeState.png'
+    temp=sprintf("paste numChangeState.data numState_nonEmpty.data %s > numChangeState_frac.data", fracCommand)
+    system(temp)
+    plot 'numChangeState_frac.data' u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+
+    set title 'Fraction of Cells that Changed to the Mutated State'
+    set output 'numChangeState_toMutated.png'
+    temp=sprintf("paste numChangeState_toMutated.data numNon-Mutated.data %s > numChangeState_toMutated_frac.data", fracCommand)
+    system(temp)
+    plot 'numChangeState_toMutated_frac.data' u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    
+    set title 'Fraction of Cells that Reverted from a Mutated State'
+    set output 'numChangeState_fromMutated.png'
+    temp=sprintf("paste numChangeState_fromMutated.data numMutated.data %s > numChangeState_fromMutated_frac.data", fracCommand)
+    system(temp)
+    plot 'numChangeState_fromMutated_frac.data' u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+  } else {
+    if (i == 1 || i == 3) {
+      set title 'Fraction of Cells that Changed from '.word(states, i).' to '.word(states, i+1)
+      set output 'numChangeState_'.word(states, i).'_'.word(states, i+1).'.png'
+    } 
+    if (i == 2 || i == 4) {
+      set title 'Number of Cells that Changed from '.word(states, i).' to '.word(states, i-1)
+      set output 'numChangeState_'.word(states, i).'_'.word(states, i-1).'.png'
+    } 
+    if (i == 6) {
+      set title 'Number of Cells that Changed from '.word(states, i).' to '.word(states, 5)
+      set output 'numChangeState_'.word(states, i).'_'.word(states, 5).'.png'
+    } 
+    if (i == 5) {
+      set title 'Number of Cells that Changed from '.word(states, 4).' to '.word(states, i)
+      set output 'numChangeState_'.word(states, 4).'_'.word(states, i).'.png'
+    }
+    temp=sprintf("paste numChangeState_State%d.data numState%d.data %s > numChangeState_State%d_frac.data", i-1, i-1, fracCommand, i-1)
+    system(temp)
+    plot sprintf("numChangeState_State%d_frac.data", i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
   } 
+
+  set ylabel 'Fraction that Killed'
+  if (i == 7) {
+    set title 'Fraction Killed by '.word(phenotypes, 1).' Cells via Competition'
+    set output 'numKill_'.word(phenotypes, 1).'_Comp.png'
+    temp=sprintf("paste numKill_Pheno0_Comp.data numPheno0.data %s > numKill_Pheno0_Comp_frac.data", fracCommand)
+    system(temp)
+    plot sprintf("numKill_Pheno%d_Comp_frac.data", 0) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    do for [k=1:2] {
+      set title 'Fraction Killed by '.word(phenotypes, 1).' '.word(mutated, k).' Cells via Competition'
+      set output 'numKill_'.word(phenotypes, 1).'_Comp_'.word(mutated, k).'.png'
+      temp=sprintf("%s", sumCommandHeader)
+      do for [l=1:4] {
+        if (k == 2 && l == 3) { break }
+        temp=sprintf("%s numKill_Pheno0_%s_State6_Comp.data", temp, word(mutatedStates, (k-1)*4+l))
+      }
+      temp=sprintf("%s > numKill_Pheno0_Comp_%s.data", temp, word(mutated, k)) 
+      system(temp)
+      temp=sprintf("paste numKill_Pheno0_Comp_%s.data numPheno0_%s.data %s > numKill_Pheno0_Comp_%s_frac.data", word(mutated, k), word(mutated, k), fracCommand, word(mutated, k))
+      system(temp)
+      plot sprintf("numKill_Pheno0_Comp_%s_frac.data", word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    }
+
+    set title 'Fraction Killed by '.word(phenotypes, 1).' Cells via Chance'
+    set output 'numKill_'.word(phenotypes, 1).'_Chance.png'
+    system(sumCommandHeader.' numPheno0_State4.data numPheno0_State5.data > numPheno0_CSCAndTC.data')
+    temp=sprintf("paste numKill_Pheno0_Chance.data numPheno0_CSCAndTC.data %s > numKill_Pheno0_Chance_frac.data", fracCommand)
+    system(temp)
+    plot sprintf("numKill_Pheno%d_Chance_frac.data", 0) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+
+    set title 'Fraction Killed by '.word(phenotypes, 1).' Cells'
+    set output 'numKill_'.word(phenotypes, 1).'.png'
+    temp=sprintf("paste numKill_Pheno0.data numPheno0.data %s > numKill_Pheno0_frac.data", fracCommand)
+    system(temp)
+    plot sprintf("numKill_Pheno%d_frac.data", 0) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    do for [k=1:2] {
+      set title 'Fraction Killed by '.word(phenotypes, 1).' '.word(mutated, k).' Cells'
+      set output 'numKill_'.word(phenotypes, 1).'_'.word(mutated, k).'.png'
+      temp=sprintf("%s", sumCommandHeader)
+      do for [l=1:4] {
+        if (k == 2 && l == 3) { break }
+        temp=sprintf("%s numKill_Pheno0_%s_State6_Comp.data", temp, word(mutatedStates, (k-1)*4+l))
+        if (k == 1 && l > 2) {
+          temp=sprintf("%s numKill_Pheno0_%s_State6_Chance.data", temp, word(mutatedStates, (k-1)*4+l))
+        }
+      }
+      temp=sprintf("%s > numKill_Pheno0_%s.data", temp, word(mutated, k)) 
+      system(temp)
+      temp=sprintf("paste numKill_Pheno0_%s.data numPheno0_%s.data %s > numKill_Pheno0_%s_frac.data", word(mutated, k), word(mutated, k), fracCommand, word(mutated, k))
+      system(temp)
+      plot sprintf("numKill_Pheno0_%s_frac.data", word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    }
+
+    set title 'Fraction Killed by '.word(phenotypes, 4).' Cells via Competition'
+    set output 'numKill_'.word(phenotypes, 4).'_Comp.png'
+    temp=sprintf("paste numKill_Pheno3_Comp.data numPheno3.data %s > numKill_Pheno3_Comp_frac.data", fracCommand)
+    system(temp)
+    plot sprintf("numKill_Pheno%d_Comp_frac.data", 3) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    do for [k=1:2] {
+      set title 'Fraction Killed by '.word(phenotypes, 4).' '.word(mutated, k).' Cells via Competition'
+      set output 'numKill_'.word(phenotypes, 4).'_Comp_'.word(mutated, k).'.png'
+      temp=sprintf("%s", sumCommandHeader)
+      do for [l=1:4] {
+        if (k == 2 && l == 3) { break }
+        if (l == 1 || l == 4) { continue }
+        temp=sprintf("%s numKill_Pheno3_%s_State6_Comp.data", temp, word(mutatedStates, (k-1)*4+l))
+      }
+      temp=sprintf("%s > numKill_Pheno3_Comp_%s.data", temp, word(mutated, k)) 
+      system(temp)
+      temp=sprintf("paste numKill_Pheno3_Comp_%s.data numPheno3_%s.data %s > numKill_Pheno3_Comp_%s_frac.data", word(mutated, k), word(mutated, k), fracCommand, word(mutated, k))
+      system(temp)
+      plot sprintf("numKill_Pheno3_Comp_%s_frac.data", word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    }
+
+    set title 'Fraction Killed by '.word(phenotypes, 4).' Cells'
+    set output 'numKill_'.word(phenotypes, 4).'.png'
+    temp=sprintf("paste numKill_Pheno3.data numPheno3.data %s > numKill_Pheno3_frac.data", fracCommand)
+    system(temp)
+    plot sprintf("numKill_Pheno%d_frac.data", 3) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    do for [k=1:2] {
+      set title 'Fraction Killed by '.word(phenotypes, 4).' '.word(mutated, k).' Cells'
+      set output 'numKill_'.word(phenotypes, 4).'_'.word(mutated, k).'.png'
+      temp=sprintf("%s", sumCommandHeader)
+      do for [l=1:4] {
+        if (k == 2 && l == 3) { break }
+        if (l == 1 || l == 4) { continue }
+        temp=sprintf("%s numKill_Pheno3_%s_State6_Comp.data", temp, word(mutatedStates, (k-1)*4+l))
+        if (k == 1 && l > 2) {
+          temp=sprintf("%s numKill_Pheno3_%s_State6_Chance.data", temp, word(mutatedStates, (k-1)*4+l))
+        }
+      }
+      temp=sprintf("%s > numKill_Pheno3_%s.data", temp, word(mutated, k)) 
+      system(temp)
+      temp=sprintf("paste numKill_Pheno3_%s.data numPheno3_%s.data %s > numKill_Pheno3_%s_frac.data", word(mutated, k), word(mutated, k), fracCommand, word(mutated, k))
+      system(temp)
+      plot sprintf("numKill_Pheno3_%s_frac.data", word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    }
+
+    set title 'Fraction Killed by '.word(phenotypes, 2).' Cells'
+    set output 'numKill_'.word(phenotypes, 2).'.png'
+    system(sumCommandHeader.' numPheno1_State4.data numPheno1_State5.data > numPheno1_CSCAndTC.data')
+    temp=sprintf("paste numKill_Pheno1.data numPheno1_CSCAndTC.data %s > numKill_Pheno1_frac.data", fracCommand)
+    system(temp)
+    plot sprintf("numKill_Pheno%d_frac.data", 1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+
+    set title 'Fraction Killed via Competition'
+    set output 'numKill_Comp.png'
+    system(sumCommandHeader.' numPheno0.data numPheno3.data > numPheno0AndPheno3.data')
+    temp=sprintf("paste numKill_Comp.data numPheno0AndPheno3.data %s > numKill_Comp_frac.data", fracCommand)
+    system(temp)
+    plot "numKill_Comp_frac.data" u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    do for [k=1:2] {
+      set title 'Fraction Killed by '.word(mutated, k).' Cells via Competition'
+      set output 'numKill_Comp_'.word(mutated, k).'.png'
+      temp=sprintf("%s", sumCommandHeader)
+      do for [l=1:4] {
+        if (k == 2 && l == 3) { break }
+        temp=sprintf("%s numKill_Pheno0_%s_State6_Comp.data", temp, word(mutatedStates, (k-1)*4+l))
+        if (l == 1 || l == 4) { continue }
+        temp=sprintf("%s numKill_Pheno3_%s_State6_Comp.data", temp, word(mutatedStates, (k-1)*4+l))
+      }
+      temp=sprintf("%s > numKill_Comp_%s.data", temp, word(mutated, k)) 
+      system(temp)
+      system(sumCommandHeader.' numPheno0_'.word(mutated, k).'.data numPheno3_'.word(mutated, k).'.data > numPheno0AndPheno3_'.word(mutated, k).'.data')
+      temp=sprintf("paste numKill_Comp_%s.data numPheno0AndPheno3_%s.data %s > numKill_Comp_%s_frac.data", word(mutated, k), word(mutated, k), fracCommand, word(mutated, k))
+      system(temp)
+      plot sprintf("numKill_Comp_%s_frac.data", word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    }
+
+    set title 'Fraction Killed via Chance'
+    set output 'numKill_Chance.png'
+    system(sumCommandHeader.' numPheno0_CSCAndTC.data numPheno1_CSCAndTC.data numPheno3_State4.data > numPheno0AndPheno1AndPheno3_CSCAndTC.data')
+    temp=sprintf("paste numKill_Chance.data numPheno0AndPheno1AndPheno3_CSCAndTC.data %s > numKill_Chance_frac.data", fracCommand)
+    system(temp)
+    plot "numKill_Chance_frac.data" u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    set title 'Fraction of Killed Cells Overall'
+    set output 'numKill.png'
+    system(sumCommandHeader.' numPheno0.data numPheno1_CSCAndTC.data numPheno3.data > numPheno0AndPheno1AndPheno3.data')
+    temp=sprintf("paste numKill.data numPheno0AndPheno1AndPheno3.data %s > numKill_frac.data", fracCommand)
+    system(temp)
+    plot "numKill_frac.data" u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    do for [k=1:2] {
+      set title 'Fraction Killed by '.word(mutated, k).' Cells Overall'
+      set output 'numKill_'.word(mutated, k).'.png'
+      temp=sprintf("%s", sumCommandHeader)
+      do for [l=1:4] {
+        if (k == 2 && l == 3) { break }
+        temp=sprintf("%s numKill_Pheno0_%s_State6_Comp.data", temp, word(mutatedStates, (k-1)*4+l))
+        if (k == 1 && l > 2) {
+          temp=sprintf("%s numKill_Pheno0_%s_State6_Chance.data", temp, word(mutatedStates, (k-1)*4+l))
+          temp=sprintf("%s numKill_Pheno1_%s_State6_Chance.data", temp, word(mutatedStates, (k-1)*4+l))
+        }
+        if (l == 1 || l == 4) { continue }
+        temp=sprintf("%s numKill_Pheno3_%s_State6_Comp.data", temp, word(mutatedStates, (k-1)*4+l))
+        if (k == 1 && l > 2) {
+          temp=sprintf("%s numKill_Pheno3_%s_State6_Chance.data", temp, word(mutatedStates, (k-1)*4+l))
+        }
+      }
+      temp=sprintf("%s > numKill_%s.data", temp, word(mutated, k))
+      system(temp)
+      if (k == 1) {
+        system(sumCommandHeader.' numPheno0_'.word(mutated, k).'.data numPheno1_CSCAndTC.data numPheno3_'.word(mutated, k).'.data > numPheno0AndPheno1AndPheno3_'.word(mutated, k).'.data')
+        temp=sprintf("paste numKill_%s.data numPheno0AndPheno1AndPheno3_%s.data %s > numKill_%s_frac.data", word(mutated, k), word(mutated, k), fracCommand, word(mutated, k))
+      } else {
+        temp=sprintf("paste numKill_%s.data numPheno0AndPheno3_%s.data %s > numKill_%s_frac.data", word(mutated, k), word(mutated, k), fracCommand, word(mutated, k))
+      }
+      system(temp)
+      plot sprintf("numKill_%s_frac.data", word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+    }
+  } else {
+    do for [j=1:7] {
+      # Proliferation by state i via competition of state j
+      set title 'Fraction of '.word(phenotypes, 1).' '.word(states, i).' that Killed '.word(states, j).' via Competition'
+      set output 'numKill_'.word(phenotypes, 1).'_'.word(states, i).'_'.word(states, j).'_Comp.png'
+      temp=sprintf("paste numKill_Pheno0_State%d_State%d_Comp.data numState%d.data %s > numKill_Pheno0_State%d_State%d_Comp_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_Pheno0_State%d_State%d_Comp_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      if (i == 1 || i == 2) { continue }
+      # Differentiation by state i via competition of state j
+      set title 'Fraction of '.word(phenotypes, 4).' '.word(states, i).' that Killed '.word(states, j).' via Competition'
+      set output 'numKill_'.word(phenotypes, 4).'_'.word(states, i).'_'.word(states, j).'_Comp.png'
+      temp=sprintf("paste numKill_Pheno3_State%d_State%d_Comp.data numState%d.data %s > numKill_Pheno3_State%d_State%d_Comp_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_Pheno3_State%d_State%d_Comp_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      # Kill by state i via competition of state j
+      set title 'Fraction of '.word(states, i).' that Killed '.word(states, j).' via Competition'
+      set output 'numKill_'.word(states, i).'_'.word(states, j).'_Comp.png'
+      temp=sprintf("paste numKill_State%d_State%d_Comp.data numState%d.data %s > numKill_State%d_State%d_Comp_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_State%d_State%d_Comp_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      # num kill state j by state i overall
+      set title 'Fraction of '.word(states, i).' that Killed '.word(states, j)
+      set output 'numKill_'.word(states, i).'_'.word(states, j).'.png'
+      temp=sprintf("paste numKill_State%d_State%d.data numState%d.data %s > numKill_State%d_State%d_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_State%d_State%d_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      if (i == 3 || i == 4) { continue }
+      # Proliferation by state i via chance of state j
+      set title 'Fraction of '.word(phenotypes, 1).' '.word(states, i).' that Killed '.word(states, j).' via Chance'
+      set output 'numKill_'.word(phenotypes, 1).'_'.word(states, i).'_'.word(states, j).'_Chance.png'
+      temp=sprintf("paste numKill_Pheno0_State%d_State%d_Chance.data numState%d.data %s > numKill_Pheno0_State%d_State%d_Chance_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_Pheno0_State%d_State%d_Chance_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      # Proliferation by state i overall of state j (competition + chance)
+      set title 'Fraction of '.word(phenotypes, 1).' '.word(states, i).' that Killed '.word(states, j)
+      set output 'numKill_'.word(phenotypes, 1).'_'.word(states, i).'_'.word(states, j).'.png'
+      temp=sprintf("paste numKill_Pheno0_State%d_State%d.data numState%d.data %s > numKill_Pheno0_State%d_State%d_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_Pheno0_State%d_State%d_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      # Movement by state i via chance of state j
+      set title 'Fraction of '.word(phenotypes, 2).' '.word(states, i).' that Killed '.word(states, j).' via Chance'
+      set output 'numKill_'.word(phenotypes, 2).'_'.word(states, i).'_'.word(states, j).'_Chance.png'
+      temp=sprintf("paste numKill_Pheno1_State%d_State%d_Chance.data numState%d.data %s > numKill_Pheno1_State%d_State%d_Chance_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_Pheno1_State%d_State%d_Chance_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      # Num kill by state i via chance overall of state j
+      set title 'Fraction of '.word(states, i).' that Killed '.word(states, j).' via Chance'
+      set output 'numKill_'.word(states, i).'_'.word(states, j).'_Chance.png'
+      temp=sprintf("paste numKill_State%d_State%d_Chance.data numState%d.data %s > numKill_State%d_State%d_Chance_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_State%d_State%d_Chance_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      if (i == 6) { continue }
+      # Differentiation by CSC via chance of state j
+      set title 'Fraction of '.word(phenotypes, 4).' '.word(states, i).' that Killed '.word(states, j).' via Chance'
+      set output 'numKill_'.word(phenotypes, 4).'_'.word(states, i).'_'.word(states, j).'_Chance.png'
+      temp=sprintf("paste numKill_Pheno3_State%d_State%d_Chance.data numState%d.data %s > numKill_Pheno3_State%d_State%d_Chance_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_Pheno3_State%d_State%d_Chance_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      # Differentiation by CSC overall of state j
+      set title 'Fraction of '.word(phenotypes, 4).' '.word(states, i).' that Killed '.word(states, j)
+      set output 'numKill_'.word(phenotypes, 4).'_'.word(states, i).'_'.word(states, j).'.png'
+      temp=sprintf("paste numKill_Pheno3_State%d_State%d.data numState%d.data %s > numKill_Pheno3_State%d_State%d_frac.data", i-1, j-1, i-1, fracCommand, i-1, j-1)
+      system(temp)
+      plot sprintf("numKill_Pheno3_State%d_State%d_frac.data", i-1, j-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+    }
+  }
+  
+  if (i == 3 || i == 4 || i == 5) { continue }
+  set ylabel 'Fraction of Population'
+  if (i == 7) {
+    set title 'Fraction of TAC for All Cell Types'
+    set output 'numTAC.png'
+    temp=sprintf("paste numTAC.data numState_nonSC.data %s > numTAC_frac.data", fracCommand)
+    system(temp)
+    plot 'numTAC_frac.data' u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+  } else {
+    set title 'Fraction of TAC of Type '.word(states, i)
+    set output 'numTAC_'.word(states, i).'.png'
+    temp=sprintf("paste numTAC_State%d.data numState%d.data %s > numTAC_State%d_frac.data", i-1, i-1, fracCommand, i-1)
+    system(temp)
+    plot sprintf("numTAC_State%d_frac.data", i-1) u ($1*timeScale):2:3 with points pt 1 lc rgb var
+  }
+
+  set ylabel 'Fraction of Population'
+  if (i == 7) {
+    do for [j=1:5] {
+      set title 'Fraction of Cells that Dedifferentiated'.dueTo[j]
+      set output 'numDeDiff'.word(deDiff, j).'.png'
+      temp=sprintf("paste numDeDiff%s.data numState_nonSC.data %s > numDeDiff%s_frac.data", word(deDiff, j), fracCommand, word(deDiff, j))
+      system(temp)
+      plot 'numDeDiff'.word(deDiff, j).'_frac.data' u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+      do for [k=1:2] {
+        set title 'Fraction of '.word(mutated, k).' Cells that Dedifferentiated'.dueTo[j]
+        set output 'numDeDiff'.word(deDiff, j).'_'.word(mutated, k).'.png'
+        temp=sprintf("%s", sumCommandHeader)
+        do for [l=1:4] {
+          if (k == 2 && l > 1) { break }
+          if (k == 1 && (l == 2 || l == 3)) { continue } 
+          temp=sprintf("%s numDeDiff_%s%s.data", temp, word(mutatedStates, (k-1)*4+l), word(deDiff, j))
+        }
+        temp=sprintf("%s > numDeDiff%s_%s.data", temp, word(deDiff, j), word(mutated, k)) 
+        system(temp)
+        temp=sprintf("paste numDeDiff%s_%s.data num%s_nonSC.data %s > numDeDiff%s_%s_frac.data", word(deDiff, j), word(mutated, k), word(mutated, k), fracCommand, word(deDiff, j), word(mutated, k))
+        system(temp)
+        plot sprintf("numDeDiff%s_%s_frac.data", word(deDiff, j), word(mutated, k)) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+      }
+    }
+  } else {
+    do for [j=1:5] {
+      do for [k=1:3] {
+        if (i == 1) {
+          set title 'Fraction of Cells that Dedifferentiated from a '.TAC[k].' '.word(states, i).' to '.word(states, 3).dueTo[j]
+        }
+        if (i == 2) {
+          set title 'Fraction of Cells that Dedifferentiated from a '.TAC[k].' '.word(states, i).' to '.word(states, 4).dueTo[j]
+        } 
+        if (i == 6) {
+          set title 'Fraction of Cells that Dedifferentiated from a '.TAC[k].' '.word(states, i).' to '.word(states, 5).dueTo[j]
+        }
+        set output 'numDeDiff_'.word(states, i).word(conjunction, k).TAC[k].word(deDiff, j).'.png'
+        temp=sprintf("paste numDeDiff_State%d%s%s%s.data num%s%sState%d.data %s > numDeDiff_State%d%s%s%s_frac.data", i-1, word(conjunction, k), TAC[k], word(deDiff, j),\
+                     TAC[k], word(conjunction, k), i-1, fracCommand, i-1, word(conjunction, k), TAC[k], word(deDiff, j))
+        system(temp)
+        plot 'numDeDiff_State'.(i-1).word(conjunction, k).TAC[k].word(deDiff, j).'_frac.data' u ($1*timeScale):2:3 with points pt 1 lc rgb var
+      }
+    }
+  }
 }
 
-do for [i=1:4] {
-  set title 'Number of '.word(phenotypes, i).' Cells'
-  set ylabel '# '.word(phenotypes, i).' Cells'
-  set output 'num'.word(phenotypes, i).'.png'
-  plot sprintf("numPheno%d.data", i-1) u 1:2:3 with points pt 1 lc rgb var
+set ylabel 'Maximum Concentration'
+if (ARG3 eq "0") {
+  set title 'Maximum Concentration of '.word(carcinogens, 1)
+  set output word(carcinogens, 1).'_max.png'
+  plot sprintf("Carcin%d_max.data", 0) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+}
+if (ARG3 eq "1" || ARG4 eq "1") {
+  set title 'Maximum Concentration of '.word(carcinogens, 2)
+  set output word(carcinogens, 2).'_max.png'
+  plot sprintf("Carcin%d_max.data", 1) u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+}
+if (ARG2 eq "2") {
+  set title 'Maximum Concentration for all Carcinogens'
+  set output 'Carcins_max.png'
+  plot "Carcins_max.data" u ($1*timeScale):2 with points pt 1 lc rgb 'black'
+  set ylabel 'Average Maximum Concentration'
+  set title 'Average Maximum Concentration for all Carcinogens'
+  set output 'Carcins_avgMax.png'
+  plot "Carcins_avgMax.data" u ($1*timeScale):2 with points pt 1 lc rgb 'black'
 }
 
-do for [i=1:10] {
-  set title 'Number of Cells with a Positive Mutation in '.word(genes, i)
-  set ylabel '# Cells with Positive Mutation in '.word(genes, i)
-  set output 'num'.word(genes, i).'.png'
-  plot sprintf("numGene%d.data", i-1) u 1:2:3 with points pt 1 lc rgb var
-}
+set key on
+
+set yrange[0:0.9]
+set ylabel 'Fraction of Total Population'
+set title 'Fraction of Cell States'
+set output 'numState_all.png'
+plot for [i=1:7] NaN with points pt 1 lw 3 ps 3 lc rgb stateColors[i] title word(states, i),\
+     for [i=1:7] sprintf("numState%d.data", i-1) u ($1*timeScale):($2/totalPop) with points pt 1 lc rgb stateColors[i] notitle
+
+set yrange[0:*]
+set ylabel 'Fraction of Population'
+set title 'Fraction of Population that Acomplished Each Phenotypic Action'
+set output 'numPheno_all.png'
+plot for [i=1:4] NaN with points pt 1 lw 3 ps 3 lc rgb word(basicColors, i) title word(phenotypes, i),\
+     for [i=1:4] sprintf("numPheno%d_frac.data", i-1) u ($1*timeScale):2 with points pt 1 lc rgb word(basicColors, i) notitle
+
+set ylabel 'Average Probability'
+set title 'Average Probability of Each Phenotypic Action for All Cell Types'
+set output 'chancePheno_all.png'
+plot for [i=1:4] NaN with points pt 1 lw 3 ps 3 lc rgb word(basicColors, i) title word(phenotypes1, i),\
+     for [i=1:4] sprintf("chancePheno%d_State6.data", i-1) u ($1*timeScale):2 with points pt 1 lc rgb word(basicColors, i) notitle
+
+set yrange [*:*]
+set ylabel 'Average Gene Expression'
+set title 'Average Gene Expression for All Genes'
+set output 'geneExprAll_all.png'
+plot for [i=1:10] NaN with points pt 1 lw 3 ps 3 lc rgb geneColors[i] title word(genes, i),\
+     for [i=1:10] sprintf("geneExpr%d_State6.data", i-1) u ($1*timeScale):2 with points pt 1 lc rgb geneColors[i] notitle,\
+     mutThreshold dashtype 2 lc rgb 'black' title 'Threshold', -mutThreshold dashtype 2 lc rgb 'black' notitle
+
+set title 'Average Gene Expression for Tumour Suppressors'
+set output 'geneExprAll_TumourSuppressors.png'
+plot for [i=1:5] NaN with points pt 1 lw 3 ps 3 lc rgb geneColors[i] title word(genes, i),\
+     for [i=1:5] sprintf("geneExpr%d_State6.data", i-1) u ($1*timeScale):2 with points pt 1 lc rgb geneColors[i] notitle,\
+     mutThreshold dashtype 2 lc rgb 'black' title 'Threshold', -mutThreshold dashtype 2 lc rgb 'black' notitle
+
+set title 'Average Gene Expression for Oncogenes'
+set output 'geneExprAll_Oncogenes.png'
+plot for [i=6:10] NaN with points pt 1 lw 3 ps 3 lc rgb geneColors[i] title word(genes, i),\
+     for [i=6:10] sprintf("geneExpr%d_State6.data", i-1) u ($1*timeScale):2 with points pt 1 lc rgb geneColors[i] notitle,\
+     mutThreshold dashtype 2 lc rgb 'black' title 'Threshold', -mutThreshold dashtype 2 lc rgb 'black' notitle

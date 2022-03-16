@@ -1,11 +1,50 @@
 #ifndef __CARCIN_H__
 #define __CARCIN_H__
 
-__global__ void init_carcin(double*,double*,double,double,double,unsigned,
+__global__ void init_carcin(double*,double*,double,double,double,double,unsigned,
                             SensitivityFunc*,unsigned,unsigned,bool);
 __global__ void carcin_space_step(double*,double*,unsigned,unsigned,unsigned,
                                   double,double,double,double,double,
                                   double,SensitivityFunc*,unsigned,unsigned);
+
+__device__ double func1(double x, double y, double factor, unsigned N)
+{
+    return 1.0;
+}
+
+__device__ double func2(double x, double y, double factor, unsigned N)
+{
+    return 0.5 * (sin(2.0 * M_PI * x / (double) N) * cos(M_PI * y / (double) N)
+                  + 1.0) * factor;
+}
+
+__device__ double func3(double x, double y, double factor, unsigned N)
+{
+    double mux = (N / 2.0) - 1.0, muy = mux,
+           sigmax = (N / 15.0), sigmay = sigmax;
+
+    return exp(-0.5 * (pow(x - mux, 2) / (sigmax * sigmax)
+                     + pow(y - muy, 2) / (sigmay * sigmay))) * factor;
+}
+
+__device__ double func4(double x, double y, double factor, unsigned N)
+{
+    unsigned i;
+    double sigmax = N / 15.0, sigmay = sigmax, Ndiv4 = N / 4.0, result = 0.0;
+    double mux[5] = { N / 2.0 - 1.0, Ndiv4 - sigmax - 1.0,
+                      N - Ndiv4 + sigmax - 1.0 }, muy[5];
+    mux[3] = mux[1]; mux[4] = mux[2];
+    muy[0] = mux[0]; muy[1] = mux[1]; muy[2] = mux[2];
+    muy[3] = mux[2]; muy[4] = mux[1];
+
+    for (i = 0; i < 5; i++)
+        result += exp(-0.5 * (pow(x - mux[i], 2) / (sigmax * sigmax)
+                     + pow(y - muy[i], 2) / (sigmay * sigmay)));
+
+    return result * factor;
+}
+
+__device__ SensitivityFunc pFunc[4] = { func1, func2, func3, func4 };
 
 struct Carcin {
     int device;
@@ -21,16 +60,16 @@ struct Carcin {
 
     Carcin(int dev, unsigned idx, unsigned typeIn, unsigned spaceSize,
            double diff, double influxIn, double outfluxIn, double icIn,
-           double bcIn, int maxtinflux, int maxtnoinflux, double cellVolume,
+           double bcIn, int maxtinflux, int maxtnoinflux, double cellDiameter,
            double cellCycleLen, double exposuretime,
-           SensitivityFunc *funcIn, unsigned nfunc=1, unsigned funcidx=0)
+           SensitivityFunc *funcIn, unsigned nfunc=4, unsigned funcidx=0)
     {
         carcinIdx = idx;
         type = typeIn;
         device = dev;
         N = spaceSize;
         nCycles = 1;
-        deltaxy = pow(cellVolume, 1.0/3.0);
+        deltaxy = cellDiameter;
         deltat = cellCycleLen;
         exposureTime = exposuretime;
         maxTInflux = maxtinflux;
@@ -42,7 +81,7 @@ struct Carcin {
         outflux = outfluxIn;
         ic = icIn;
         bc = bcIn;
-        maxIter = 100;
+        maxIter = 50;
         t = 0;
         nFunc = nfunc;
         funcIdx = 0;
@@ -53,7 +92,7 @@ struct Carcin {
                                        nFunc*sizeof(SensitivityFunc)));
         memcpy(func, funcIn, nFunc*sizeof(SensitivityFunc));
         CudaSafeCall(cudaMallocManaged((void**)&maxVal, sizeof(double)));
-        *maxVal = 0;
+        *maxVal = 0.0;
     }
 
     void prefetch_memory(int dev, cudaStream_t *stream)
@@ -74,7 +113,7 @@ struct Carcin {
         dim3 threads(blockSize, blockSize);
 
         init_carcin<<< blocks, threads, 0, stream ? *stream : 0 >>>(
-            soln, maxVal, ic, bc, influx - outflux, N, func,
+            soln, maxVal, diffusion, ic, bc, influx - outflux, N, func,
             type == 1 ? 0 : funcIdx, type, maxTNoInflux != -1 ? true : false
         );
         CudaCheckError();
@@ -153,6 +192,7 @@ struct Carcin {
         if (maxTInflux == -1 && maxTNoInflux != -1)
             influxIn = set_influx(tCurr, maxTNoCurr, false);
 
+        *maxVal = 0.0;
         carcin_space_step<<< blocks, threads, 0, *stream >>>(
             soln, maxVal, t, N, maxIter, bc, ic, diffusion,
             influxIn - outflux, deltaxy, deltat, func,

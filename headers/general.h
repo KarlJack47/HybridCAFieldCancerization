@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <sys/select.h>
 #include <sys/types.h>
@@ -16,6 +17,7 @@
 #include <curand_kernel.h>
 #include <math.h>
 #include <float.h>
+#include <limits.h>
 #include <sys/time.h>
 #include "error_check.h"
 #include <errno.h>
@@ -41,7 +43,6 @@ typedef enum { NORTH, EAST, SOUTH, WEST,
                NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST } neigh_location;
 typedef double(*SensitivityFunc)(double,double,double,unsigned);
 
-#include "array_functions.h"
 #include "rnd_gen_functions.h"
 #include "utility.h"
 

@@ -4,14 +4,14 @@ if [ ! $# -eq 1 ]; then
     exit 0
 fi
 
-input=$1/*/*.txt
+input=$1/*/[0-9]*.txt
 totalSim=$(grep "Starting simulation" $input | uniq | wc -l)
 delim='/'
 delim1='('
 posSimNum=2
 posVal=3
 posVal1=1
-exprStr=('first CSC' 'first TC' 'TC recurred')
+exprStr=('The first CSC' 'The first TC' 'A TC recurred')
 cellType=('CSC' 'TC' 'TC')
 formStr=('form' 'form' 'reform')
 totalStr=('simulations' 'simulations' 'excisions')

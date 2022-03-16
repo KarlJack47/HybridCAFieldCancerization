@@ -1,6 +1,21 @@
 #ifndef __OUTPUT_FUNCTIONS_H__
 #define __OUTPUT_FUNCTIONS_H__
 
+void print_progress(unsigned currAmount, unsigned N)
+{
+    char format[40] = { '\0' };
+    double progress = (currAmount / (double) N) * 100.0;
+    unsigned numDig = num_digits(progress), limit = numDig + 10, k;
+
+    if (trunc(progress * 1000.0) >= 9995 && numDig == 1) limit += 1;
+    else if (trunc(progress * 1000.0) >= 99995 && numDig == 2) limit += 1;
+
+    for (k = 0; k < limit; k++) strcat(format, "\b");
+    strcat(format, "%.2f/%.2f");
+    printf(format, progress, 100.0);
+    fflush(stdout);
+}
+
 __global__ void copy_frame(uchar4*, unsigned char*);
 int save_image(uchar4 *outputBitmap, size_t size, unsigned blockSize,
                char *prefix, unsigned time, int dev, unsigned nDigitsMaxT=7)
@@ -156,10 +171,6 @@ int compress_and_save_data(const char *fname, const char *header,
         fprintf(stderr, "Failure compressing the data.");
         return 1;
     }
-    /*if (compressedDataSize > 0)
-        printf("Compression Ratio: %.2f, old size: %lu, new size: %lu\n",
-               (float) compressedDataSize / dataSize, dataSize,
-               compressedDataSize);*/
 
     fwrite(compressedData, 1, compressedDataSize, fptr);
 
@@ -176,9 +187,12 @@ void save_cell_data_to_file(CA *ca, unsigned t, dim3 blocks,
                             dim3 threads, cudaStream_t *stream)
 {
     unsigned numChar = num_digits(t) + 10;
-    char *fName = (char*)calloc(numChar, 1);
+    //char *fname = (char*)calloc(numChar, 1);
+    char fname[numChar] = { '\0' };
 
-    sprintf(fName, "%d.data.lz4", t);
+    if (!ca->saveCellData) return;
+
+    sprintf(fname, "%d.data.lz4", t);
 
     save_cell_data<<< blocks, threads, 0, *stream >>>(
         ca->prevGrid, ca->newGrid, ca->cellData, ca->gridSize, ca->maxT,
@@ -187,29 +201,51 @@ void save_cell_data_to_file(CA *ca, unsigned t, dim3 blocks,
     CudaCheckError();
     CudaSafeCall(cudaStreamSynchronize(*stream));
 
-    compress_and_save_data(fName, ca->headerCellData, ca->cellData,
+    compress_and_save_data(fname, ca->headerCellData, ca->cellData,
                            ca->cellDataSize);
 
-    free(fName); fName = NULL;
+    //free(fname); fname = NULL;
 }
 
 int save_count_data(const char *fname, const char *header, double t,
                     double count, unsigned red, unsigned green, unsigned blue)
 {
     FILE *fptr;
+    struct stat buffer;
+    bool fileExists = (stat(fname, &buffer) == 0);
 
     if (!(fptr = fopen(fname, "a"))) {
-        fprintf(stderr, "Error opening %s\n", fname);
+        fprintf(stderr, "Error opening %s.\n", fname);
         return 1;
     }
 
-    if (header != NULL && t == 0) fprintf(fptr, "%s", header);
+    if (header != NULL && !fileExists) fprintf(fptr, "%s", header);
 
     fprintf(fptr, "%g\t%g\t%d\n", t, count, 65536 * red + 256 * green + blue);
 
     fclose(fptr);
 
     return 0;
+}
+
+void update_avg_data(unsigned i, const char *fname, unsigned ticks, double totalValue,
+                     double mutatedValue, double nonMutatedValue, dim3 color)
+{
+    char tempName[100] = { '\0' };
+
+    sprintf(tempName, "%s.data", fname);
+    save_count_data(tempName, "# t avg color\n", ticks, totalValue,
+                    color.x, color.y, color.z);
+    if (i == EMPTY) {
+        // Mutated Cells
+        sprintf(tempName, "%s_Mutated.data", fname);
+        save_count_data(tempName, "# t avg color\n", ticks,
+                        mutatedValue, 0, 0, 0);
+        // Non-Mutated Cells
+        sprintf(tempName, "%s_Non-Mutated.data", fname);
+        save_count_data(tempName, "# t avg color\n", ticks,
+                        nonMutatedValue, 0, 0, 0);
+    }
 }
 
 #endif // __OUTPUT_FUNCTIONS_H__
