@@ -64,12 +64,12 @@ $\overline{\tau}(\boldsymbol{x}, t{+}1) {=} 0$, $\overline{n}(\boldsymbol{x}, t{
 
 The final aspect of the cell that is tracked and represented in the overall cell state is the age of the cell, $\alpha(\boldsymbol{x}, t) {\in} \mathbb{N}$. The state of a cell in the CA is given by the vector
 \begin{align}
-\boldsymbol{S}(\boldsymbol{x}, t) {=} [ s(\boldsymbol{x}, t), %(\text{cell class}), 
-                                        \alpha(\boldsymbol{x}, t), %(\text{age}),
-                                        \boldsymbol{E}(\boldsymbol{x}, t), %(\text{gene expression}), \nonumber \\ 
-                                        \boldsymbol{P}(\boldsymbol{x}, t), %(\text{phenotypic action}),
-                                        \overline{\tau}(\boldsymbol{x}, t), %(\text{TAC indicator}), \label{eq:StateVector} \\
-                                        \overline{n}(\boldsymbol{x}, t) ] %(\text{\# cells a TAC lineage has produced}) ]. \nonumber
+\boldsymbol{S}(\boldsymbol{x}, t) {=} [ s(\boldsymbol{x}, t), 
+                                        \alpha(\boldsymbol{x}, t),
+                                        \boldsymbol{E}(\boldsymbol{x}, t),
+                                        \boldsymbol{P}(\boldsymbol{x}, t),
+                                        \overline{\tau}(\boldsymbol{x}, t),
+                                        \overline{n}(\boldsymbol{x}, t) ]
 \label{eq:StateVector}
 \end{align}
 
@@ -163,68 +163,6 @@ e_j(\boldsymbol{x}, t) {=} e_j(\boldsymbol{x}, t{-}1) {+}
 where $\varepsilon {\sim} U(\varepsilon_1, \varepsilon_2)$ is a random increment.  
 In a given time-step the previous function \eqref{eq:geneExpressionFixer} is applied once to all $G$ genes.
 
-%\begin{tikzpicture}[node distance=0.525cm]
-%\node (start) [startstop] {\scriptsize Start};
-%\node (pro1) [process, below=of start] {\scriptsize $\hat{M} {=} 1$};
-%\node (loop1) [circle, fill, inner sep=0.025cm, below=of pro1] {};
-%\node (dec1) [decision, below left=of loop1] {\scriptsize $\hat{M} {\le} G$};
-%\node (pro2) [process, below=of dec1] {\scriptsize $z_1 {\sim} Z(0, 1)$, $\varpi_1 {\sim} V(\chi, \psi)$};
-%\node (end) [startstop, below left=of dec1] {\scriptsize End};
-%\node (dec2) [decision, below right=of pro2] {\scriptsize $\Psi(\boldsymbol{x}, t{-}1, \hat{M}) {\ne} 0$ \& $z_1 {\le} \overline{\phi}$};
-%\node (dec3) [decision, below=of dec2] {\scriptsize $|\Psi(\boldsymbol{x}, t{-}1, \hat{M})| {=} 1$};
-%\node (pro3) [process, below left=of dec3] {\scriptsize $E_{\hat{M}}(\boldsymbol{x}, t) {+}{=} \varpi_1$};
-%\node (pro4) [process, below right=of dec3] {\scriptsize $E_{\hat{M}}(\boldsymbol{x}, t) {-}{=} \varpi_1$};
-%\node (pro5) [process, below right=of pro3] {\scriptsize $m {=} 1$};
-%\node (loop2) [circle, fill, inner sep=0.025cm, below=of pro5] {};
-%\node (dec4) [decision, below=of loop2] {\scriptsize $m {\le} G$};
-%\node (pro6) [process, below right=of dec4] {\scriptsize $\hat{M}{+}{+}$};
-%\node (dec5) [decision, below left=of dec4] {\scriptsize $R_{\hat{M}m} {=} 1$};
-%\node (pro7) [process, below right=of dec5] {\scriptsize $z_2 {\sim} Z(0, 1)$, $\varpi_2 {\sim} V(\chi, \psi)$};
-%\node (dec6) [decision, below=of pro7] {\scriptsize$\Psi(\boldsymbol{x}, t{-}1, \hat{M}) {>} 0$ \& $z_2 {\le} \overline{\gamma}$};
-%\node (dec7) [decision, below=of dec6] {\scriptsize $T_m {=} 0$};
-%\node (pro8) [process, below right=of dec7] {\scriptsize $E_m(\boldsymbol{x}, t) {+}{=} \varpi_2$};
-%\node (pro9) [process, below left=of dec7] {\scriptsize $E_m(\boldsymbol{x}, t) {-}{=} \varpi_2$};
-%\node (dec8) [decision, below=of dec7, yshift=-0.5cm] {\scriptsize $\Psi(\boldsymbol{x}, t{-}1, \hat{M}) {\le} 0$ \& $E_m(\boldsymbol{x}, t{-}1) {\ne} 0$ \& $z_2 {\le} \overline{\gamma}$};
-%\node (dec9) [decision, below=of dec8] {\scriptsize $E_m(\boldsymbol{x}, t{-}1) {<} 0$};
-%\node (pro10) [process, below left=of dec9] {\scriptsize $E_m(\boldsymbol{x}, t) {+}{=} \varpi_2$};
-%\node (pro11) [process, below right=of dec9] {\scriptsize $E_m(\boldsymbol{x}, t) {-}{=} \varpi_2$};
-%\node (pro12) [process, below=of dec9, yshift=-0.5cm] {\scriptsize $m{+}{+}$};
-
-%\draw [arrow] (start) -- (pro1);
-%\draw [thick] (pro1) -- (loop1);
-%\draw [arrow] (loop1) -- (dec1);
-%\draw [arrow] (dec1) -- node[anchor=north] {\scriptsize no} (end);
-%\draw [arrow] (dec1) -- node[anchor=west] {\scriptsize yes} (pro2);
-%\draw [arrow] (pro2) -- (dec2);
-%\draw [arrow] (dec2) -- node[anchor=west] {\scriptsize yes} (dec3);
-%\draw [arrow] (dec2) +(-3.6, 0) -- ++(-6.5, 0) -- node[anchor=east] {\scriptsize no} ++(0, -3.75) -- (pro5);
-%\draw [arrow] (dec3) -- node[pos=0.25, below] {\scriptsize yes} (pro3);
-%\draw [arrow] (dec3) -- node[pos=0.25, below] {\scriptsize no} (pro4);
-%\draw [arrow] (pro3) -- (pro5);
-%\draw [arrow] (pro4) -- (pro5);
-%\draw [thick] (pro5) -- (loop2);
-%\draw [arrow] (loop2) -- (dec4);
-%\draw [arrow] (dec4) -- node[pos=0.15, below] {\scriptsize yes} (dec5);
-%\draw [arrow] (dec4) -- node[pos=0.25, below] {\scriptsize no} (pro6);
-%\draw [arrow] (dec5) -- node[pos=0.25, below] {\scriptsize yes} (pro7);
-%\draw [arrow] (dec5) +(-3.6, 0) -- ++(-4, 0) -- node[anchor=east] {\scriptsize no} ++(0, -10.5) -- (pro12);
-%\draw [arrow] (pro6) +(1.85, 0) -- ++(2.25, 0) -- ++(0, 9.75) -- (loop1);
-%\draw [arrow] (pro7) -- (dec6);
-%\draw [arrow] (dec6) -- node[anchor=west] {\scriptsize yes} (dec7);
-%\draw [arrow] (dec6) +(-3.6, 0) -- ++(-6, 0) -- node[anchor=east] {\scriptsize no} ++(0, -4.2) -- (dec8);
-%\draw [arrow] (dec7) --node[pos=0.25, below] {\scriptsize no} (pro8);
-%\draw [arrow] (dec7) --node[pos=0.25, below] {\scriptsize yes} (pro9);
-%\draw [arrow] (pro8) -- (dec8);
-%\draw [arrow] (pro9) -- (dec8);
-%\draw [arrow] (dec8) --node[anchor=west] {\scriptsize yes} (dec9);
-%\draw [arrow] (dec8) +(5.2, 0) -- ++(6.125, 0) -- node[anchor=west] {\scriptsize no} ++(0, -3.8) -- (pro12);
-%\draw [arrow] (dec9) --node[pos=0.25, below] {\scriptsize yes} (pro10);
-%\draw [arrow] (dec9) --node[pos=0.25, below] {\scriptsize no} (pro11);
-%\draw [arrow] (pro10) -- (pro12);
-%\draw [arrow] (pro11) -- (pro12);
-%\draw [arrow] (pro12) +(0, -0.25) -- ++(0, -0.5) -- ++(-9, 0) -- ++(0, 13) -- (loop2);
-%\end{tikzpicture}
-
 \subsubsection{Update Rules for Phenotypic Action}
 The probability of a phenotypic action occurring can change at each time-step based upon the gene expression of a gene. When a gene is mutated it can modify the probability of a phenotypic action occurring, $P_i(\boldsymbol{x}, t)$.
 We define the matrix $\overline{U} {\in} \mathbb{R}^{4{\times}G}$, where each entry, 
@@ -303,101 +241,6 @@ We define the functional $\overline{P}^j(\boldsymbol{x}, t, i)$ where $i$ is the
 phenotypic action being modified using \eqref{eq:phenotypeMutate} and 
 \eqref{eq:phenotypeMutateBalance} with respect to gene $j$. Thus the update can be written as 
 $P_i(\boldsymbol{x}, t) = \overline{P}^1(\overline{P}^2(...\overline{P}^G(\boldsymbol{x}, t, i)))$, where in each step we re-sample random variables $z,\varpi$ as described above. 
-
-%\begin{tikzpicture}[node distance=0.6cm]
-%\node (start) [startstop] {\scriptsize $\Xi(\epsilon, \xi)$};
-%\node (dec1) [decision, below=of start] {\scriptsize $\xi {+} \epsilon {\le} 0$};
-%\node (out1) [io, below left=of dec1] {\scriptsize ${-}\xi {\times} 0.99$};
-%\node (dec2) [decision, below right=of dec1] {\scriptsize $\xi {+} \epsilon {\ge} 1$};
-%\node (out2) [io, below left=of dec2] {\scriptsize $(1 {-} \xi) {\times} 0.99$};
-%\node (out3) [io, below right=of dec2] {\scriptsize $\xi$};
-
-%\draw [arrow] (start) -- (dec1);
-%\draw [arrow] (dec1) -- node[pos=0, below] {\scriptsize yes} (out1);
-%\draw [arrow] (dec1) -- node[pos=0, below] {\scriptsize no} (dec2);
-%\draw [arrow] (dec2) -- node[pos=0, below] {\scriptsize yes} (out2);
-%\draw [arrow] (dec2) -- node[pos=0, below] {\scriptsize no} (out3);
-%\end{tikzpicture}
-
-%\begin{tikzpicture}[node distance=0.5cm]
-%\node (start) [startstop] {\scriptsize adjustPhenotype(i, $\epsilon$)};
-%\node (dec1) [decision, below=of start] {\scriptsize $i {\ne} 2$};
-%\node (pro1) [process, text width=6.45cm, below left=of dec1] {\scriptsize $P_i(\boldsymbol{x}, t) {+}{=} \frac{\epsilon}{\epsilon} \min(|\Xi(\epsilon, P_i(\boldsymbol{x}, t))|, |\Xi({-}\epsilon, P_2(\boldsymbol{x}, t))|)$};
-%\node (pro2) [process, text width=6.45cm, below=of pro1] {\scriptsize $P_2(\boldsymbol{x}, t) {-}{=} \frac{\epsilon}{\epsilon} \min(|\Xi(\epsilon, P_i(\boldsymbol{x}, t))|, |\Xi({-}\epsilon, P_2(\boldsymbol{x}, t))|)$};
-%\node (pro3) [process, text width=4.6cm, below right=of dec1] {\scriptsize $P_2(\boldsymbol{x}, t) {+}{=} \Xi(\epsilon, P_2(\boldsymbol{x}, t))$};
-%\node (pro4) [process, text width=4.6cm, below=of pro3] {\scriptsize $S {=} P_1(\boldsymbol{x}, t) {+} P_3(\boldsymbol{x}, t) {+} P_4(\boldsymbol{x}, t)$};
-%\node (pro5) [process, text width=4.6cm, below=of pro4] {\scriptsize $P_1(\boldsymbol{x}, t) {-}{=} \Xi(\epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_1(\boldsymbol{x}, t)}{S} \right)$,
-%                                                         $P_3(\boldsymbol{x}, t) {-}{=} \Xi(\epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_3(\boldsymbol{x}, t)}{S} \right)$,
-%                                                         $P_4(\boldsymbol{x}, t) {-}{=} \Xi(\epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_4(\boldsymbol{x}, t)}{S} \right)$};
-%\node (end) [startstop, below=of start, yshift=-3.95cm] {\scriptsize End};
-
-%\draw [arrow] (start) -- (dec1);
-%\draw [arrow] (dec1) -- node[pos=0.1, below] {\scriptsize yes} (pro1);
-%\draw [arrow] (dec1) -- node[pos=0.1, below] {\scriptsize no} (pro3);
-%\draw [arrow] (pro1) -- (pro2);
-%\draw [arrow] (pro3) -- (pro4);
-%\draw [arrow] (pro4) -- (pro5);
-%\draw [arrow] (pro2) -- (end);
-%\draw [arrow] (pro5) -- (end);
-%\end{tikzpicture}
-
-%\begin{tikzpicture}[node distance=0.525cm]
-%\node (start) [startstop] {\scriptsize Start};
-%\node (pro1) [process, below=of start] {\scriptsize $M {=} 1$};
-%\node (loop1) [circle, fill, inner sep=0.025cm, below=of pro1] {};
-%\node (dec1) [decision, below left=of loop1] {\scriptsize $M {\le} G$};
-%\node (end) [startstop, below left=of dec1] {\scriptsize End};
-%\node (pro2) [process, below=of dec1] {\scriptsize $i {=} 1$};
-%\node (loop2) [circle, fill, inner sep=0.025cm, below left=of pro2] {};
-%\node (dec2) [decision, below right=of loop2] {\scriptsize $i {\le} 4$};
-%\node (dec3) [decision, below left=of dec2] {\scriptsize $\Psi(\boldsymbol{x}, t, M) {=} 0$};
-%\node (pro3) [process, below right=of dec2] {\scriptsize $M{+}{+}$};
-%\node (pro4) [process, below=of dec3] {\scriptsize $\epsilon {=} \overline{D}_{iM}$};
-%\node (dec4) [decision, below=of pro4] {\scriptsize $|\Psi(\boldsymbol{x}, t, M)| {=} 2$};
-%\node (pro5) [process, below left=of dec4] {\scriptsize $\epsilon {=} \overline{U}_{iM}$};
-%\node (pro6) [process, below right=of dec4] {\scriptsize $z {\sim} Z(0, 1)$};
-%\node (dec5) [decision, below left=of pro6] {\scriptsize $z {\le} \overline{\rho}$};
-%\node (pro7) [process, below right=of dec5] {\scriptsize $\varpi {\sim} Z(0, 1)$};
-%\node (pro8) [process, below=of pro7] {\scriptsize adjustPhenotype($i$, $\epsilon \varpi$)};
-%\node (dec6) [decision, below left=of pro7] {\scriptsize $i {\ne} 2$};
-%\node (pro8) [process, text width=7.75cm, below=of dec6] {\scriptsize $P_i(\boldsymbol{x}, t) {+}{=} \text{sgn}(\varpi \epsilon) \min(|\Xi(\varpi \epsilon, P_i(\boldsymbol{x}, t))|, |\Xi({-} \varpi \epsilon, P_2(\boldsymbol{x}, t))|)$};
-%\node (pro9) [process, text width=7.75cm, below=of pro8] {\scriptsize $P_2(\boldsymbol{x}, t) {-}{=} \text{sgn}(\varpi \epsilon) \min(|\Xi(\varpi \epsilon, P_i(\boldsymbol{x}, t))|, |\Xi({-} \varpi \epsilon, P_2(\boldsymbol{x}, t))|)$};
-%\node (pro10) [process, text width=4.6cm, below right=of dec6, xshift=2.25cm] {\scriptsize $P_2(\boldsymbol{x}, t) {+}{=} \Xi(\varpi \epsilon, P_2(\boldsymbol{x}, t))$};
-%\node (pro11) [process, text width=4.6cm, below=of pro10] {\scriptsize $S {=} P_1(\boldsymbol{x}, t) {+} P_3(\boldsymbol{x}, t) {+} P_4(\boldsymbol{x}, t)$};
-%\node (pro12) [process, text width=5cm, below=of pro11] {\scriptsize $P_1(\boldsymbol{x}, t) {-}{=} \Xi(\varpi \epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_1(\boldsymbol{x}, t)}{S} \right)$,
-%	$P_3(\boldsymbol{x}, t) {-}{=} \Xi(\varpi \epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_3(\boldsymbol{x}, t)}{S} \right)$,
-%	$P_4(\boldsymbol{x}, t) {-}{=} \Xi(\varpi \epsilon, P_2(\boldsymbol{x}, t)) \left (\frac{P_4(\boldsymbol{x}, t)}{S} \right)$};
-%\node (pro13) [process, below left=of pro12] {\scriptsize $i{+}{+}$};
-
-%\draw [arrow] (start) -- (pro1);
-%\draw [thick] (pro1) -- (loop1);
-%\draw [arrow] (loop1) -- (dec1);
-%\draw [arrow] (dec1) -- node[pos=0.25, below] {\scriptsize no} (end);
-%\draw [arrow] (dec1) -- node[anchor=west] {\scriptsize yes} (pro2);
-%\draw [thick] (pro2) -- (loop2);
-%\draw [arrow] (loop2) -- (dec2);
-%\draw [arrow] (dec2) -- node[pos=0.05, below] {\scriptsize yes} (dec3);
-%\draw [arrow] (dec2) -- node[pos=0.125, below] {\scriptsize no} (pro3);
-%\draw [arrow] (pro3) +(0, 0.25) -- ++(0, 4.3) -- (loop1);
-%\draw [arrow] (dec3) +(0, 0.56) -- node[pos=0.5, left] {\scriptsize yes} ++(0, 1.625) -- (loop2);
-%\draw [arrow] (dec3) -- node[anchor=west] {\scriptsize no} (pro4);
-%\draw [arrow] (pro4) -- (dec4);
-%\draw [arrow] (dec4) -- node[pos=0.05, below] {\scriptsize yes} (pro5);
-%\draw [arrow] (dec4) -- node[pos=0.125, below] {\scriptsize no} (pro6);
-%\draw [arrow] (pro5) -- (pro6);
-%\draw [arrow] (pro6) -- (dec5);
-%\draw [arrow] (dec5) -- node[pos=0.25, below] {\scriptsize yes} (pro7);
-%\draw [arrow] (dec5) +(-3.4, 0) -- ++(-4.5, 0) -- node[anchor=east] {\scriptsize no} ++(0, -5) -- (pro13);
-%\draw [arrow] (pro7) -- (dec6);
-%\draw [arrow] (dec6) -- node[anchor=west] {\scriptsize yes} (pro8);
-%\draw [arrow] (dec6) -- node[pos=0.1, below] {\scriptsize no} (pro10);
-%\draw [arrow] (pro8) -- (pro9);
-%\draw [arrow] (pro10) -- (pro11);
-%\draw [arrow] (pro11) -- (pro12);
-%\draw [arrow] (pro9) +(1.5, -0.29) -- ++(1.5, -2.52);
-%\draw [arrow] (pro12) -- (pro13);
-%\draw [arrow] (pro13) +(-1.86, 0) -- ++(-8.25, 0) -- ++(0, 13.5) -- (loop2);
-%\end{tikzpicture}
 
 \begin{lemma}
 Let $P_l(\boldsymbol{x}, t{-}1) {\in} (0, 1), l {=} 1, 2, 3, 4$ and 
