@@ -247,11 +247,11 @@ Since the coefficients in $L_{\boldsymbol{\hat{x}}}$ and $\Gamma_{\boldsymbol{\h
 \begin{align}
 H_1 &{=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} G_{y_2} |_{y_1{=}0},
 \label{eq:H1}\\
-H_2 &{=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} {-}G_{y_2} |_{y_1{=}L},
+H_2 &{=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} {-}G_{y_2} |_{y_1{=}\frac{L}{x_c}},
 \label{eq:H2}\\
 H_3 & {=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} G_{y_1} |_{y_2{=}0},
 \label{eq:H3}\\
-H_4 &{=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} {-}G_{y_1} |_{y_2{=}M}
+H_4 &{=} {-}\sum_{i,j{=}1}^{2} \overline{a}_{ij}(\boldsymbol{y}, \tau) N_j G_{y_i} {=} {-}(N_1 G_{y_1} {+} N_2 G_{y_2}) {=} {-}G_{y_1} |_{y_2{=}\frac{M}{x_c}}
 \label{eq:H4}.
 \end{align}
 Next we solve for Green's function via the IBVP \eqref{eq:Greens_func_pde}-\eqref{eq:Greens_func_bc} which can be written as
@@ -473,7 +473,7 @@ G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) &{=} \frac{4 x_c^2}{LM} 
 Therefore the solution of the IBVP \eqref{eq:DimensionlessPDE}-\eqref{eq:DimensionlessIC} is
 \begin{align}
 \hat{c}(\boldsymbol{\hat{x}}, \hat{t}) &{=} \int_{0}^{\hat{t}} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} \hat{F}(\boldsymbol{y}, \tau) G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dS_y d\tau \nonumber\\
-               &{+} \frac{f_c D}{F_c x_c^2} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} f(\boldsymbol{y}) G(\boldsymbol{x}, \boldsymbol{y}, t) dS_y \nonumber\\
+               &{+} \frac{f_c D}{F_c x_c^2} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} f(\boldsymbol{y}) G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}) dS_y \nonumber\\
                &{+} \frac{g_c^{(1)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{M}{x_c}} \hat{g_1}(y_2, \tau) H_1(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_2 d\tau \label{eq:carcin_sol}\\
                &{+} \frac{g_c^{(2)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{M}{x_c}} \hat{g_2}(y_2, \tau) H_2(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_2 d\tau \nonumber\\
                &{+} \frac{g_c^{(3)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{L}{x_c}} \hat{g_3}(y_1, \tau) H_3(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_1 d\tau \nonumber\\
@@ -496,8 +496,10 @@ g_c^{(3)} &{=} \max_{x_1, t} | g_3(x_1, t) |, g_c^{(4)} {=} \max_{x_1, t} | g_1(
 \tag{\ref{eq:characteristicBC2}}\\
 f_c &{=} \max_{\boldsymbol{x}} | f(\boldsymbol{x}) |,
 \tag{\ref{eq:characteristicIC}}\\
-x_c &{=} \max(L, M).
-\tag{\ref{eq:characteristicSpaceVar}}
+x_c &{=} \max(L, M),
+\tag{\ref{eq:characteristicSpaceVar}}\\
+t_c &{=} \frac{x_c^2}{D}.
+\tag{\ref{eq:characteristicTime}}
 \end{align}
 
 When considering $C {>} 1$ carcinogens each carcinogen evolves using the same PDE model described above with each solution and the parameters of the model being distinguished by an index $i {=} 1, ..., C$.
