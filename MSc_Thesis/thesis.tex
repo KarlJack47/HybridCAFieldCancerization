@@ -30,6 +30,7 @@
 \graphicspath{{\main/images/}}
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows, positioning}
+\tikzstyle{arrow}     = [thick,->,>=stealth]
 \usepackage{enumitem}   % for more control over enumerate
 \usepackage{mdwlist}	% compact lists and the 'note' environment
 \usepackage{xspace}
@@ -42,24 +43,6 @@
 \usepackage{\main/uathesis}
 \definecolor{hillencolor}{rgb}{0.30,0.03,0.66}
 \definecolor{edits}{rgb}{0.13, 0.55, 0.13}
-%%%%%%%%%%%%%%%%%%%%%%
-% tikzstyle commands %
-%%%%%%%%%%%%%%%%%%%%%%
-\tikzstyle{startstop} = [rectangle, rounded corners,
-                         minimum width=2cm, minimum height=0.5cm,
-                         text centered, draw=black, 
-                         fill=red!30]
-\tikzstyle{io}        = [trapezium, trapezium left angle=70, trapezium right angle=110,
-                         minimum width=2cm, minimum height=0.5cm,
-                         text centered, draw=black, text width=2cm, 
-                         fill=blue!30]
-\tikzstyle{process}   = [rectangle, minimum width=0.5cm, minimum height=0.5cm,
-                         text centered, draw=black, text width=3.47cm,
-                         fill=orange!30]
-\tikzstyle{decision}  = [diamond, aspect=6,
-                         text centered, draw=black, text width=3.5cm,
-                         fill=green!30]
-\tikzstyle{arrow}     = [thick,->,>=stealth]
 
 %%%%%%%%%%%%%%%
 % biblatex    %
