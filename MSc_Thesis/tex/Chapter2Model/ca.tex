@@ -174,7 +174,7 @@ an increment to the probability of phenotype action $i$, $P_i(\boldsymbol{x}, t)
 $\sum_{i{=}1}^{4} P_i(\boldsymbol{x}, t) {=} 1$. 
 
 The sum of the phenotype vector equaling one is maintained by balancing the probability of 
-each phenotype action against the probability of quiescence and quiescence equally against all the other phenotypic actions. Note that usually $\overline{U}{=}{-}\overline{D}$ since the effects of the up-regulation of a gene $j$ has the opposite effect on the phenotypic action $i$ relative to the down-regulation of the gene. For each update we choose a random sample $\varpi {\sim} U(0, 1)$ which denotes the magnitude of the change to $P_{i, k}$ based on a change in $e_j$. To ensure that updates remain between $0$ and $1$ we use the following modified expression for the increment:
+each phenotype action against the probability of quiescence and quiescence equally against all the other phenotypic actions. Note that usually $\overline{U}{=}{-}\overline{D}$ since the effects of the up-regulation of a gene $j$ has the opposite effect on the phenotypic action $i$ relative to the down-regulation of the gene. For each update we choose a random sample $\varpi {\sim} U(0, 1)$ which denotes the magnitude of the change to $P_i$ based on a change in $e_j$. To ensure that updates remain between $0$ and $1$ we use the following modified expression for the increment:
 \begin{equation}
 \Xi(\epsilon, \xi) {=} \begin{cases}
                           {-}\xi {\times} 0.99,
