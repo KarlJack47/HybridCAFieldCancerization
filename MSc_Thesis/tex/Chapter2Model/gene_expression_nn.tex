@@ -23,7 +23,7 @@ certain number of its inputs is active. They showed that even with this seemingl
 
 Another simple ANN architecture was invented by Frank Rosenblatt in 1957 that was called the Perceptron. It was based upon an artificial neuron called a linear threshold unit (LTU) in which the inputs and output are now real numbers instead of binary on/off values and each input connection is associated with a weight. The LTU computes a weighted sum of its inputs $z {=} \boldsymbol{w}^T {\cdot} \boldsymbol{x}$, then applies a step function to that sum and outputs the result: 
 $h_{\boldsymbol{w}}(\boldsymbol{x}) {=} \text{step}(z) {=} \text{step}(\boldsymbol{w}^T {\cdot} \boldsymbol{x})$, reference Figure \ref{fig:LTU} for a visual representation.
-\begin{figure}
+\begin{figure}[H]
 \begin{center}
 \begin{tikzpicture}[node distance=0.4cm]
 \node (x1) {\scriptsize $x_1$};
@@ -57,7 +57,7 @@ $h_{\boldsymbol{w}}(\boldsymbol{x}) {=} \text{step}(z) {=} \text{step}(\boldsymb
 The most common step function used in Perceptrons is the Heaviside step function although sometimes the sign function is used in its place. A single LTU is typically used for linear binary classification as it computes a linear combination of the inputs and outputs the positive or negative class dependent on whether the inputs exceed some threshold.
 
 A Perceptron is composed of a single layer of LTUs, with each LTU connected to all the inputs, see Figure \ref{fig:Perceptron} for a visual representation.
-\begin{figure}
+\begin{figure}[H]
  	\begin{center}
  		\begin{tikzpicture}[node distance=2cm]
  		\node (x1) {\scriptsize $x_1$};
@@ -121,7 +121,7 @@ Perceptrons make predictions based off some threshold, thus they do not output a
 
 A Multi-Layer Perceptron (MLP) is composed of one input layer, one or more layers of LTUs called hidden layers, and one final layer of LTUs called the output layer, an example MLP can be seen in Figure \ref{fig:MLPExample}. The input and hidden layers have a bias neuron and are fully connected to the next layer, meaning each output node of one layer is connected to every node of the input of the next layer. Note that when an ANN has two or more hidden layers, it is called a deep neural network (DNN).
 
- \begin{figure}
+ \begin{figure}[H]
 	\begin{center}
 		\begin{tikzpicture}[node distance=2.75cm]
 		\node (x1) {\scriptsize $x_1$};
@@ -206,7 +206,7 @@ A Multi-Layer Perceptron (MLP) is composed of one input layer, one or more layer
 	\label{fig:MLPExample}
 \end{figure}
 
-To train, the weights for each LTU using training data, MLPs use an algorithm called back-propagation, which was created by \textcite{Rumelhart}. Back-propagation attempts to minimize the weights in a network so that the measure of the difference between the actual output and the networks output is minimized. The measure for the difference, typically called the loss function, is minimized by computing the gradient of the loss function with respect to each weight by chain rule, computing the gradient one layer at a time, starting at the last layer to avoid redundant calculations of intermediate terms in the chain rule. Gradients are used as it shows how much the input of a function needs to change to minimize the function. Since LTUs use step functions which are not differentiable everywhere \textcite{Rumelhart} replaced the step function with the logistic function, $\sigma(z) {=} \frac{1}{1 {+} \exp({-}z))}$. Many other functions can be used and are known as activation functions. Some examples of activation functions include the hyperbolic tangent function $\tanh(z) {=} 2\sigma(2z) {-} 1$ and the ReLU function $\text{ReLU}(z) {=} \max(0, z)$. 
+To train, the weights for each LTU using training data, MLPs use an algorithm called back-propagation, which was created by \textcite{Rumelhart}. Back-propagation attempts to minimize the weights in a network so that the measure of the difference between the actual output and the networks output is minimized. The measure for the difference, typically called the loss function, is minimized by computing the gradient of the loss function with respect to each weight by chain rule, computing the gradient one layer at a time, starting at the last layer to avoid redundant calculations of intermediate terms in the chain rule. Gradients are used as it shows how much the input of a function needs to change to minimize the function. Since LTUs use step functions which are not differentiable everywhere \textcite{Rumelhart} replaced the step function with the logistic function, $\sigma(z) {=} \frac{1}{1 {+} \exp({-}z)}$. Many other functions can be used and are known as activation functions. Some examples of activation functions include the hyperbolic tangent function $\tanh(z) {=} 2\sigma(2z) {-} 1$ and the ReLU function $\text{ReLU}(z) {=} \max(0, z)$. 
 
 An MLP is typically used for classification, where each output corresponds to the log likelihood of a different class. The probability that the input belongs to class $k$ can be estimated by computing the exponential of every log likelihood, and normalizing them. The probabilities are thus given by:
 $$\hat{p}_k {=} \frac{\exp(s_k(\boldsymbol{x}))}{\sum_{j{=}1}^K \exp(s_j(\boldsymbol{x}))}.$$
