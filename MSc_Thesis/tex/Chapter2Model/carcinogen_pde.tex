@@ -472,8 +472,8 @@ G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) &{=} \frac{4 x_c^2}{LM} 
 \end{align}
 Therefore the solution of the IBVP \eqref{eq:DimensionlessPDE}-\eqref{eq:DimensionlessIC} is
 \begin{align}
-\hat{c}(\boldsymbol{\hat{x}}, \hat{t}) &{=} \int_{0}^{\hat{t}} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} \hat{F}(\boldsymbol{y}, \tau) G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dS_y d\tau \nonumber\\
-               &{+} \frac{f_c D}{F_c x_c^2} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} f(\boldsymbol{y}) G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}) dS_y \nonumber\\
+\hat{c}(\boldsymbol{\hat{x}}, \hat{t}) &{=} \int_{0}^{\hat{t}} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} \hat{F}(\boldsymbol{y}, \tau) G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_1 dy_2 d\tau \nonumber\\
+               &{+} \frac{f_c D}{F_c x_c^2} \int_{0}^{\frac{L}{x_c}} \int_{0}^{\frac{M}{x_c}} f(\boldsymbol{y}) G(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}) dy_1 dy_2 \nonumber\\
                &{+} \frac{g_c^{(1)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{M}{x_c}} \hat{g_1}(y_2, \tau) H_1(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_2 d\tau \label{eq:carcin_sol}\\
                &{+} \frac{g_c^{(2)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{M}{x_c}} \hat{g_2}(y_2, \tau) H_2(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_2 d\tau \nonumber\\
                &{+} \frac{g_c^{(3)} D}{F_c x_c^2} \int_{0}^{\hat{t}} \int_{0}^{\frac{L}{x_c}} \hat{g_3}(y_1, \tau) H_3(\boldsymbol{\hat{x}}, \boldsymbol{y}, \hat{t}{-}\tau) dy_1 d\tau \nonumber\\
