@@ -278,9 +278,9 @@ higher chance of gene expression changes relative to other genes. Note that if a
 value in the weight matrices is negative it means there is a negative relationship, 
 if it is positive it means there is a positive relationship, and finally if it is 
 zero it means there is no relationship. In the case of determining how age affects 
-each gene, the values of $W_{X}^{(i,C {+} 1)}, i {\in} [1, G]$ are random made 
+each gene, the values of $W_{X}^{(i,C {+} 1)}, i {\in} [1, G]$ are randomly made 
 positive or negative at every time-step based upon sampling from the uniform distribution and setting it 
-positive if the sample is less than 0.5 and negative otherwise. We randomly choose the direction cell age regulates gene expression because as a cell ages there are higher changes of gene replication errors, thus the direction will depend on the type of error.  
+positive if the sample is less than 0.5 and negative otherwise. We randomly choose the direction cell age regulates gene expression because as a cell ages there are higher changes of gene replication errors, thus the direction will depend on the type of error.
 
 Let U(0, 1) be the uniform distribution. The gene expression, $e_j(\boldsymbol{x}, t)$, of a gene is updated by
 \begin{equation}
