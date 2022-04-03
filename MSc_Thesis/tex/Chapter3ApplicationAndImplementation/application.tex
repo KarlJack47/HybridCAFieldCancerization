@@ -116,9 +116,9 @@ The value of $\phi$ was chosen to correspond with the maximum output value of th
 
 \subsection{CA Parameters}
 
-The initial seed is set such that the domain has the following breakdown of each cell type: $64.5 \%$ normal tissue cells (NTC; green), $6.5 \%$ normal stem cells (NSC; yellow), and $29 \%$ empty cells (white). The maximum number of TAC generations is given by $\Theta {=} 2$. The chance a cell moves when it is quiescent is $0.25$. The chance a tumour cell (TC; red) or cancer stem cell (CSC; purple) randomly kills another cell during movement, proliferation, or differentiation is $0.2$. The chance that an SC or MSC becomes a CSC is $2.5{\times}10^{\minus 6}$. The chance a non stem cell becomes a stem cell through dedifferentiation is $10^{\minus 4}$. If either there are no stem cells or there are at least six empty cells in the neighbourhood of a non stem cell, then the process of dedifferentiation will be attempted. When an excision is performed the number of neighbourhoods around a TC removed is two.
+The initial seed is set such that the domain has the following breakdown of each cell type: $64.5 \%$ normal tissue cells (NTC; green), $6.5 \%$ normal stem cells (NSC; yellow), and $29 \%$ empty cells (white). The maximum number of TAC generations is given by $\Theta {=} 2$. The chance a cell moves when it is quiescent is $0.25$. The chance a tumour cell (TC; red) or cancer stem cell (CSC; purple) randomly kills another cell during movement, proliferation, or differentiation is $0.2$. The chance that an SC or MSC becomes a CSC is $2.5{\times}10^{\minus 6}$. The chance a non stem cell becomes a stem cell through dedifferentiation is $10^{\minus 4}$. If either there are no stem cells or there are at least six empty cells in the neighbourhood of a non stem cell, then the process of dedifferentiation will be attempted. The threshold that has to be met for dedifferentiation to randomly occur is $10^{{\minus}4}$. When an excision is performed the number of neighbourhoods around a TC removed is two.
 
-\begin{table}
+\begin{table}[H]
 \centering
 \begin{tabular}{| c c c c c |}
 	\hline
@@ -196,7 +196,7 @@ Using Table \ref{table:genes} we can create the gene type vector, $\boldsymbol{T
 \end{equation}
 where 0 means the gene is a tumour-suppressor and 1 means it is an oncogene.
 
-\begin{table}
+\begin{table}[H]
 	\centering
 	\begin{tabular}{| c c |}
 		\hline
