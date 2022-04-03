@@ -331,13 +331,13 @@ int main(int argc, char *argv[])
     Wy[   MYC * nGenes +    RAS] =  0.01;
 
     // ethanol
-    diffusion[0] = 4.5590004e-2; // cm^2/h
-    influx[0] = 2.1755778; // microg/cm^3*h
-    outflux[0] = 0.0; // microg/cm^3*h
+    diffusion[0] = 2.18e-2; // cm^2/h
+    influx[0] = 2.009e-3; // g/cm^3*h
+    outflux[0] = 0.0; // g/cm^3*h
     // nicotine
-    diffusion[1] = 2.94875146e-2; // cm^2/h
-    influx[1] = 5.04734057e-2; // microg/cm^3*h
-    outflux[1] = 7.54113434e-3; // microg/cm^3*h
+    diffusion[1] = 1.56e-2; // cm^2/h
+    influx[1] = 7.01e-6; // g/cm^3*h
+    outflux[1] = 6.98e-6; // g/cm^3*h
     memset(ic, 0, maxNCarcin*dbl);
     memset(bc, 0, maxNCarcin*dbl);
 
