@@ -879,9 +879,9 @@ the following changes occur to the states of the parent and child cell upon prol
                      [ s(\boldsymbol{x}^{(p)}, t{-}1), 0,
                         \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
                        & , \overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1) {=} 1, \\
-                     \hspace{0.25cm} [ P_1(\boldsymbol{x}^{(p)}, t{-}1) {-} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\\
-                     \hspace{0.4cm}  P_2(\boldsymbol{x}^{(p)}, t{-}1) {+} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1))
-                       & \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) {=} \Theta \\
+                     \hspace{0.25cm} [ P_1(\boldsymbol{x}^{(p)}, t{-}1) {-} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),
+                     & \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) {=} \Theta \\
+                     \hspace{0.4cm}  P_2(\boldsymbol{x}^{(p)}, t{-}1) {+} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1)),\\
                        \hspace{0.4cm} P_3(\boldsymbol{x}^{(p)}, t{-}1), 
                        P_4(\boldsymbol{x}^{(p)}, t{-}1) ], 0, 0 ]
                     \end{cases}, \label{eq:ProliferationStateChange}
@@ -931,46 +931,24 @@ The following changes occur to the state of the cell at $\boldsymbol{x}^{(p)}$ u
 Assuming all the conditions for the phenotypic action to occur are met then the  
 following changes occur to the states of the parent and child cell upon differentiation:
 \begin{align}
-&\boldsymbol{S}(\boldsymbol{x}^{(p)}, t) {=} [ s(\boldsymbol{x}^{(p)}, t{-}1), 0, 
+\boldsymbol{S}(\boldsymbol{x}^{(p)}, t) &{=} [ s(\boldsymbol{x}^{(p)}, t{-}1), 0, 
                                                \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
                                                \label{eq:DifferentiationStateChangeParent}\\
-                                               &\hspace{2cm} \boldsymbol{P}(\boldsymbol{x}^{(p)}, t{-}1), \overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1), 
+                                               &\hspace{0.4cm} \boldsymbol{P}(\boldsymbol{x}^{(p)}, t{-}1), \overline{\tau}(\boldsymbol{x}^{(p)}, t{-}1), 
                                                \overline{n}(\boldsymbol{x}^{(p)}, t{-}1) ]
 \nonumber\\
-&\boldsymbol{S}(\boldsymbol{x}^{(c)}, t) {=} \begin{cases}
-                     [ 0 (\text{{\footnotesize NTC}}), 0, 
-                       \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
-                       &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 2 (\text{{\footnotesize NSC}})\\
-                     \hspace{0.1cm}[ P_1(\boldsymbol{x}^{(p)}, t{-}1) \\
-                     \hspace{0.35cm} {+} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\\
-                     \hspace{0.25cm} P_2(\boldsymbol{x}^{(p)}, t{-}1) \\
-                     \hspace{0.35cm} {-} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1)),\\
-                     \hspace{0.25cm} P_3(\boldsymbol{x}^{(p)}, t{-}1),
-                                     P_4(\boldsymbol{x}^{(p)}, t{-}1) ],\\
-                     \hspace{0.1cm} 1, 0 ] \\
-                     \\
-                     [ 1 (\text{{\footnotesize MNTC}}), 0, 
-                       \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
-                       &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 3 (\text{{\footnotesize MNSC}})\\
-                     \hspace{0.1cm} [ P_1(\boldsymbol{x}^{(p)}, t{-}1) \\
-                     \hspace{0.35cm} {+} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\\
-                     \hspace{0.25cm} P_2(\boldsymbol{x}^{(p)}, t{-}1) \\
-                     \hspace{0.35cm} {-} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1)),\\
-                     \hspace{0.25cm} P_3(\boldsymbol{x}^{(p)}, t{-}1),
-                                     P_4(\boldsymbol{x}^{(p)}, t{-}1) ],\\
-                     \hspace{0.1cm}  1, 0 ] \\
-                     \\
-                     [ 5 (\text{{\footnotesize TC}}), 0, 
-                       \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1),
-                       &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 4 (\text{{\footnotesize CSC}})\\
-                     \hspace{0.1cm} [ P_1(\boldsymbol{x}^{(p)}, t{-}1) \\
-                     \hspace{0.35cm} {+} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\\
-                     \hspace{0.25cm} P_2(\boldsymbol{x}^{(p)}, t{-}1) \\
-                     \hspace{0.35cm} {-} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1)),\\
-                     \hspace{0.25cm} P_3(\boldsymbol{x}^{(p)}, t{-}1),
-                                     P_4(\boldsymbol{x}^{(p)}, t{-}1) ],\\
-                     \hspace{0.1cm}  1, 0 ]
-                    \end{cases}\label{eq:DifferentiationStateChangeChild},
+\overline{\Sigma}(\boldsymbol{x}^{(p)}, t) &{=} \begin{cases}
+	0 (\text{{\footnotesize NTC}}) &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 2 (\text{{\footnotesize NSC}})\\
+    1 (\text{{\footnotesize MNTC}}) &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 3 (\text{{\footnotesize MNSC}})\\
+    5 (\text{{\footnotesize TC}}) &, s(\boldsymbol{x}^{(p)}, t{-}1) {=} 4 (\text{{\footnotesize CSC}})
+  \end{cases} \label{eq:SCChildIndicatorFunction}\\
+\boldsymbol{S}(\boldsymbol{x}^{(c)}, t) &{=} 
+                     [ \overline{\Sigma}(\boldsymbol{x}^p, t), 0, 
+                       \boldsymbol{E}(\boldsymbol{x}^{(p)}, t{-}1), \label{eq:DifferentiationStateChangeChild}\\
+                       &\hspace{0.4cm} [ P_1(\boldsymbol{x}^{(p)}, t{-}1) {+} \Xi(\omega, P_1(\boldsymbol{x}^{(p)}, t{-}1)),\nonumber\\
+                       &\hspace{0.4cm} P_2(\boldsymbol{x}^{(p)}, t{-}1) {-} \Xi(\omega, P_2(\boldsymbol{x}^{(p)}, t{-}1)),\nonumber \\
+                       &\hspace{0.4cm} P_3(\boldsymbol{x}^{(p)}, t{-}1), P_4(\boldsymbol{x}^{(p)}, t{-}1) ], 1, 0 ]
+\nonumber,
 \end{align}
 where $\omega {\in} \mathbb{R}_+(0, 1)$ is the amount the probability of proliferation changes when 
 the cell is a TAC.
