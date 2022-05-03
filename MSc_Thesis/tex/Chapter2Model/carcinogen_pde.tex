@@ -157,8 +157,7 @@ g_c^{(3)} &{=} \max_{x_1, t} | g_3(x_1, t) |, g_c^{(4)} {=} \max_{x_1, t} | g_1(
 f_c &{=} \max_{\boldsymbol{x}} | f(\boldsymbol{x}) |.
 \tag{\ref{eq:characteristicIC}}
 \end{align*}
-Since the diffusion equation is a linear differential equation of the parabolic type then 
-we can solve the IBVP via the method of Green's Function as described by \textcite{Polyanin}. 
+Since the diffusion equation is a linear differential equation of the parabolic type then we can solve the IBVP via the method of Green's Function as described by \textcite{Polyanin}. 
 
 First let us go through the theory of solving a non-homogeneous linear differential 
 equation of the parabolic type in $n$ space variables of the form
@@ -194,8 +193,8 @@ The three main important forms of $\Gamma_{\boldsymbol{x}}$ include
 \item Neumann: $\Gamma_{\boldsymbol{x}}^{(k)}[u] {=} u_{M_x}$,
 \item Robin: $\Gamma_{\boldsymbol{x}}^{(k)}[u] {=} u_{M_x} {+} \overline{v}(\boldsymbol{x}, t)u$,
 \end{enumerate}
-where $u_{M_x} {=} \sum_{i, j {=} 1}^{n} \overline{a}_{ij}(\boldsymbol{x}, t) N_j G_{x_i}$ with 
-$\boldsymbol{N} {=} \{ N_1, ..., N_n \}$ being the unit outward normal to the surface $S_k, k {=} 1, ..., p$.
+where $u_{M_x} {=} \sum_{i, j {=} 1}^{n} \overline{a}_{ij}(\boldsymbol{x}, t) N_j G_{x_i}$ with $\boldsymbol{N} {=} \{ N_1, ..., N_n \}$ being the unit outward normal to the surface $S_k, k {=} 1, ..., p$.
+The boundary condition allows the carcinogen concentration to be influenced by some source at the boundary. A Dirichlet boundary condition is used in cases where it is known how the carcinogen concentration is distributed at the boundary. For example, it might be known that the surrounding tissue releases carcinogen at some fixed rate. Another possibility is that surrounding blood vessels or saliva release the carcinogen into the domain. A Neumann boundary condition is utilized when only the normal derivative of the carcinogen concentration at the boundary is known or in other words the flux of the carcinogen. It can be interpreted as the carcinogen concentration spatial distribution at the boundary changing at some known rate at each time-step. Biologically, this might be the carcinogen entering the domain via some porous medium. The Robin boundary condition is a linear combination of Dirichlet and Neumann conditions. Biologically, multiple sources would influence the carcinogen concentration at the boundary some of which would be constant and others that change the concentration spatial distribution at some rate.
 By the theory of Green's function the solution of the non-homogeneous linear boundary value problem defined by 
 \eqref{eq:parabolic_pde_eq}-\eqref{eq:bc_parabolic_pde} is given by
 \begin{align}
